@@ -15,11 +15,26 @@ int main (int argc, char* argv[]) {
 
 void dnn_test() {
 
-  mat data("data/data.mat");
-  mat target("data/target.mat");
+  vector<string> files;
+  ext::load(files, "data/autism.txt");
+
+  mat data(files[0]);
+  mat target(files[1]);
+  //mat data("data/data.mat");
+  //mat target("data/target.mat");
+  
+  size_t input_dim  = data.getCols();
+  size_t output_dim = target.getCols();
+  size_t nData	    = data.getRows();
+
+  printf("---------------------------------------------\n");
+  printf("  Number of input feature (data) %10lu \n", nData);
+  printf("  Dimension of  input feature    %10lu \n", input_dim);
+  printf("  Dimension of output feature    %10lu \n", output_dim);
+  printf("---------------------------------------------\n");
 
   vector<size_t> dims(4);
-  dims[0] = 15; dims[1] = 20; dims[2] = 30; dims[3] = 40;
+  dims[0] = input_dim; dims[1] = 20; dims[2] = 30; dims[3] = output_dim;
   vector<mat> O(4);
   std::vector<mat> gradient;
 
@@ -28,9 +43,10 @@ void dnn_test() {
   DNN dnn(dims);
 
   for (int itr=0; itr<16; ++itr) {
+    cout << "iteration " << itr << endl;
     dnn.feedForward(data, &O);
 
-    print(O);
+    // print(O);
 
     mat error = target - O.back();
     range (i, error.getRows())
