@@ -5,6 +5,7 @@ NVCC=nvcc -arch=sm_21 -w
 
 INCLUDE= -I include/ \
 	 -I /usr/local/boton/include/ \
+	 -I /share/Local/ \
  	 -isystem /usr/local/cuda/samples/common/inc/ \
 	 -isystem /usr/local/cuda/include
 
@@ -30,11 +31,14 @@ vpath %.cu src/
 OBJ=$(addprefix obj/,$(SOURCES:.cpp=.o))
 
 LIBRARY= -lmatrix
-
 LIBRARY_PATH=-L/usr/local/boton/lib/
 
+CUDA_LIBRARY= -lcuda -lcublas
+CUDA_LIBRARY_PATH=-L/usr/local/cuda/lib/ -L/usr/local/cuda/lib64
+
 example: $(OBJ) example.cpp
-	$(CXX) $(CPPFLAGS) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY)
+	$(NVCC) $(CPPFLAGS) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY_PATH) $(CUDA_LIBRARY)
+#$(CXX) $(CPPFLAGS) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY)
 
 # +==============================+
 # +===== Other Phony Target =====+
