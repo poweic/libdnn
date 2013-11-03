@@ -32,6 +32,7 @@ vec loadvector(string filename);
 class DNN {
 public:
   DNN();
+  DNN(string fn);
   DNN(const std::vector<size_t>& dims);
   DNN(const DNN& source);
   DNN& operator = (DNN rhs);
@@ -66,6 +67,9 @@ public:
   size_t getNLayer() const;
   size_t getDepth() const;
   void getEmptyGradient(std::vector<mat>& g) const;
+
+  void read(string fn);
+  void save(string fn) const;
   void print() const;
 
   std::vector<mat>& getWeights();

@@ -34,15 +34,16 @@ void dnn_test() {
   printf("---------------------------------------------\n");
 
   vector<size_t> dims(4);
-  dims[0] = input_dim; dims[1] = 20; dims[2] = 30; dims[3] = output_dim;
-  vector<mat> O(4);
-  std::vector<mat> gradient;
+  dims[0] = input_dim; dims[1] = 256; dims[2] = 256; dims[3] = output_dim;
 
   vector<float> coeff = ext::randn<float>(data.getRows());
 
   DNN dnn(dims);
+  // DNN dnn("dnn.model");
+  vector<mat> O(dnn.getNLayer());
+  std::vector<mat> gradient;
 
-  for (int itr=0; itr<16; ++itr) {
+  for (int itr=0; itr<2; ++itr) {
     cout << "iteration " << itr << endl;
     dnn.feedForward(data, &O);
 
@@ -57,6 +58,8 @@ void dnn_test() {
     dnn.backPropagate(error, O, gradient, coeff);
     dnn.updateParameters(gradient, 1e-4);
   }
+
+  dnn.save("dnn.model");
 }
 
 void print(const std::vector<mat>& vm) {
