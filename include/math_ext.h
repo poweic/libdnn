@@ -20,7 +20,7 @@ namespace ext {
 
     fs.precision(6);
     fs << std::scientific;
-    foreach (i, v)
+    for (size_t i=0; i<v.size(); ++i)
       fs << v[i] << endl;
 
     fs.close();
@@ -48,7 +48,7 @@ namespace ext {
   template <typename T>
   T sum(const vector<T>& v) {
     T s = 0;
-    foreach (i, v)
+    for (size_t i=0; i<v.size(); ++i)
       s += v[i];
     return s;
   }
@@ -59,8 +59,8 @@ namespace ext {
   template <typename T>
   T sum(const Matrix2D<T>& m) {
     T s = 0;
-    range ( i, m.getRows() )
-      range ( j, m.getCols() )
+    for (size_t i=0; i<m.getRows(); ++i)
+      for (size_t j=0; j<m.getCols(); ++j)
 	s += m[i][j];
       
     return s;
@@ -72,7 +72,7 @@ namespace ext {
   template <typename T>
   vector<T> diff1st(const vector<T>& v) {
     vector<T> diff(v.size() - 1);
-    foreach (i, diff)
+    for (size_t i=0; i<diff.size(); ++i)
       diff[i] = v[i+1] - v[i];
     return diff;
   }
@@ -124,7 +124,7 @@ namespace ext {
   vector<T> randn(size_t size) {
     vector<T> v(size);
 
-    foreach (i, v)
+    for (size_t i=0; i<v.size(); ++i)
       v[i] = randn<T>(0, 1);
 
     return v;
@@ -150,7 +150,7 @@ namespace ext {
   vector<T> rand(size_t size) {
     vector<T> v(size);
 
-    foreach (i, v)
+    for (size_t i=0; i<v.size(); ++i)
       v[i] = rand01<T>();
 
     return v;
@@ -168,7 +168,7 @@ namespace ext {
   T max(const std::vector<T>& v) {
     T maximum = v[0];
 
-    foreach (i, v)
+    for (size_t i=0; i<v.size(); ++i)
       if (v[i] > maximum)
 	maximum = v[i];
     return maximum;
@@ -177,7 +177,7 @@ namespace ext {
   template <typename T>
   void normalize(std::vector<T>& v) {
     T sum = ext::sum(v);
-    foreach (i, v)
+    for (size_t i=0; i<v.size(); ++i)
       v[i] /= sum;
   }
 
@@ -188,14 +188,14 @@ namespace ext {
 
     vector<size_t> h;
     std::map<T, size_t> histogram;
-    foreach (i, v) {
+    for (size_t i=0; i<v.size(); ++i) {
       if ( histogram.count(v[i]) == 0)
 	histogram[v[i]] = 0;
       ++histogram[v[i]];
     }
 
     h.resize(max + 1);
-    foreach (i, h)
+    for (size_t i=0; i<h.size(); ++i)
       h[i] = 0;
 
     typename std::map<T, size_t>::iterator it = histogram.begin();
@@ -215,10 +215,10 @@ namespace ext {
     std::map<T, size_t> cdf;
 
     T cumulation = 0;
-    foreach (i, pdf)
+    for (size_t i=0; i<pdf.size(); ++i)
       cdf[cumulation += pdf[i]] = i;
 
-    foreach (i, sampledData) {
+    for (size_t i=0; i<sampledData.size(); ++i) {
       float linear = rand01<float>();
       sampledData[i] = cdf.upper_bound(linear)->second;
     }
@@ -233,11 +233,11 @@ namespace ext {
   vector<T> softmax(const vector<T>& x) {
     vector<T> s(x.size());
 
-    foreach (i, s)
+    for (size_t i=0; i<s.size(); ++i)
       s[i] = exp(x[i]);
 
     T denominator = 1.0 / ext::sum(s);
-    foreach (i, s)
+    for (size_t i=0; i<s.size(); ++i)
       s[i] *= denominator;
 
     return s;

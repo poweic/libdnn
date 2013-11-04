@@ -30,8 +30,6 @@ typedef thrust::device_vector<float> vec;
 
 #define dsigma(x) ((x) & ((float) 1.0 - (x)))
 
-vec loadvector(string filename);
-
 class DNN {
 public:
   DNN();
@@ -39,8 +37,6 @@ public:
   DNN(const std::vector<size_t>& dims);
   DNN(const DNN& source);
   DNN& operator = (DNN rhs);
-
-  void load(string folder);
 
   void randInit();
   void feedForward(const mat& x, std::vector<mat>* hidden_output);
@@ -126,8 +122,9 @@ void remove_bias(vector<T>& v) {
 template <typename T>
 Matrix2D<T> add_bias(const Matrix2D<T>& A) {
   Matrix2D<T> B(A.getRows(), A.getCols() + 1);
-  range (i, B.getRows()) {
-    range (j, B.getCols())
+
+  for (size_t i=0; i<B.getRows(); ++i) {
+    for (size_t j=0; j<B.getCols(); ++j)
       B[i][j] = A[i][j];
     B[i][B.getCols()] = 1;
   }
@@ -137,8 +134,9 @@ Matrix2D<T> add_bias(const Matrix2D<T>& A) {
 template <typename T>
 void remove_bias(Matrix2D<T>& A) {
   Matrix2D<T> B(A.getRows(), A.getCols() - 1);
-  range (i, B.getRows())
-    range (j, B.getCols())
+
+  for (size_t i=0; i<B.getRows(); ++i)
+    for (size_t j=0; j<B.getCols(); ++j)
       B[i][j] = A[i][j];
 
   A = B;

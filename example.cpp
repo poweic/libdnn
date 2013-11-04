@@ -50,8 +50,8 @@ void dnn_test() {
     // print(O);
 
     mat error = target - O.back();
-    range (i, error.getRows())
-      range (j, error.getCols())
+    for (size_t i=0; i<error.getRows(); ++i)
+      for (size_t j=0; j<error.getCols(); ++j)
 	error[i][j] = 0.5 * pow(error[i][j], 2.0);
 
     dnn.getEmptyGradient(gradient);
@@ -63,7 +63,7 @@ void dnn_test() {
 }
 
 void print(const std::vector<mat>& vm) {
-  foreach (i, vm) {
+  for (size_t i=0; i<vm.size(); ++i) {
     printf("rows = %lu, cols = %lu\n", vm[i].getRows(), vm[i].getCols());
     vm[i].print(3);
   }

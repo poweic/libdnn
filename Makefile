@@ -10,7 +10,7 @@ INCLUDE= -I include/ \
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
-SOURCES=utility.cpp dnn.cpp
+SOURCES=dnn.cpp
 
 EXECUTABLES=
 EXAMPLE_PROGRAM=example

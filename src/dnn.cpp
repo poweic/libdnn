@@ -1,5 +1,4 @@
 #include <dnn.h>
-#include <utility.h>
 
 DNN::DNN() {}
 
@@ -10,7 +9,7 @@ DNN::DNN(string fn): _dims(0) {
 DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
   _weights.resize(_dims.size() - 1);
 
-  foreach (i, _weights) {
+  for (size_t i=0; i<_weights.size(); ++i) {
     size_t M = _dims[i] + 1;
     size_t N = _dims[i + 1];
     _weights[i].resize(M, N);
@@ -25,20 +24,6 @@ DNN::DNN(const DNN& source): _dims(source._dims), _weights(source._weights) {
 DNN& DNN::operator = (DNN rhs) {
   swap(*this, rhs);
   return *this;
-}
-
-void DNN::load(string prefix) {
-  std::vector<string> n_ppWeights = bash::ls(prefix + "*");
-  _weights.resize(n_ppWeights.size());
-
-  foreach (i, _weights)
-    _weights[i] = mat(prefix + int2str(i));
-
-  _dims.resize(_weights.size() + 1);
-  
-  _dims[0] = _weights[0].getRows() - 1;
-  range (i, _weights.size())
-    _dims[i + 1] = _weights[i].getCols();
 }
 
 size_t DNN::getNLayer() const {
@@ -84,7 +69,7 @@ void DNN::read(string fn) {
 void DNN::save(string fn) const {
   FILE* fid = fopen(fn.c_str(), "w");
 
-  foreach (i, _weights) {
+  for (size_t i=0; i<_weights.size(); ++i) {
     const mat& w = _weights[i];
     fprintf(fid, "<affinetransform> %lu %lu \n", w.getRows() - 1, w.getCols());
     fprintf(fid, " [\n");
@@ -111,13 +96,13 @@ void DNN::save(string fn) const {
 }
 
 void DNN::print() const {
-  foreach (i, _weights)
+  for (size_t i=0; i<_weights.size(); ++i)
     _weights[i].print(5);
 }
 
 void DNN::getEmptyGradient(std::vector<mat>& g) const {
   g.resize(_weights.size());
-  foreach (i, _weights) {
+  for (size_t i=0; i<_weights.size(); ++i) {
     int m = _weights[i].getRows();
     int n = _weights[i].getCols();
     g[i].resize(m, n);
@@ -130,7 +115,7 @@ std::vector<size_t>& DNN::getDims() { return _dims; }
 const std::vector<size_t>& DNN::getDims() const { return _dims; }
 
 void DNN::randInit() {
-  foreach (i, _weights)
+  for (size_t i=0; i<_weights.size(); ++i)
     ext::randn(_weights[i]);
 }
 
@@ -175,7 +160,7 @@ void DNN::backPropagate(vec& p, std::vector<vec>& O, std::vector<mat>& gradient)
 
   assert(gradient.size() == _weights.size());
 
-  reverse_foreach (i, _weights) {
+  for (int i=_weights.size() - 1; i>=0; --i) {
     gradient[i] = O[i] * p;
     p = dsigma(O[i]) & (p * ~_weights[i]); // & stands for .* in MATLAB
 
@@ -187,7 +172,7 @@ void DNN::backPropagate(vec& p, std::vector<vec>& O, std::vector<mat>& gradient)
 void DNN::backPropagate(mat& p, std::vector<mat>& O, std::vector<mat>& gradient, const vec& coeff) {
   assert(gradient.size() == _weights.size());
 
-  reverse_foreach (i, _weights) {
+  for (int i=_weights.size() - 1; i>=0; --i) {
     gradient[i] = ~O[i] * (p & coeff);
     p = dsigma(O[i]) & (p * ~_weights[i]);
 
@@ -197,7 +182,7 @@ void DNN::backPropagate(mat& p, std::vector<mat>& O, std::vector<mat>& gradient,
 }
 
 void DNN::updateParameters(std::vector<mat>& gradient, float learning_rate) {
-  foreach (i, _weights)
+  for (size_t i=0; i<_weights.size(); ++i)
     _weights[i] -= learning_rate * gradient[i];
 }
 
