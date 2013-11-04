@@ -1,15 +1,11 @@
 #include <dnn.h>
 #include <utility.h>
 
-vec loadvector(string filename) {
-  Array<float> arr(filename);
-  vec v(arr.size());
-  foreach (i, arr)
-    v[i] = arr[i];
-  return v;
-}
-
 DNN::DNN() {}
+
+DNN::DNN(string fn): _dims(0) {
+  this->read(fn);
+}
 
 DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
   _weights.resize(_dims.size() - 1);
@@ -53,6 +49,67 @@ size_t DNN::getDepth() const {
   return _dims.size() - 2;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-result"
+void DNN::read(string fn) {
+  FILE* fid = fopen(fn.c_str(), "r");
+
+  _dims.clear();
+  _weights.clear();
+
+  size_t rows, cols;
+
+  while (fscanf(fid, "<affinetransform> %lu %lu\n [\n", &rows, &cols) != EOF) {
+
+    printf("rows = %lu, cols = %lu \n", rows, cols);
+
+    mat w(rows + 1, cols);
+    for (size_t i=0; i<rows; ++i)
+      for (size_t j=0; j<cols; ++j)
+	fscanf(fid, "%f ", &(w[i][j]));
+
+    fscanf(fid, "]\n<sigmoid>\n [");
+
+    for (size_t j=0; j<cols; ++j)
+      fscanf(fid, "%f ", &(w[rows][j]));
+    fscanf(fid, "]\n");
+
+    _dims.push_back(rows);
+    _weights.push_back(w);
+  }
+  _dims.push_back(cols);
+
+  fclose(fid);
+}
+
+void DNN::save(string fn) const {
+  FILE* fid = fopen(fn.c_str(), "w");
+
+  foreach (i, _weights) {
+    const mat& w = _weights[i];
+    fprintf(fid, "<affinetransform> %lu %lu \n", w.getRows() - 1, w.getCols());
+    fprintf(fid, " [\n");
+
+    fprintf(fid, "  ");
+    for (size_t j=0; j<w.getRows() - 1; ++j) {
+      for (size_t k=0; k<w.getCols(); ++k)
+	fprintf(fid, "%.7f ", w[j][k]);
+      
+      fprintf(fid, (j == w.getRows() - 2) ? "]\n" : "\n");
+    }
+
+    // FIXME
+    // Format in Kaldi-project is something like "<sigmoid> 2048 2048",
+    // but I haven't have a clue about why.
+    fprintf(fid, "<sigmoid> \n");
+    fprintf(fid, " [");
+    for (size_t j=0; j<w.getCols(); ++j)
+      fprintf(fid, "%.7f ", w[w.getRows() - 1][j]);
+    fprintf(fid, " ]\n");
+  }
+  
+  fclose(fid);
+}
+
 void DNN::print() const {
   foreach (i, _weights)
     _weights[i].print(5);
@@ -80,6 +137,21 @@ void DNN::randInit() {
 // ========================
 // ===== Feed Forward =====
 // ========================
+
+void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
+  assert(hidden_output != NULL);
+
+  std::vector<mat>& O = *hidden_output;
+  assert(O.size() == _dims.size());
+
+  O[0] = add_bias(x);
+
+  for (size_t i=1; i<O.size() - 1; ++i)
+    O[i] = ext::b_sigmoid(O[i-1] * _weights[i-1]);
+
+  size_t end = O.size() - 1;
+  O.back() = ext::sigmoid(O[end - 1] * _weights[end - 1]);
+}
 
 /*void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
   assert(hidden_output != NULL);
