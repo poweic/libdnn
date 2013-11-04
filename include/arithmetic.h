@@ -71,7 +71,7 @@ vector<T> operator * (const vector<T>& row_vector, const Matrix2D<T>& A) {
 #define VECTOR std::vector
 #define WHERE std
 #include <functional.inl>
-#include <blas.inl>
+#include <operators.inl>
 #undef VECTOR
 #undef WHERE
 

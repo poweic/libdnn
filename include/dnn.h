@@ -1,30 +1,30 @@
 #ifndef __DNN_H_
 #define __DNN_H_
 
-#include <blas.h>
+#include <arithmetic.h>
 
 #ifndef __CUDACC__
 
-#define WHERE std
-#include <blas.h>
-#include <math_ext.h>
-#include <matrix.h>
-typedef Matrix2D<float> mat;
-typedef std::vector<float> vec;
+  #include <arithmetic.h>
+  #include <math_ext.h>
+  #include <matrix.h>
+  typedef Matrix2D<float> mat;
+  typedef std::vector<float> vec;
+  #define WHERE std
 
 #else
 
-#define WHERE thrust
-#include <device_matrix.h>
-#include <device_math_ext.h>
-#include <device_arithmetic.h>
-
-#include <thrust/transform_reduce.h>
-#include <thrust/functional.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
-typedef device_matrix<float> mat;
-typedef thrust::device_vector<float> vec;
+  #include <device_matrix.h>
+  #include <device_math_ext.h>
+  #include <device_arithmetic.h>
+  
+  #include <thrust/transform_reduce.h>
+  #include <thrust/functional.h>
+  #include <thrust/host_vector.h>
+  #include <thrust/device_vector.h>
+  typedef device_matrix<float> mat;
+  typedef thrust::device_vector<float> vec;
+  #define WHERE thrust
 
 #endif
 
@@ -69,13 +69,13 @@ private:
 void swap(DNN& lhs, DNN& rhs);
 
 #define HIDDEN_OUTPUT_ALIASING(O, x, y, z, w) \
-  std::vector<vec>& x	= O.hox; \
+std::vector<vec>& x	= O.hox; \
 std::vector<vec>& y	= O.hoy; \
 vec& z		= O.hoz; \
 std::vector<vec>& w	= O.hod;
 
 #define GRADIENT_REF(g, g1, g2, g3, g4) \
-  std::vector<mat>& g1	= g.grad1; \
+std::vector<mat>& g1	= g.grad1; \
 std::vector<mat>& g2 = g.grad2; \
 vec& g3		= g.grad3; \
 std::vector<mat>& g4 = g.grad4;
@@ -141,6 +141,5 @@ void remove_bias(Matrix2D<T>& A) {
 
   A = B;
 }
-
 
 #endif  // __DNN_H_
