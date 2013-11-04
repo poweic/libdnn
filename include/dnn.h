@@ -9,19 +9,22 @@
 #include <blas.h>
 #include <math_ext.h>
 #include <matrix.h>
-typedef Matrix2D<float> mat; typedef vector<float> vec;
+typedef Matrix2D<float> mat;
+typedef std::vector<float> vec;
 
 #else
 
 #define WHERE thrust
-#include <device_blas.h>
+#include <device_matrix.h>
 #include <device_math_ext.h>
+#include <device_arithmetic.h>
 
 #include <thrust/transform_reduce.h>
 #include <thrust/functional.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-typedef device_matrix<float> mat; typedef thrust::device_vector<float> vec;
+typedef device_matrix<float> mat;
+typedef thrust::device_vector<float> vec;
 
 #endif
 
@@ -40,24 +43,7 @@ public:
   void load(string folder);
 
   void randInit();
-  /*void feedForward(const vec& x, std::vector<vec>* hidden_output);
-  void feedForward(const mat& x, std::vector<mat>* hidden_output);*/
-
-  template <typename T>
-  void feedForward(const T& x, std::vector<T>* hidden_output) {
-    assert(hidden_output != NULL);
-
-    std::vector<T>& O = *hidden_output;
-    assert(O.size() == _dims.size());
-
-    O[0] = add_bias(x);
-
-    for (size_t i=1; i<O.size() - 1; ++i)
-      O[i] = ext::b_sigmoid(O[i-1] * _weights[i-1]);
-
-    size_t end = O.size() - 1;
-    O.back() = ext::sigmoid(O[end - 1] * _weights[end - 1]);
-  }
+  void feedForward(const mat& x, std::vector<mat>* hidden_output);
 
   void backPropagate(vec& p, std::vector<vec>& hidden_output, std::vector<mat>& gradient);
   void backPropagate(mat& p, std::vector<mat>& hidden_output, std::vector<mat>& gradient, const vec& coeff);
