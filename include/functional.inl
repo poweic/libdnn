@@ -54,6 +54,11 @@ namespace func {
   };
 
   template <typename T>
+  struct dsigma {
+    __host__ __device__ T operator() (const T& x) { return x * (1.0 - x); }
+  };
+
+  template <typename T>
   struct exp {
 #ifndef __CUDACC__
     __host__ __device__ T operator() (const T& x) { return exp(x); }

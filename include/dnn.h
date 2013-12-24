@@ -2,11 +2,12 @@
 #define __DNN_H_
 
 #include <arithmetic.h>
+#include <math_ext.h>
 
 #ifndef __CUDACC__
 
   #include <arithmetic.h>
-  #include <math_ext.h>
+  #include <matrix_math.h>
   #include <matrix.h>
   typedef Matrix2D<float> mat;
   typedef std::vector<float> vec;
@@ -15,7 +16,7 @@
 #else
 
   #include <device_matrix.h>
-  #include <device_math_ext.h>
+  #include <device_math.h>
   #include <device_arithmetic.h>
   
   #include <thrust/transform_reduce.h>
@@ -25,6 +26,60 @@
   typedef device_matrix<float> mat;
   typedef thrust::device_vector<float> vec;
   #define WHERE thrust
+
+namespace ext {
+  template <typename T>
+  device_matrix<T> b_sigmoid(const device_matrix<T>& x) {
+    device_matrix<T> s(x.getRows(), x.getCols() + 1);
+    
+    thrust::device_ptr<T> xPtr(x.getData());
+    thrust::device_ptr<T> sPtr(s.getData());
+
+    thrust::transform(xPtr, xPtr + x.size() - x.getRows(), sPtr, func::sigmoid<float>());
+
+    thrust::fill(sPtr + s.size() - s.getRows(), sPtr + s.size(), (float) 1.0);
+
+    /*for (size_t i=0; i<x.getRows(); ++i) {
+      std::transform(x[i], x[i] + x.getCols(), s[i], func::sigmoid<T>());
+      s[i][x.getCols()] = 1.0;
+      }*/
+
+    return s;
+  }
+
+  template <typename T>
+  device_matrix<T> sigmoid(const device_matrix<T>& x) {
+    device_matrix<T> s(x.getRows(), x.getCols());
+
+    thrust::device_ptr<T> xPtr(x.getData());
+    thrust::device_ptr<T> sPtr(s.getData());
+
+    thrust::transform(xPtr, xPtr + x.size() - x.getRows(), sPtr, func::sigmoid<float>());
+    /*for (size_t i=0; i<x.getRows(); ++i) {
+      std::transform(x[i], x[i] + x.getCols(), s[i], func::sigmoid<T>());
+      s[i][x.getCols()] = 1.0;
+      }*/
+
+    return s;
+  }
+}
+
+template <typename T>
+device_matrix<T> add_bias(const device_matrix<T>& A) {
+  device_matrix<T> B(A.getRows(), A.getCols() + 1);
+
+  B += 1.0;
+
+  device_matrix<T>::cublas_geam(
+      CUBLAS_OP_N, CUBLAS_OP_N,
+      A.getRows(), A.getCols(),
+      1.0, A.getData(), A.getRows(),
+      1.0, B.getData(), B.getRows(),
+      B.getData(), B.getRows()
+  );
+
+  return B;
+}
 
 #endif
 
@@ -50,6 +105,7 @@ public:
   size_t getDepth() const;
   void getEmptyGradient(std::vector<mat>& g) const;
 
+  void _read(FILE* fid);
   void read(string fn);
   void save(string fn) const;
   void print() const;

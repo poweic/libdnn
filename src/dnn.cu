@@ -1,5 +1,4 @@
 #include <dnn.h>
-
 DNN::DNN() {}
 
 DNN::DNN(string fn): _dims(0) {
@@ -35,6 +34,21 @@ size_t DNN::getDepth() const {
 }
 
 #pragma GCC diagnostic ignored "-Wunused-result"
+void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
+
+  for (size_t i=0; i<rows; ++i)
+    for (size_t j=0; j<cols; ++j)
+      fscanf(fid, "%f ", &(w[j * rows + i]));
+
+  fscanf(fid, "]\n<sigmoid>\n [");
+
+  for (size_t j=0; j<cols; ++j)
+    fscanf(fid, "%f ", &(w[j * rows + rows]));
+  fscanf(fid, "]\n");
+
+}
+
+#pragma GCC diagnostic ignored "-Wunused-result"
 void DNN::read(string fn) {
   FILE* fid = fopen(fn.c_str(), "r");
 
@@ -47,19 +61,12 @@ void DNN::read(string fn) {
 
     printf("rows = %lu, cols = %lu \n", rows, cols);
 
-    mat w(rows + 1, cols);
-    for (size_t i=0; i<rows; ++i)
-      for (size_t j=0; j<cols; ++j)
-	fscanf(fid, "%f ", &(w[i][j]));
-
-    fscanf(fid, "]\n<sigmoid>\n [");
-
-    for (size_t j=0; j<cols; ++j)
-      fscanf(fid, "%f ", &(w[rows][j]));
-    fscanf(fid, "]\n");
+    float* w = new float[(rows + 1) * cols];
+    readweight(fid, w, rows, cols);
+    _weights.push_back(mat(w, rows + 1, cols));
+    delete [] w;
 
     _dims.push_back(rows);
-    _weights.push_back(w);
   }
   _dims.push_back(cols);
 
@@ -71,25 +78,30 @@ void DNN::save(string fn) const {
 
   for (size_t i=0; i<_weights.size(); ++i) {
     const mat& w = _weights[i];
-    fprintf(fid, "<affinetransform> %lu %lu \n", w.getRows() - 1, w.getCols());
-    fprintf(fid, " [\n");
 
-    fprintf(fid, "  ");
-    for (size_t j=0; j<w.getRows() - 1; ++j) {
-      for (size_t k=0; k<w.getCols(); ++k)
-	fprintf(fid, "%.7f ", w[j][k]);
-      
-      fprintf(fid, (j == w.getRows() - 2) ? "]\n" : "\n");
-    }
+    size_t rows = w.getRows() - 1;
+    size_t cols = w.getCols();
 
-    // FIXME
-    // Format in Kaldi-project is something like "<sigmoid> 2048 2048",
-    // but I haven't have a clue about why.
-    fprintf(fid, "<sigmoid> \n");
+    fprintf(fid, "<affinetransform> %lu %lu \n", rows, cols);
     fprintf(fid, " [");
-    for (size_t j=0; j<w.getCols(); ++j)
-      fprintf(fid, "%.7f ", w[w.getRows() - 1][j]);
+
+    // ==============================
+    float* data = new float[w.size()];
+    CCE(cudaMemcpy(data, w.getData(), sizeof(float) * w.size(), cudaMemcpyDeviceToHost));
+
+    for (size_t j=0; j<rows; ++j) {
+      fprintf(fid, "\n  ");
+      for (size_t k=0; k<cols; ++k)
+	fprintf(fid, "%.7f ", data[k*rows + j]);
+    }
+    fprintf(fid, "]\n");
+
+    fprintf(fid, "<sigmoid> \n [");
+    for (size_t j=0; j<cols; ++j)
+      fprintf(fid, "%.7f ", data[j * rows + rows]);
     fprintf(fid, " ]\n");
+
+    delete [] data;
   }
   
   fclose(fid);
@@ -97,7 +109,7 @@ void DNN::save(string fn) const {
 
 void DNN::print() const {
   for (size_t i=0; i<_weights.size(); ++i)
-    _weights[i].print(5);
+    _weights[i].print(stdout);
 }
 
 void DNN::getEmptyGradient(std::vector<mat>& g) const {
@@ -113,6 +125,7 @@ std::vector<mat>& DNN::getWeights() { return _weights; }
 const std::vector<mat>& DNN::getWeights() const { return _weights; }
 std::vector<size_t>& DNN::getDims() { return _dims; }
 const std::vector<size_t>& DNN::getDims() const { return _dims; }
+
 
 void DNN::randInit() {
   for (size_t i=0; i<_weights.size(); ++i)
@@ -156,20 +169,42 @@ void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
 // ============================
 // ===== Back Propagation =====
 // ============================
-void DNN::backPropagate(vec& p, std::vector<vec>& O, std::vector<mat>& gradient) {
+/*void DNN::backPropagate(vec& p, std::vector<vec>& O, std::vector<mat>& gradient) {
 
   assert(gradient.size() == _weights.size());
 
   for (int i=_weights.size() - 1; i>=0; --i) {
+    
     gradient[i] = O[i] * p;
     p = dsigma(O[i]) & (p * ~_weights[i]); // & stands for .* in MATLAB
 
     // Remove bias
     remove_bias(p);
   }
+}*/
+
+void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradient, const vec& coeff) {
+  assert(gradient.size() == _weights.size());
+
+  for (int i=_weights.size() - 1; i >= 0; --i) {
+
+    gradient[i] = ~O[i] * delta;
+    delta *= ~_weights[i];
+
+    thrust::device_vector<float> temp(O[i].size());
+
+    thrust::device_ptr<float> output(O[i].getData());
+    thrust::transform(output, output + O[i].size(), temp.begin(), func::dsigma<float>());
+
+    thrust::device_ptr<float> dv1(delta.getData());
+    thrust::transform(dv1, dv1 + delta.size(), temp.begin(), dv1, thrust::multiplies<float>());
+
+    // Remove bias (last column)
+    delta.resize(delta.getRows(), delta.getCols() - 1);
+  }
 }
 
-void DNN::backPropagate(mat& p, std::vector<mat>& O, std::vector<mat>& gradient, const vec& coeff) {
+/*void DNN::backPropagate(mat& p, std::vector<mat>& O, std::vector<mat>& gradient, const vec& coeff) {
   assert(gradient.size() == _weights.size());
 
   for (int i=_weights.size() - 1; i>=0; --i) {
@@ -179,11 +214,11 @@ void DNN::backPropagate(mat& p, std::vector<mat>& O, std::vector<mat>& gradient,
     // Remove bias
     remove_bias(p);
   }
-}
+}*/
 
 void DNN::updateParameters(std::vector<mat>& gradient, float learning_rate) {
   for (size_t i=0; i<_weights.size(); ++i)
-    _weights[i] -= learning_rate * gradient[i];
+    _weights[i] -= /*learning_rate * */gradient[i];
 }
 
 void swap(DNN& lhs, DNN& rhs) {

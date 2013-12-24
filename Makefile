@@ -5,6 +5,8 @@ NVCC=nvcc -arch=sm_21 -w
 
 INCLUDE= -I include/ \
 	 -I /usr/local/boton/include/ \
+	 -I /share/Dropbox/libcumatrix/include \
+	 -I ../math_ext/ \
  	 -isystem /usr/local/cuda/samples/common/inc/ \
 	 -isystem /usr/local/cuda/include
 
@@ -13,7 +15,8 @@ CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 SOURCES=dnn.cpp
 
 EXECUTABLES=
-EXAMPLE_PROGRAM=example
+EXAMPLE_PROGRAM=gpu_example
+#cpu_example 
  
 .PHONY: debug all o3 example ctags
 all: $(EXECUTABLES) $(EXAMPLE_PROGRAM) ctags
@@ -29,12 +32,15 @@ vpath %.cu src/
 
 OBJ=$(addprefix obj/,$(SOURCES:.cpp=.o))
 
-LIBRARY= -lmatrix
+LIBRARY= -lmatrix -lcumatrix
 
-LIBRARY_PATH=-L/usr/local/boton/lib/
+LIBRARY_PATH=-L/usr/local/boton/lib/ -L/share/Dropbox/libcumatrix/lib
 
-example: $(OBJ) example.cpp
+cpu_example: $(OBJ) cpu_example.cpp
 	$(CXX) $(CPPFLAGS) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY)
+	
+gpu_example: $(OBJ) gpu_example.cu
+	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) -lcuda -lcudart -lcublas
 
 # +==============================+
 # +===== Other Phony Target =====+
