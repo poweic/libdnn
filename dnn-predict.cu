@@ -17,7 +17,7 @@ int main (int argc, char* argv[]) {
   string output_fn(argc < 4 ? "" : argv[3]);
 
   mat data, labels;
-  getDataAndLabels(test_fn, data, labels);
+  readFeature(test_fn, data, labels);
   showSummary(data, labels);
 
   // Make predictions
@@ -33,7 +33,14 @@ void dnn_predicts(mat& data, mat& labels, string model_fn, string output_fn) {
   zeroOneLabels(labels);
 
   DNN dnn(model_fn);
-  evaluate(dnn, data, labels);
+
+  vector<mat> O(dnn.getNLayer());
+  dnn.feedForward(data, &O);
+
+  if (isLabeled(labels)) {
+    size_t nError = zeroOneError(O.back(), labels);
+    showAccuracy(nError, labels.size());
+  }
 
   if (fid != stdout)
     fclose(stdout);

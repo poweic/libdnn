@@ -1,13 +1,5 @@
 #include <dnn-utility.h>
 
-void evaluate(DNN& dnn, mat& X, mat& y) {
-  vector<mat> O(dnn.getNLayer());
-  dnn.feedForward(X, &O);
-
-  size_t nError = zeroOneError(O.back(), y);
-  showAccuracy(nError, y.size());
-}
-
 void zeroOneLabels(const mat& label) {
   thrust::device_ptr<float> dptr(label.getData());
   thrust::host_vector<float> y(dptr, dptr + label.size());
@@ -73,6 +65,13 @@ void getDataAndLabels(string train_fn, mat& data, mat& labels) {
   exec("rm " + tmpfn);
 }
 
+bool isFileSparse(string train_fn) {
+  ifstream fin(train_fn.c_str());
+  string line;
+  std::getline(fin, line);
+  return line.find(':') != string::npos;
+}
+
 string getTempFilename() {
   std::stringstream ss;
   time_t seconds;
@@ -84,3 +83,142 @@ string getTempFilename() {
 void exec(string command) {
   system(command.c_str());
 }
+
+float str2float(const string &s) {
+  return atof(s.c_str());
+}
+
+size_t getLineNumber(ifstream& fin) {
+  int previous_pos = fin.tellg();
+  string a;
+  size_t n = 0;
+  while(std::getline(fin, a) && ++n);
+  fin.clear();
+  fin.seekg(previous_pos);
+  return n;
+}
+
+size_t findMaxDimension(ifstream& fin) {
+  int previous_pos = fin.tellg();
+
+  string token;
+  size_t maxDimension = 0;
+  while (fin >> token) {
+    size_t pos = token.find(':');
+    if (pos == string::npos)
+      continue;
+
+    size_t dim = atoi(token.substr(0, pos).c_str());
+    if (dim > maxDimension)
+      maxDimension = dim;
+  }
+
+  fin.clear();
+  fin.seekg(previous_pos);
+
+  return maxDimension;
+}
+
+void readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols) {
+
+  string line, token;
+  size_t i = 0;
+  while (std::getline(fin, line)) {
+    stringstream ss(line);
+  
+    ss >> token;
+    labels[i] = str2float(token);
+
+    while (ss >> token) {
+      size_t pos = token.find(':');
+      if (pos == string::npos)
+	continue;
+
+      size_t j = str2float(token.substr(0, pos)) - 1;
+      float value = str2float(token.substr(pos + 1));
+      
+      data[j * rows + i] = value;
+    }
+    ++i;
+  }
+}
+
+void readDenseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols) {
+
+  string line, token;
+  size_t i = 0;
+  while (std::getline(fin, line)) {
+    stringstream ss(line);
+  
+    ss >> token;
+    labels[i] = str2float(token);
+
+    size_t j = 0;
+    while (ss >> token)
+      data[(j++) * rows + i] = str2float(token);
+    ++i;
+  }
+}
+
+size_t findDimension(ifstream& fin) {
+
+  size_t dim = 0;
+
+  int previous_pos = fin.tellg();
+
+  string line;
+  std::getline(fin, line);
+  stringstream ss(line);
+
+  // First token is class label
+  string token;
+  ss >> token;
+
+  while (ss >> token)
+    ++dim;
+  
+  fin.clear();
+  fin.seekg(previous_pos);
+
+  return dim;
+}
+
+void readFeature(const string &fn, mat& X, mat& y) {
+  ifstream fin(fn.c_str());
+
+  bool isSparse = isFileSparse(fn);
+  size_t cols = isSparse ? findMaxDimension(fin) : findDimension(fin);
+  size_t rows = getLineNumber(fin);
+
+  printf("rows = %lu, cols = %lu \n", rows, cols);
+
+  float* data = new float[rows * cols];
+  float* labels = new float[rows];
+  memset(data, 0, sizeof(float) * rows * cols);
+
+  if (isSparse)
+    readSparseFeature(fin, data, labels, rows, cols);
+  else
+    readDenseFeature(fin, data, labels, rows, cols);
+
+  X = mat(data, rows, cols);
+  y = mat(labels, rows, 1);
+
+  delete [] data;
+  delete [] labels;
+
+  fin.close();
+}
+
+
+bool isLabeled(const mat& labels) {
+
+  size_t L = labels.size();
+
+  thrust::device_vector<float> zero_vec(L, 0);
+  thrust::device_ptr<float> label_ptr(labels.getData());
+
+  bool isAllZero = thrust::equal(label_ptr, label_ptr + L, zero_vec.begin());
+  return !isAllZero;
+}
+

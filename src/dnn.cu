@@ -104,6 +104,11 @@ void DNN::save(string fn) const {
 
     delete [] data;
   }
+
+  fprintf(stdout, "nn_structure ");
+  for (size_t i=0; i<_dims.size(); ++i)
+    fprintf(stdout, "%lu ", _dims[i]);
+  fprintf(stdout, "\n");
   
   fclose(fid);
 }

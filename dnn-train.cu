@@ -5,7 +5,6 @@
 using namespace std;
 
 void dnn_train(mat& data, mat& labels, string model_fn);
-void getDataAndLabels(string train_fn, mat& data, mat& labels);
 
 void showUsageAndExit() {
   printf("Usage: dnn-train [options] training_set_file [model_file]\n");
@@ -21,8 +20,7 @@ int main (int argc, char* argv[]) {
   string model_fn = (argc < 3) ? (train_fn + ".model") : argv[2];
 
   mat data, labels;
-
-  getDataAndLabels(train_fn, data, labels);
+  readFeature(train_fn, data, labels);
 
   showSummary(data, labels);
 
@@ -50,7 +48,7 @@ void dnn_train(mat& data, mat& labels, string model_fn) {
   vector<mat> O(dnn.getNLayer());
   std::vector<mat> gradient;
 
-  int nIteration = 262144;
+  int nIteration = 10;
   for (int itr=0; itr<nIteration; ++itr) {
     dnn.feedForward(data, &O);
     size_t nError = zeroOneError(O.back(), labels);
