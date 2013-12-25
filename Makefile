@@ -12,14 +12,11 @@ INCLUDE= -I include/ \
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
-SOURCES=dnn.cpp
+SOURCES=dnn.cu dnn-utility.cu
 
-EXECUTABLES=
-EXAMPLE_PROGRAM=gpu_example
-#cpu_example 
- 
+EXECUTABLES=dnn-train dnn-predict
 .PHONY: debug all o3 example ctags
-all: $(EXECUTABLES) $(EXAMPLE_PROGRAM) ctags
+all: $(EXECUTABLES) ctags
 
 o3: CFLAGS+=-O3
 o3: all
@@ -30,17 +27,14 @@ vpath %.h include/
 vpath %.cpp src/
 vpath %.cu src/
 
-OBJ=$(addprefix obj/,$(SOURCES:.cpp=.o))
+OBJ:=$(addprefix obj/, $(addsuffix .o,$(basename $(SOURCES))))
 
-LIBRARY= -lmatrix -lcumatrix
-
+LIBRARY=-lmatrix -lcumatrix
+CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L/usr/local/boton/lib/ -L/share/Dropbox/libcumatrix/lib
 
-cpu_example: $(OBJ) cpu_example.cpp
-	$(CXX) $(CPPFLAGS) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY)
-	
-gpu_example: $(OBJ) gpu_example.cu
-	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) -lcuda -lcudart -lcublas
+$(EXECUTABLES): % : %.cu $(OBJ)
+	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
 
 # +==============================+
 # +===== Other Phony Target =====+
@@ -48,7 +42,7 @@ gpu_example: $(OBJ) gpu_example.cu
 obj/%.o: %.cpp
 	$(CXX) $(CPPFLAGS) -o $@ -c $<
 
-obj/%.o: %.cu
+obj/%.o: %.cu include/%.h
 	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
 
 obj/%.d: %.cpp
@@ -60,6 +54,6 @@ obj/%.d: %.cpp
 
 .PHONY: ctags
 ctags:
-	@ctags -R *
+	@ctags -R --langmap=C:+.cu *
 clean:
-	rm -rf $(EXECUTABLES) $(EXAMPLE_PROGRAM) obj/*
+	rm -rf $(EXECUTABLES) obj/*

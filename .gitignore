@@ -2,3 +2,5 @@ obj/*
 cpu_example
 gpu_example
 tags
+dnn-predict
+dnn-train
