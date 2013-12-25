@@ -1,4 +1,5 @@
 #include <dnn.h>
+
 DNN::DNN() {}
 
 DNN::DNN(string fn): _dims(0) {
@@ -36,14 +37,14 @@ size_t DNN::getDepth() const {
 #pragma GCC diagnostic ignored "-Wunused-result"
 void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
 
-  for (size_t i=0; i<rows; ++i)
+  for (size_t i=0; i<rows - 1; ++i)
     for (size_t j=0; j<cols; ++j)
       fscanf(fid, "%f ", &(w[j * rows + i]));
 
   fscanf(fid, "]\n<sigmoid>\n [");
 
   for (size_t j=0; j<cols; ++j)
-    fscanf(fid, "%f ", &(w[j * rows + rows]));
+    fscanf(fid, "%f ", &(w[j * rows + rows - 1]));
   fscanf(fid, "]\n");
 
 }
@@ -62,7 +63,7 @@ void DNN::read(string fn) {
     printf("rows = %lu, cols = %lu \n", rows, cols);
 
     float* w = new float[(rows + 1) * cols];
-    readweight(fid, w, rows, cols);
+    readweight(fid, w, rows + 1, cols);
     _weights.push_back(mat(w, rows + 1, cols));
     delete [] w;
 
@@ -79,26 +80,26 @@ void DNN::save(string fn) const {
   for (size_t i=0; i<_weights.size(); ++i) {
     const mat& w = _weights[i];
 
-    size_t rows = w.getRows() - 1;
+    size_t rows = w.getRows();
     size_t cols = w.getCols();
 
-    fprintf(fid, "<affinetransform> %lu %lu \n", rows, cols);
+    fprintf(fid, "<affinetransform> %lu %lu \n", rows - 1, cols);
     fprintf(fid, " [");
 
     // ==============================
     float* data = new float[w.size()];
     CCE(cudaMemcpy(data, w.getData(), sizeof(float) * w.size(), cudaMemcpyDeviceToHost));
 
-    for (size_t j=0; j<rows; ++j) {
+    for (size_t j=0; j<rows-1; ++j) {
       fprintf(fid, "\n  ");
       for (size_t k=0; k<cols; ++k)
-	fprintf(fid, "%.7f ", data[k*rows + j]);
+	fprintf(fid, "%.7f ", data[k * rows + j]);
     }
     fprintf(fid, "]\n");
 
     fprintf(fid, "<sigmoid> \n [");
     for (size_t j=0; j<cols; ++j)
-      fprintf(fid, "%.7f ", data[j * rows + rows]);
+      fprintf(fid, "%.7f ", data[j * rows + rows - 1]);
     fprintf(fid, " ]\n");
 
     delete [] data;
@@ -136,6 +137,25 @@ void DNN::randInit() {
 // ===== Feed Forward =====
 // ========================
 
+void print(const thrust::host_vector<float>& hv) {
+  cout << "\33[33m[";
+  for (size_t i=0; i<hv.size(); ++i)
+    cout << hv[i] << " ";
+  cout << " ] \33[0m" << endl << endl;
+}
+
+void print(const mat& m) {
+  thrust::device_ptr<float> dm(m.getData());
+  thrust::host_vector<float> hm(dm, dm + m.size());
+
+  ::print(hm);
+}
+
+void print(const thrust::device_vector<float>& dv) {
+  thrust::host_vector<float> hv(dv.begin(), dv.end());
+  ::print(hv);
+}
+
 void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
   assert(hidden_output != NULL);
 
@@ -144,6 +164,11 @@ void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
 
   O[0] = add_bias(x);
 
+  /*for (size_t i=0; i<_weights.size(); ++i) {
+    cout << "_weights[" << i << "] = " << endl;
+    ::print(_weights[i]);
+  }*/
+
   for (size_t i=1; i<O.size() - 1; ++i)
     O[i] = ext::b_sigmoid(O[i-1] * _weights[i-1]);
 
@@ -151,37 +176,9 @@ void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
   O.back() = ext::sigmoid(O[end - 1] * _weights[end - 1]);
 }
 
-/*void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
-  assert(hidden_output != NULL);
-
-  std::vector<mat>& O = *hidden_output;
-  assert(O.size() == _dims.size());
-
-  O[0] = add_bias(x);
-
-  for (size_t i=1; i<O.size() - 1; ++i)
-    O[i] = ext::b_sigmoid(O[i-1] * _weights[i-1]);
-
-  size_t end = O.size() - 1;
-  O.back() = ext::sigmoid(O[end - 1] * _weights[end - 1]);
-}*/
-
 // ============================
 // ===== Back Propagation =====
 // ============================
-/*void DNN::backPropagate(vec& p, std::vector<vec>& O, std::vector<mat>& gradient) {
-
-  assert(gradient.size() == _weights.size());
-
-  for (int i=_weights.size() - 1; i>=0; --i) {
-    
-    gradient[i] = O[i] * p;
-    p = dsigma(O[i]) & (p * ~_weights[i]); // & stands for .* in MATLAB
-
-    // Remove bias
-    remove_bias(p);
-  }
-}*/
 
 void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradient, const vec& coeff) {
   assert(gradient.size() == _weights.size());
@@ -190,6 +187,12 @@ void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradi
 
     gradient[i] = ~O[i] * delta;
     delta *= ~_weights[i];
+    
+    /*printf("after *= \n");
+    ::print(delta);*/
+
+    /*cout << "gradient[" << i << "] = " << endl;
+    ::print(gradient[i]);*/
 
     thrust::device_vector<float> temp(O[i].size());
 
@@ -200,25 +203,37 @@ void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradi
     thrust::transform(dv1, dv1 + delta.size(), temp.begin(), dv1, thrust::multiplies<float>());
 
     // Remove bias (last column)
+    //cout << "before resize" << endl;
+    //mylog(delta.getRows());
+    //mylog(delta.getCols());
+    //::print(delta);
+
     delta.resize(delta.getRows(), delta.getCols() - 1);
+
+    //cout << "after resize" << endl;
+    //mylog(delta.getRows());
+    //mylog(delta.getCols());
+    //::print(delta);
+
   }
 }
 
-/*void DNN::backPropagate(mat& p, std::vector<mat>& O, std::vector<mat>& gradient, const vec& coeff) {
-  assert(gradient.size() == _weights.size());
+void DNN::updateParameters(std::vector<mat>& gradient, float learning_rate) { 
+  for (size_t i=0; i<_weights.size(); ++i) {
+    gradient[i] *= learning_rate;
 
-  for (int i=_weights.size() - 1; i>=0; --i) {
-    gradient[i] = ~O[i] * (p & coeff);
-    p = dsigma(O[i]) & (p * ~_weights[i]);
+    /*float ng = nrm2(gradient[i]);
+    float nw = nrm2(_weights[i]);
+    float ratio = ng/nw;
 
-    // Remove bias
-    remove_bias(p);
-  }
-}*/
+    printf("w[%lu]: ng / nw = %.6e / %.6e = %.6e\n", i, ng, nw, ratio);
+    if (ratio > 0.05)
+      learning_rate *= 0.05 / ratio;*/
 
-void DNN::updateParameters(std::vector<mat>& gradient, float learning_rate) {
-  for (size_t i=0; i<_weights.size(); ++i)
     _weights[i] -= /*learning_rate * */gradient[i];
+
+    // learning_rate *= 4;
+  }
 }
 
 void swap(DNN& lhs, DNN& rhs) {
@@ -227,18 +242,19 @@ void swap(DNN& lhs, DNN& rhs) {
   swap(lhs._weights, rhs._weights);
 }
 
-void swap(HIDDEN_OUTPUT& lhs, HIDDEN_OUTPUT& rhs) {
-  using WHERE::swap;
-  swap(lhs.hox, rhs.hox);
-  swap(lhs.hoy, rhs.hoy);
-  swap(lhs.hoz, rhs.hoz);
-  swap(lhs.hod, rhs.hod);
+// =============================
+// ===== Utility Functions =====
+// =============================
+
+mat l2error(mat& targets, mat& predicts) {
+  mat err(targets - predicts);
+
+  thrust::device_ptr<float> ptr(err.getData());
+  thrust::transform(ptr, ptr + err.size(), ptr, func::square<float>());
+
+  mat sum_matrix(err.getCols(), 1);
+  err *= sum_matrix;
+  
+  return err;
 }
 
-void swap(GRADIENT& lhs, GRADIENT& rhs) {
-  using WHERE::swap;
-  swap(lhs.grad1, rhs.grad1);
-  swap(lhs.grad2, rhs.grad2);
-  swap(lhs.grad3, rhs.grad3);
-  swap(lhs.grad4, rhs.grad4);
-}

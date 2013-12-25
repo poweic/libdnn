@@ -1,6 +1,8 @@
 #ifndef __DNN_H_
 #define __DNN_H_
 
+#define mylog(x) { cout << #x << " = " << x << endl; }
+
 #include <arithmetic.h>
 #include <math_ext.h>
 
@@ -23,8 +25,10 @@
   #include <thrust/functional.h>
   #include <thrust/host_vector.h>
   #include <thrust/device_vector.h>
+  #include <thrust/inner_product.h>
   typedef device_matrix<float> mat;
   typedef thrust::device_vector<float> vec;
+
   #define WHERE thrust
 
 namespace ext {
@@ -35,14 +39,11 @@ namespace ext {
     thrust::device_ptr<T> xPtr(x.getData());
     thrust::device_ptr<T> sPtr(s.getData());
 
-    thrust::transform(xPtr, xPtr + x.size() - x.getRows(), sPtr, func::sigmoid<float>());
+    // Leave last column in s untouched
+    thrust::transform(xPtr, xPtr + x.size(), sPtr, func::sigmoid<float>());
 
+    // Fill last column in s with 1.0
     thrust::fill(sPtr + s.size() - s.getRows(), sPtr + s.size(), (float) 1.0);
-
-    /*for (size_t i=0; i<x.getRows(); ++i) {
-      std::transform(x[i], x[i] + x.getCols(), s[i], func::sigmoid<T>());
-      s[i][x.getCols()] = 1.0;
-      }*/
 
     return s;
   }
@@ -54,11 +55,7 @@ namespace ext {
     thrust::device_ptr<T> xPtr(x.getData());
     thrust::device_ptr<T> sPtr(s.getData());
 
-    thrust::transform(xPtr, xPtr + x.size() - x.getRows(), sPtr, func::sigmoid<float>());
-    /*for (size_t i=0; i<x.getRows(); ++i) {
-      std::transform(x[i], x[i] + x.getCols(), s[i], func::sigmoid<T>());
-      s[i][x.getCols()] = 1.0;
-      }*/
+    thrust::transform(xPtr, xPtr + x.size(), sPtr, func::sigmoid<float>());
 
     return s;
   }
@@ -124,44 +121,6 @@ private:
 
 void swap(DNN& lhs, DNN& rhs);
 
-#define HIDDEN_OUTPUT_ALIASING(O, x, y, z, w) \
-std::vector<vec>& x	= O.hox; \
-std::vector<vec>& y	= O.hoy; \
-vec& z		= O.hoz; \
-std::vector<vec>& w	= O.hod;
-
-#define GRADIENT_REF(g, g1, g2, g3, g4) \
-std::vector<mat>& g1	= g.grad1; \
-std::vector<mat>& g2 = g.grad2; \
-vec& g3		= g.grad3; \
-std::vector<mat>& g4 = g.grad4;
-
-#define GRADIENT_CONST_REF(g, g1, g2, g3, g4) \
-const std::vector<mat>& g1	= g.grad1; \
-const std::vector<mat>& g2 = g.grad2; \
-const vec& g3		= g.grad3; \
-const std::vector<mat>& g4 = g.grad4;
-
-class HIDDEN_OUTPUT {
-  public:
-    std::vector<vec> hox;
-    std::vector<vec> hoy;
-    vec hoz;
-    std::vector<vec> hod;
-};
-
-void swap(HIDDEN_OUTPUT& lhs, HIDDEN_OUTPUT& rhs);
-
-class GRADIENT {
-  public:
-    std::vector<mat> grad1;
-    std::vector<mat> grad2;
-    vec grad3;
-    std::vector<mat> grad4;
-};
-
-void swap(GRADIENT& lhs, GRADIENT& rhs);
-
 template <typename T>
 vector<T> add_bias(const vector<T>& v) {
   vector<T> vb(v.size() + 1);
@@ -197,5 +156,11 @@ void remove_bias(Matrix2D<T>& A) {
 
   A = B;
 }
+
+mat l2error(mat& targets, mat& predicts);
+
+void print(const thrust::host_vector<float>& hv);
+void print(const mat& m);
+void print(const thrust::device_vector<float>& dv);
 
 #endif  // __DNN_H_

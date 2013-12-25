@@ -42,6 +42,16 @@ namespace func {
   struct square {
     __host__ __device__ T operator() (const T& x) const { return x * x; }
   };
+
+  template <typename T>
+  struct sqrt {
+    __host__ __device__ T operator() (const T& x) const { return sqrtf(x); }
+  };
+
+  template <typename T>
+  struct to_zero_one {
+    __host__ __device__ T operator() (const T& x) const { return x > 0.5 ? 1 : 0; }
+  };
   
   template <typename T>
   struct sigmoid {
