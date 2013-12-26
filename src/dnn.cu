@@ -185,7 +185,7 @@ void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
 // ===== Back Propagation =====
 // ============================
 
-void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradient, const vec& coeff) {
+void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradient) {
   assert(gradient.size() == _weights.size());
 
   for (int i=_weights.size() - 1; i >= 0; --i) {
@@ -193,12 +193,6 @@ void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradi
     gradient[i] = ~O[i] * delta;
     delta *= ~_weights[i];
     
-    /*printf("after *= \n");
-    ::print(delta);*/
-
-    /*cout << "gradient[" << i << "] = " << endl;
-    ::print(gradient[i]);*/
-
     thrust::device_vector<float> temp(O[i].size());
 
     thrust::device_ptr<float> output(O[i].getData());
@@ -208,36 +202,14 @@ void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradi
     thrust::transform(dv1, dv1 + delta.size(), temp.begin(), dv1, thrust::multiplies<float>());
 
     // Remove bias (last column)
-    //cout << "before resize" << endl;
-    //mylog(delta.getRows());
-    //mylog(delta.getCols());
-    //::print(delta);
-
     delta.resize(delta.getRows(), delta.getCols() - 1);
-
-    //cout << "after resize" << endl;
-    //mylog(delta.getRows());
-    //mylog(delta.getCols());
-    //::print(delta);
-
   }
 }
 
 void DNN::updateParameters(std::vector<mat>& gradient, float learning_rate) { 
   for (size_t i=0; i<_weights.size(); ++i) {
     gradient[i] *= learning_rate;
-
-    /*float ng = nrm2(gradient[i]);
-    float nw = nrm2(_weights[i]);
-    float ratio = ng/nw;
-
-    printf("w[%lu]: ng / nw = %.6e / %.6e = %.6e\n", i, ng, nw, ratio);
-    if (ratio > 0.05)
-      learning_rate *= 0.05 / ratio;*/
-
     _weights[i] -= /*learning_rate * */gradient[i];
-
-    // learning_rate *= 4;
   }
 }
 

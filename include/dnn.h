@@ -93,8 +93,7 @@ public:
   void randInit();
   void feedForward(const mat& x, std::vector<mat>* hidden_output);
 
-  void backPropagate(vec& p, std::vector<vec>& hidden_output, std::vector<mat>& gradient);
-  void backPropagate(mat& p, std::vector<mat>& hidden_output, std::vector<mat>& gradient, const vec& coeff);
+  void backPropagate(mat& delta, std::vector<mat>& hidden_output, std::vector<mat>& gradient);
 
   void updateParameters(std::vector<mat>& gradient, float learning_rate = 1e-3);
 

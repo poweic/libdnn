@@ -2,22 +2,34 @@
 #include <string>
 #include <dnn.h>
 #include <dnn-utility.h>
+#include <cmdparser.h>
 using namespace std;
 
 void dnn_predicts(mat& data, mat& labels, string model_fn, string output_fn);
-void showUsageAndExit();
 
 int main (int argc, char* argv[]) {
 
-  if (argc < 3)
-    showUsageAndExit();
+  CmdParser cmd(argc, argv);
 
-  string test_fn(argv[1]);
-  string model_fn(argv[2]);
-  string output_fn(argc < 4 ? "" : argv[3]);
+  cmd.add("testing_set_file")
+    .add("model_file")
+    .add("output_file", false);
+
+  cmd.addGroup("Prediction options: ")
+    .add("--itr", "number of maximum iteration", "inf")
+    .add("--type", "choose one of the following:\n"
+	"0 -- classfication\n"
+	"1 -- regression", "0");
+
+  if (!cmd.isOptionLegal())
+    cmd.showUsageAndExit();
+
+  string test_fn = cmd[1];
+  string model_fn = cmd[2];
+  string output_fn = cmd[3];
 
   mat data, labels;
-  readFeature(test_fn, data, labels);
+  getFeature(test_fn, data, labels);
   showSummary(data, labels);
 
   // Make predictions
@@ -44,9 +56,4 @@ void dnn_predicts(mat& data, mat& labels, string model_fn, string output_fn) {
 
   if (fid != stdout)
     fclose(stdout);
-}
-
-void showUsageAndExit() {
-  printf("Usage: dnn-predict [options] test_file model_file output_file\n");
-  exit(-1);
 }

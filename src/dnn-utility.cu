@@ -88,6 +88,29 @@ float str2float(const string &s) {
   return atof(s.c_str());
 }
 
+vector<string>& split(const string &s, char delim, vector<string>& elems) {
+  stringstream ss(s);
+  string item;
+  while(getline(ss, item, delim))
+    elems.push_back(item);
+  return elems;
+}
+
+vector<string> split(const string &s, char delim) {
+  vector<string> elems;
+  return split(s, delim, elems);
+}
+
+vector<size_t> splitAsInt(const string &s, char delim) {
+  vector<string> tokens = split(s, delim);
+  vector<size_t> ints(tokens.size());
+
+  for (size_t i=0; i<ints.size(); ++i)
+    ints[i] = ::atoi(tokens[i].c_str());
+
+  return ints;
+}
+
 size_t getLineNumber(ifstream& fin) {
   int previous_pos = fin.tellg();
   string a;
@@ -183,17 +206,135 @@ size_t findDimension(ifstream& fin) {
   return dim;
 }
 
-void readFeature(const string &fn, mat& X, mat& y) {
+std::vector<size_t> randshuf(size_t N) {
+  std::vector<size_t> perm(N);
+
+  for (size_t i=0; i<N; ++i)
+    perm[i] = i;
+  
+  std::random_shuffle ( perm.begin(), perm.end() );
+
+  return perm;
+}
+
+void shuffleFeature(float* const data, float* const labels, int rows, int cols) {
+
+  printf("Random shuffling features for latter training...\n");
+
+  perf::Timer timer;
+  timer.start();
+
+  std::vector<size_t> perm = randshuf(rows);
+
+  float* tmp_data = new float[rows*cols];
+  float* tmp_labels = new float[rows];
+
+  memcpy(tmp_data, data, sizeof(float) * rows * cols);
+  memcpy(tmp_labels, labels, sizeof(float) * rows);
+
+  for (size_t i=0; i<rows; ++i) {
+    size_t from = i;
+    size_t to = perm[i];
+
+    for (size_t j=0; j<cols; ++j)
+      data[j * rows + to] = tmp_data[j * rows + from];
+
+    labels[to] = tmp_labels[from];
+  }
+
+  delete [] tmp_data;
+  delete [] tmp_labels;
+
+  timer.elapsed();
+}
+
+void splitIntoTrainingAndValidationSet(
+    mat& trainX, mat& trainY,
+    mat& validX, mat& validY,
+    int ratio,
+    mat& X, mat& y) {
+
+  size_t rows = X.getRows(),
+	 cols = X.getCols();
+  
+  float *h_X = new float[rows*cols],
+        *h_y = new float[rows];
+
+  CCE(cudaMemcpy(h_X, X.getData(), sizeof(float) * X.size(), cudaMemcpyDeviceToHost));
+  CCE(cudaMemcpy(h_y, y.getData(), sizeof(float) * y.size(), cudaMemcpyDeviceToHost));
+
+  float* h_trainX, *h_trainY, *h_validX, *h_validY;
+  size_t nTrain, nValid;
+  splitIntoTrainingAndValidationSet(
+      h_trainX, h_trainY, nTrain,
+      h_validX, h_validY, nValid,
+      ratio,
+      h_X, h_y,
+      rows, cols);
+
+  trainX = mat(h_trainX, nTrain, cols);
+  trainY = mat(h_trainY, nTrain, 1);
+
+  validX = mat(h_validX, nValid, cols);
+  validY = mat(h_validY, nValid, 1);
+
+  delete [] h_X;
+  delete [] h_y;
+}
+
+void splitIntoTrainingAndValidationSet(
+    float* &trainX, float* &trainY, size_t& nTrain,
+    float* &validX, float* & validY, size_t& nValid,
+    int ratio, /* ratio of training / validation */
+    const float* const data, const float* const labels,
+    int rows, int cols) {
+
+  nValid = rows / ratio;
+  nTrain = rows - nValid;
+  printf("nTrain = %lu, nValid = %lu\n", nTrain, nValid);
+
+  trainX = new float[nTrain * cols];
+  trainY = new float[nTrain];
+
+  validX = new float[nValid * cols];
+  validY = new float[nValid];
+
+  for (size_t i=0; i<nTrain; ++i) {
+    for (size_t j=0; j<cols; ++j)
+      trainX[j * nTrain + i] = data[j * rows + i];
+    trainY[i] = labels[i];
+  }
+
+  for (size_t i=0; i<nValid; ++i) {
+    for (size_t j=0; j<cols; ++j)
+      validX[j * nValid + i] = data[j * rows + i + nTrain];
+    validY[i] = labels[i + nTrain];
+  }
+}
+
+void getFeature(const string &fn, mat& X, mat& y) {
+
+  float* data, *labels;
+  int rows, cols;
+  readFeature(fn, data, labels, rows, cols);
+
+  X = mat(data, rows, cols);
+  y = mat(labels, rows, 1);
+
+  delete [] data;
+  delete [] labels;
+}
+
+void readFeature(const string &fn, float* &data, float* &labels, int &rows, int &cols) {
   ifstream fin(fn.c_str());
 
   bool isSparse = isFileSparse(fn);
-  size_t cols = isSparse ? findMaxDimension(fin) : findDimension(fin);
-  size_t rows = getLineNumber(fin);
 
-  printf("rows = %lu, cols = %lu \n", rows, cols);
+  cols = isSparse ? findMaxDimension(fin) : findDimension(fin);
+  rows = getLineNumber(fin);
+  data = new float[rows * cols];
+  labels = new float[rows];
 
-  float* data = new float[rows * cols];
-  float* labels = new float[rows];
   memset(data, 0, sizeof(float) * rows * cols);
 
   if (isSparse)
@@ -201,11 +342,7 @@ void readFeature(const string &fn, mat& X, mat& y) {
   else
     readDenseFeature(fin, data, labels, rows, cols);
 
-  X = mat(data, rows, cols);
-  y = mat(labels, rows, 1);
-
-  delete [] data;
-  delete [] labels;
+  shuffleFeature(data, labels, rows, cols);
 
   fin.close();
 }
