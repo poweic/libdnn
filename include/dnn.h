@@ -108,6 +108,74 @@ enum ERROR_MEASURE {
   CROSS_ENTROPY
 };
 
+class FeatureTransform {
+public:
+  virtual size_t fin() const { return 0; }
+  virtual size_t fout() const { return 0; }
+
+  virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+
+  }
+  virtual void backPropagate(mat& delta, const mat& error) {
+
+  }
+};
+
+class AffineTransform : public FeatureTransform {
+public:
+  AffineTransform() {
+
+  }
+
+  AffineTransform(const mat& w): _w(w), _dw(w.getRows(), w.getCols()) {
+
+  }
+
+  AffineTransform(size_t rows, size_t cols): _w(rows, cols), _dw(rows, cols) {
+    ext::randn(_w);
+  }
+
+  mat& getW() { return _w; }
+  const mat& getW() const { return _w; }
+  mat& getDw() { return _dw; }
+  const mat& getDw() const { return _dw; }
+
+  void update(float learning_rate) {
+    _dw *= learning_rate;
+    _w -= _dw;
+  }
+
+  void resize(size_t rows, size_t cols) {
+    _w.resize(rows, cols);
+    _dw.resize(rows, cols);
+  }
+
+  virtual size_t fin() const { return _w.getRows(); }
+  virtual size_t fout() const { return _w.getCols(); }
+  
+  virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+
+  }
+
+  virtual void backPropagate(mat& delta, const mat& error) {
+
+  }
+
+private:
+  mat _w;
+  mat _dw;
+};
+
+class Softmax : public AffineTransform {
+public:
+  Softmax(size_t rows, size_t cols): AffineTransform(rows, cols) {}
+  
+  virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+  }
+  virtual void backPropagate(mat& delta, const mat& error) {
+  }
+};
+
 class DNN {
 public:
   DNN();
@@ -132,17 +200,11 @@ public:
 
   void train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE err);
 
-  std::vector<mat>& getWeights();
-  const std::vector<mat>& getWeights() const;
-  std::vector<size_t>& getDims();
-  const std::vector<size_t>& getDims() const;
-
   friend void swap(DNN& lhs, DNN& rhs);
 
 private:
+  std::vector<AffineTransform> _transforms;
   std::vector<size_t> _dims;
-  std::vector<mat> _w;
-  std::vector<mat> _dw;
 };
 
 void swap(DNN& lhs, DNN& rhs);
