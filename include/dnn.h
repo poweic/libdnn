@@ -71,7 +71,7 @@ device_matrix<T> add_bias(const device_matrix<T>& A) {
       CUBLAS_OP_N, CUBLAS_OP_N,
       A.getRows(), A.getCols(),
       1.0, A.getData(), A.getRows(),
-      1.0, B.getData(), B.getRows(),
+      0.0, B.getData(), B.getRows(),
       B.getData(), B.getRows()
   );
 
