@@ -43,6 +43,7 @@ int main (int argc, char* argv[]) {
 
   mat data, labels;
   getFeature(train_fn, data, labels);
+
   showSummary(data, labels);
   zeroOneLabels(labels);
 
@@ -55,7 +56,7 @@ int main (int argc, char* argv[]) {
 
   // Initialize hidden structure
   vector<size_t> dims = splitAsInt(structure, '-');
-  dims.insert(dims.begin(), data.getCols());
+  dims.insert(dims.begin(), data.getCols() - 1);
   dims.push_back(labels.getCols());
   DNN dnn(dims);
 

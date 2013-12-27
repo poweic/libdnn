@@ -333,8 +333,13 @@ void getFeature(const string &fn, mat& X, mat& y) {
   int rows, cols;
   readFeature(fn, data, labels, rows, cols);
 
-  X = mat(data, rows, cols);
+  mat rawX(data, rows, cols);
+
   y = mat(labels, rows, 1);
+  X = mat(rows, cols + 1);
+  CCE(cudaMemcpy(X.getData(), rawX.getData(), sizeof(float) * rawX.size(), cudaMemcpyDeviceToDevice));
+
+  fillLastColumnWith(X, (float) 1.0);
 
   delete [] data;
   delete [] labels;

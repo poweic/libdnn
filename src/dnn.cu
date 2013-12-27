@@ -14,11 +14,10 @@ DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
 
   for (size_t i=0; i<L; ++i) {
     size_t M = _dims[i] + 1;
-    size_t N = _dims[i+1];
+    size_t N = _dims[i+1] + 1;
 
     // If not output layer, reserve last column for bias 
-    if (i < L - 1)
-      N += 1;
+    // if (i < L - 1) N += 1;
 
     _transforms[i] = AffineTransform(M, N);
   }
@@ -70,12 +69,11 @@ void DNN::read(string fn) {
 
     printf("rows = %lu, cols = %lu \n", rows, cols);
 
-    float* hw = new float[(rows + 1) * cols];
+    float* hw = new float[(rows + 1) * (cols + 1)];
     readweight(fid, hw, rows + 1, cols);
 
     // Reserve one more column for bias)
-    mat w(rows + 1, cols + 1);
-    CCE(cudaMemcpy(w.getData(), hw, sizeof(float) * (rows + 1) * cols, cudaMemcpyHostToDevice));
+    mat w(hw, rows + 1, cols + 1);
     _transforms.push_back(AffineTransform(w));
     delete [] hw;
 
@@ -83,10 +81,6 @@ void DNN::read(string fn) {
   }
   _dims.push_back(cols);
 
-  // No need for one more column in the last weight matrix, resize it back.
-  // (since I cannot tell which "i" is the last one in the while loop. )
-  _transforms.back().resize(rows + 1, cols);
-  
   fclose(fid);
 }
 
@@ -97,10 +91,7 @@ void DNN::save(string fn) const {
     const mat& w = _transforms[i].getW();
 
     size_t rows = w.getRows();
-    size_t cols = w.getCols();
-
-    if (i != _transforms.size() - 1)
-      cols -= 1;
+    size_t cols = w.getCols() - 1;
 
     fprintf(fid, "<affinetransform> %lu %lu \n", rows - 1, cols);
     fprintf(fid, " [");
@@ -232,21 +223,13 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
 
   assert(O.size() == _dims.size());
 
-  /*for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i].feedForward(O[i+1], O[i], offset, batchSize);*/
-
-  O[0].resize(batchSize, data.X.getCols() + 1);
-
+  O[0].resize(batchSize, data.X.getCols());
   memcpy2D(O[0], data.X, offset, 0, batchSize, data.X.getCols(), 0, 0);
-  fillLastColumnWith(O[0], (float) 1.0);
 
-  size_t end = O.size() - 1;
-  for (size_t i=0; i<end - 1; ++i) {
-    O[i+1] = ext::sigmoid(O[i] * _transforms[i].getW());
-    fillLastColumnWith(O[i+1], (float) 1.0);
-  }
+  for (size_t i=0; i<_transforms.size(); ++i)
+    _transforms[i].feedForward(O[i+1], O[i], offset, batchSize);
 
-  O[end] = ext::sigmoid(O[end - 1] * _transforms[end - 1].getW());
+  O.back().resize(O.back().getRows(), O.back().getCols() - 1);
 }
 
 // ============================
@@ -256,50 +239,11 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
 void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, size_t offset, size_t nData) {
   // mat error = O.back() - train.y;
   mat delta = calcError(O.back(), data.y, offset, nData);
+  delta.reserve(delta.getRows() * (delta.getCols() + 1));
+  delta.resize(delta.getRows(), delta.getCols() + 1);
 
-  for (int i=_transforms.size() - 1; i >= 0; --i) {
-
-    _transforms[i].getDw() = ~O[i] * delta;
-    // delta *= ~_w[i];
-    
-    //   delta = delta(:, 1:end-1) * ~_w[i]
-    //
-    //                  (temp)
-    //     delta'    =  delta    x     (weigth)^T
-    // -------------------------------------------
-    //       7                             7
-    // |<--------->|   ----->|       |<--------->|
-    // o o o o o o o = o o o o o x | o o o o o o o 
-    // o o o o o o o   o o o o o   | o o o o o o o 
-    // o o o o o o o   o o o o o   | o o o o o o o 
-    //                             v o o o o o o o 
-    //                               o o o o o o o  (<== bias, don't use them when back-propagate)
-
-    size_t D1 = _transforms[i].getW().getRows() - 1,
-           D2 = (i == _transforms.size() - 1) ? delta.getCols() 
-					   : delta.getCols() - 1,
-           nData = delta.getRows();
-
-    mat tmp(delta);
-    delta.resize(nData, D1 + 1);
-
-    device_matrix<float>::cublas_gemm(
-	CUBLAS_OP_N, CUBLAS_OP_T,
-	nData, D1 + 1, D2 /* Ignore last column, which is the bias */,
-	1.0,
-	tmp.getData(), nData,
-	_transforms[i].getW().getData(), D1 + 1,
-	0.0,
-	delta.getData(), nData);
-    
-    thrust::device_vector<float> temp(O[i].size());
-
-    thrust::device_ptr<float> output(O[i].getData());
-    thrust::transform(output, output + O[i].size(), temp.begin(), func::dsigma<float>());
-
-    thrust::device_ptr<float> dv1(delta.getData());
-    thrust::transform(dv1, dv1 + delta.size(), temp.begin(), dv1, thrust::multiplies<float>());
-  }
+  for (int i=_transforms.size() - 1; i >= 0; --i)
+    _transforms[i].backPropagate(delta, O[i]);
 }
 
 void DNN::updateParameters(float learning_rate) { 
