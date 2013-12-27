@@ -117,9 +117,9 @@ public:
   DNN& operator = (DNN rhs);
 
   void feedForward(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
-  void backPropagate(const DataSet& data, std::vector<mat>& O, std::vector<mat>& gradient, size_t offset, size_t nData);
+  void backPropagate(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
 
-  void updateParameters(std::vector<mat>& gradient, float learning_rate = 1e-3);
+  void updateParameters(float learning_rate = 1e-3);
 
   size_t getNLayer() const;
   size_t getDepth() const;
@@ -141,7 +141,8 @@ public:
 
 private:
   std::vector<size_t> _dims;
-  std::vector<mat> _weights;
+  std::vector<mat> _w;
+  std::vector<mat> _dw;
 };
 
 void swap(DNN& lhs, DNN& rhs);

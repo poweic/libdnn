@@ -9,7 +9,7 @@ DNN::DNN(string fn): _dims(0) {
 
 DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
   size_t L = _dims.size() - 1;
-  _weights.resize(L);
+  _w.resize(L);
 
   for (size_t i=0; i<L; ++i) {
     size_t M = _dims[i] + 1;
@@ -19,14 +19,14 @@ DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
     if (i < L - 1)
       N += 1;
 
-    _weights[i].resize(M, N);
+    _w[i].resize(M, N);
   }
 
   for (size_t i=0; i<L; ++i)
-    ext::randn(_weights[i]);
+    ext::randn(_w[i]);
 }
 
-DNN::DNN(const DNN& source): _dims(source._dims), _weights(source._weights) {
+DNN::DNN(const DNN& source): _dims(source._dims), _w(source._w), _dw(source._dw) {
 }
 
 DNN& DNN::operator = (DNN rhs) {
@@ -62,7 +62,7 @@ void DNN::read(string fn) {
   FILE* fid = fopen(fn.c_str(), "r");
 
   _dims.clear();
-  _weights.clear();
+  _w.clear();
 
   size_t rows, cols;
 
@@ -76,7 +76,7 @@ void DNN::read(string fn) {
     // Reserve one more column for bias)
     mat w(rows + 1, cols + 1);
     CCE(cudaMemcpy(w.getData(), hw, sizeof(float) * (rows + 1) * cols, cudaMemcpyHostToDevice));
-    _weights.push_back(w);
+    _w.push_back(w);
     delete [] hw;
 
     _dims.push_back(rows);
@@ -85,7 +85,7 @@ void DNN::read(string fn) {
 
   // No need for one more column in the last weight matrix, resize it back.
   // (since I cannot tell which "i" is the last one in the while loop. )
-  _weights.back().resize(rows + 1, cols);
+  _w.back().resize(rows + 1, cols);
   
   fclose(fid);
 }
@@ -93,13 +93,13 @@ void DNN::read(string fn) {
 void DNN::save(string fn) const {
   FILE* fid = fopen(fn.c_str(), "w");
 
-  for (size_t i=0; i<_weights.size(); ++i) {
-    const mat& w = _weights[i];
+  for (size_t i=0; i<_w.size(); ++i) {
+    const mat& w = _w[i];
 
     size_t rows = w.getRows();
     size_t cols = w.getCols();
 
-    if (i != _weights.size() - 1)
+    if (i != _w.size() - 1)
       cols -= 1;
 
     fprintf(fid, "<affinetransform> %lu %lu \n", rows - 1, cols);
@@ -133,21 +133,21 @@ void DNN::save(string fn) const {
 }
 
 void DNN::print() const {
-  for (size_t i=0; i<_weights.size(); ++i)
-    _weights[i].print(stdout);
+  for (size_t i=0; i<_w.size(); ++i)
+    _w[i].print(stdout);
 }
 
 void DNN::getEmptyGradient(std::vector<mat>& g) const {
-  g.resize(_weights.size());
-  for (size_t i=0; i<_weights.size(); ++i) {
-    int m = _weights[i].getRows();
-    int n = _weights[i].getCols();
+  g.resize(_w.size());
+  for (size_t i=0; i<_w.size(); ++i) {
+    int m = _w[i].getRows();
+    int n = _w[i].getCols();
     g[i].resize(m, n);
   }
 }
 
-std::vector<mat>& DNN::getWeights() { return _weights; }
-const std::vector<mat>& DNN::getWeights() const { return _weights; }
+std::vector<mat>& DNN::getWeights() { return _w; }
+const std::vector<mat>& DNN::getWeights() const { return _w; }
 std::vector<size_t>& DNN::getDims() { return _dims; }
 const std::vector<size_t>& DNN::getDims() const { return _dims; }
 
@@ -181,8 +181,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
   timer.start();
 
   vector<mat> O(this->getNLayer());
-  std::vector<mat> gradient;
-  this->getEmptyGradient(gradient);
+  this->getEmptyGradient(_dw);
 
   size_t input_dim = train.X.getCols(),
 	 output_dim= train.y.getCols();
@@ -211,8 +210,8 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 	nData = min(remained - 1, batchSize);
 
       this->feedForward(train, O, offset, nData);
-      this->backPropagate(train, O, gradient, offset, nData);
-      this->updateParameters(gradient, 5 * 1e-3);
+      this->backPropagate(train, O, offset, nData);
+      this->updateParameters(5 * 1e-3);
     }
 
     this->feedForward(valid, O);
@@ -255,29 +254,27 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
 
   size_t end = O.size() - 1;
   for (size_t i=0; i<end - 1; ++i) {
-    O[i+1] = ext::sigmoid(O[i] * _weights[i]);
+    O[i+1] = ext::sigmoid(O[i] * _w[i]);
     fillLastColumnWith(O[i+1], (float) 1.0);
   }
 
-  O[end] = ext::sigmoid(O[end - 1] * _weights[end - 1]);
+  O[end] = ext::sigmoid(O[end - 1] * _w[end - 1]);
 }
 
 // ============================
 // ===== Back Propagation =====
 // ============================
 
-void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, std::vector<mat>& gradient, size_t offset, size_t nData) {
-  assert(gradient.size() == _weights.size());
-
+void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, size_t offset, size_t nData) {
   // mat error = O.back() - train.y;
   mat delta = calcError(O.back(), data.y, offset, nData);
 
-  for (int i=_weights.size() - 1; i >= 0; --i) {
+  for (int i=_w.size() - 1; i >= 0; --i) {
 
-    gradient[i] = ~O[i] * delta;
-    // delta *= ~_weights[i];
+    _dw[i] = ~O[i] * delta;
+    // delta *= ~_w[i];
     
-    //   delta = delta(:, 1:end-1) * ~_weights[i]
+    //   delta = delta(:, 1:end-1) * ~_w[i]
     //
     //                  (temp)
     //     delta'    =  delta    x     (weigth)^T
@@ -290,8 +287,8 @@ void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, std::vector<ma
     //                             v o o o o o o o 
     //                               o o o o o o o  (<== bias, don't use them when back-propagate)
 
-    size_t D1 = _weights[i].getRows() - 1,
-           D2 = (i == _weights.size() - 1) ? delta.getCols() 
+    size_t D1 = _w[i].getRows() - 1,
+           D2 = (i == _w.size() - 1) ? delta.getCols() 
 					   : delta.getCols() - 1,
            nData = delta.getRows();
 
@@ -303,7 +300,7 @@ void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, std::vector<ma
 	nData, D1 + 1, D2 /* Ignore last column, which is the bias */,
 	1.0,
 	tmp.getData(), nData,
-	_weights[i].getData(), D1 + 1,
+	_w[i].getData(), D1 + 1,
 	0.0,
 	delta.getData(), nData);
     
@@ -317,17 +314,18 @@ void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, std::vector<ma
   }
 }
 
-void DNN::updateParameters(std::vector<mat>& gradient, float learning_rate) { 
-  for (size_t i=0; i<_weights.size(); ++i) {
-    gradient[i] *= learning_rate;
-    _weights[i] -= /*learning_rate * */gradient[i];
+void DNN::updateParameters(float learning_rate) { 
+  for (size_t i=0; i<_w.size(); ++i) {
+    _dw[i] *= learning_rate;
+    _w[i] -= /*learning_rate * */_dw[i];
   }
 }
 
 void swap(DNN& lhs, DNN& rhs) {
   using WHERE::swap;
-  swap(lhs._dims   , rhs._dims   );
-  swap(lhs._weights, rhs._weights);
+  swap(lhs._dims  , rhs._dims );
+  swap(lhs._w	  , rhs._w    );
+  swap(lhs._dw	  , rhs._dw   );
 }
 
 // =============================
