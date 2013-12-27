@@ -62,6 +62,23 @@ namespace ext {
 }
 
 template <typename T>
+void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src, size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {
+
+  device_matrix<float>::cublas_geam(
+      CUBLAS_OP_N, CUBLAS_OP_N,
+      h, w,
+      1.0, src.getData() + c0 * src.getRows() + r0, src.getRows(),
+      0.0, dest.getData(), dest.getRows(),
+      dest.getData() + c1 * dest.getRows() + r1, dest.getRows());
+}
+
+template <typename T>
+void fillLastColumnWith(device_matrix<T>& A, const T value) {
+  thrust::device_ptr<T> ptr(A.getData());
+  thrust::fill(ptr + A.size() - A.getRows(), ptr + A.size(), value);
+}
+
+template <typename T>
 device_matrix<T> add_bias(const device_matrix<T>& A) {
   device_matrix<T> B(A.getRows(), A.getCols() + 1);
 
@@ -90,8 +107,7 @@ public:
   DNN(const DNN& source);
   DNN& operator = (DNN rhs);
 
-  void randInit();
-  void feedForward(const mat& x, std::vector<mat>* hidden_output);
+  void feedForward(const mat& x, std::vector<mat>* hidden_output, size_t offset = 0, size_t batchSize = 0);
 
   void backPropagate(mat& delta, std::vector<mat>& hidden_output, std::vector<mat>& gradient);
 

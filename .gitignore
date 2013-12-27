@@ -1,4 +1,5 @@
 obj/*
+data/*.model
 cpu_example
 gpu_example
 tags

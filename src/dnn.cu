@@ -7,15 +7,22 @@ DNN::DNN(string fn): _dims(0) {
 }
 
 DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
-  _weights.resize(_dims.size() - 1);
+  size_t L = _dims.size() - 1;
+  _weights.resize(L);
 
-  for (size_t i=0; i<_weights.size(); ++i) {
+  for (size_t i=0; i<L; ++i) {
     size_t M = _dims[i] + 1;
-    size_t N = _dims[i + 1];
+    size_t N = _dims[i+1];
+
+    // If not output layer, reserve last column for bias 
+    if (i < L - 1)
+      N += 1;
+
     _weights[i].resize(M, N);
   }
 
-  randInit();
+  for (size_t i=0; i<L; ++i)
+    ext::randn(_weights[i]);
 }
 
 DNN::DNN(const DNN& source): _dims(source._dims), _weights(source._weights) {
@@ -62,15 +69,23 @@ void DNN::read(string fn) {
 
     printf("rows = %lu, cols = %lu \n", rows, cols);
 
-    float* w = new float[(rows + 1) * cols];
-    readweight(fid, w, rows + 1, cols);
-    _weights.push_back(mat(w, rows + 1, cols));
-    delete [] w;
+    float* hw = new float[(rows + 1) * cols];
+    readweight(fid, hw, rows + 1, cols);
+
+    // Reserve one more column for bias)
+    mat w(rows + 1, cols + 1);
+    CCE(cudaMemcpy(w.getData(), hw, sizeof(float) * (rows + 1) * cols, cudaMemcpyHostToDevice));
+    _weights.push_back(w);
+    delete [] hw;
 
     _dims.push_back(rows);
   }
   _dims.push_back(cols);
 
+  // No need for one more column in the last weight matrix, resize it back.
+  // (since I cannot tell which "i" is the last one in the while loop. )
+  _weights.back().resize(rows + 1, cols);
+  
   fclose(fid);
 }
 
@@ -83,6 +98,9 @@ void DNN::save(string fn) const {
     size_t rows = w.getRows();
     size_t cols = w.getCols();
 
+    if (i != _weights.size() - 1)
+      cols -= 1;
+
     fprintf(fid, "<affinetransform> %lu %lu \n", rows - 1, cols);
     fprintf(fid, " [");
 
@@ -93,13 +111,13 @@ void DNN::save(string fn) const {
     for (size_t j=0; j<rows-1; ++j) {
       fprintf(fid, "\n  ");
       for (size_t k=0; k<cols; ++k)
-	fprintf(fid, "%.7f ", data[k * rows + j]);
+	fprintf(fid, "%g ", data[k * rows + j]);
     }
     fprintf(fid, "]\n");
 
     fprintf(fid, "<sigmoid> \n [");
     for (size_t j=0; j<cols; ++j)
-      fprintf(fid, "%.7f ", data[j * rows + rows - 1]);
+      fprintf(fid, "%g ", data[j * rows + rows - 1]);
     fprintf(fid, " ]\n");
 
     delete [] data;
@@ -132,12 +150,6 @@ const std::vector<mat>& DNN::getWeights() const { return _weights; }
 std::vector<size_t>& DNN::getDims() { return _dims; }
 const std::vector<size_t>& DNN::getDims() const { return _dims; }
 
-
-void DNN::randInit() {
-  for (size_t i=0; i<_weights.size(); ++i)
-    ext::randn(_weights[i]);
-}
-
 // ========================
 // ===== Feed Forward =====
 // ========================
@@ -161,24 +173,29 @@ void print(const thrust::device_vector<float>& dv) {
   ::print(hv);
 }
 
-void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output) {
+void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output, size_t offset, size_t batchSize) {
   assert(hidden_output != NULL);
+  assert(batchSize >= 0 && offset + batchSize <= x.getRows());
+
+  // All data in one-batch (Gradient Descent)
+  if (batchSize == 0)
+    batchSize = x.getRows();
 
   std::vector<mat>& O = *hidden_output;
   assert(O.size() == _dims.size());
 
-  O[0] = add_bias(x);
+  O[0].resize(batchSize, x.getCols() + 1);
 
-  /*for (size_t i=0; i<_weights.size(); ++i) {
-    cout << "_weights[" << i << "] = " << endl;
-    ::print(_weights[i]);
-  }*/
-
-  for (size_t i=1; i<O.size() - 1; ++i)
-    O[i] = ext::b_sigmoid(O[i-1] * _weights[i-1]);
+  memcpy2D(O[0], x, offset, 0, batchSize, x.getCols(), 0, 0);
+  fillLastColumnWith(O[0], (float) 1.0);
 
   size_t end = O.size() - 1;
-  O.back() = ext::sigmoid(O[end - 1] * _weights[end - 1]);
+  for (size_t i=0; i<end - 1; ++i) {
+    O[i+1] = ext::sigmoid(O[i] * _weights[i]);
+    fillLastColumnWith(O[i+1], (float) 1.0);
+  }
+
+  O[end] = ext::sigmoid(O[end - 1] * _weights[end - 1]);
 }
 
 // ============================
@@ -191,7 +208,37 @@ void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradi
   for (int i=_weights.size() - 1; i >= 0; --i) {
 
     gradient[i] = ~O[i] * delta;
-    delta *= ~_weights[i];
+    // delta *= ~_weights[i];
+    
+    //   delta = delta(:, 1:end-1) * ~_weights[i]
+    //
+    //                  (temp)
+    //     delta'    =  delta    x     (weigth)^T
+    // -------------------------------------------
+    //       7                             7
+    // |<--------->|   ----->|       |<--------->|
+    // o o o o o o o = o o o o o x | o o o o o o o 
+    // o o o o o o o   o o o o o   | o o o o o o o 
+    // o o o o o o o   o o o o o   | o o o o o o o 
+    //                             v o o o o o o o 
+    //                               o o o o o o o  (<== bias, don't use them when back-propagate)
+
+    size_t D1 = _weights[i].getRows() - 1,
+           D2 = (i == _weights.size() - 1) ? delta.getCols() 
+					   : delta.getCols() - 1,
+           nData = delta.getRows();
+
+    mat tmp(delta);
+    delta.resize(nData, D1 + 1);
+
+    device_matrix<float>::cublas_gemm(
+	CUBLAS_OP_N, CUBLAS_OP_T,
+	nData, D1 + 1, D2 /* Ignore last column, which is the bias */,
+	1.0,
+	tmp.getData(), nData,
+	_weights[i].getData(), D1 + 1,
+	0.0,
+	delta.getData(), nData);
     
     thrust::device_vector<float> temp(O[i].size());
 
@@ -200,9 +247,6 @@ void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradi
 
     thrust::device_ptr<float> dv1(delta.getData());
     thrust::transform(dv1, dv1 + delta.size(), temp.begin(), dv1, thrust::multiplies<float>());
-
-    // Remove bias (last column)
-    delta.resize(delta.getRows(), delta.getCols() - 1);
   }
 }
 
