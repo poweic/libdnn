@@ -175,10 +175,10 @@ void print(const thrust::device_vector<float>& dv) {
 }
 
 void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE err) {
-  
-  /*printf("Training...\n");
+
+  printf("Training...\n");
   perf::Timer timer;
-  timer.start();*/
+  timer.start();
 
   vector<mat> O(this->getNLayer());
   std::vector<mat> gradient;
@@ -210,16 +210,12 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
       if (b == nBatch - 1)
 	nData = min(remained - 1, batchSize);
 
-      this->feedForward(train.X, &O, offset, nData);
-
-      // mat error = O.back() - train.y;
-      mat error = calcError(O.back(), train.y, offset, nData);
-
-      this->backPropagate(error, O, gradient);
+      this->feedForward(train, O, offset, nData);
+      this->backPropagate(train, O, gradient, offset, nData);
       this->updateParameters(gradient, 5 * 1e-3);
     }
 
-    this->feedForward(valid.X, &O);
+    this->feedForward(valid, O);
 
     Eout = zeroOneError(O.back(), valid.y);
 
@@ -231,9 +227,9 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
   // Show Summary
   printf("\n%d epochs in total\n", epoch);
-  // timer.elapsed();
+  timer.elapsed();
 
-  this->feedForward(train.X, &O);
+  this->feedForward(train, O);
   Ein = zeroOneError(O.back(), train.y);
 
   printf("[   In-Sample   ] ");
@@ -243,20 +239,18 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
 }
 
-void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output, size_t offset, size_t batchSize) {
-  assert(hidden_output != NULL);
-  assert(batchSize >= 0 && offset + batchSize <= x.getRows());
+void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, size_t batchSize) {
+  assert(batchSize >= 0 && offset + batchSize <= data.X.getRows());
 
   // All data in one-batch (Gradient Descent)
   if (batchSize == 0)
-    batchSize = x.getRows();
+    batchSize = data.X.getRows();
 
-  std::vector<mat>& O = *hidden_output;
   assert(O.size() == _dims.size());
 
-  O[0].resize(batchSize, x.getCols() + 1);
+  O[0].resize(batchSize, data.X.getCols() + 1);
 
-  memcpy2D(O[0], x, offset, 0, batchSize, x.getCols(), 0, 0);
+  memcpy2D(O[0], data.X, offset, 0, batchSize, data.X.getCols(), 0, 0);
   fillLastColumnWith(O[0], (float) 1.0);
 
   size_t end = O.size() - 1;
@@ -272,8 +266,11 @@ void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output, size_t offs
 // ===== Back Propagation =====
 // ============================
 
-void DNN::backPropagate(mat& delta, std::vector<mat>& O, std::vector<mat>& gradient) {
+void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, std::vector<mat>& gradient, size_t offset, size_t nData) {
   assert(gradient.size() == _weights.size());
+
+  // mat error = O.back() - train.y;
+  mat delta = calcError(O.back(), data.y, offset, nData);
 
   for (int i=_weights.size() - 1; i >= 0; --i) {
 

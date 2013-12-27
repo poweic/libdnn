@@ -5,7 +5,7 @@
 #include <cmdparser.h>
 using namespace std;
 
-void dnn_predicts(mat& data, mat& labels, string model_fn, string output_fn);
+void dnn_predicts(const DataSet& data, string model_fn, string output_fn);
 
 int main (int argc, char* argv[]) {
 
@@ -28,30 +28,30 @@ int main (int argc, char* argv[]) {
   string model_fn = cmd[2];
   string output_fn = cmd[3];
 
-  mat data, labels;
-  getFeature(test_fn, data, labels);
-  showSummary(data, labels);
+  DataSet test;
+  getFeature(test_fn, test.X, test.y);
+  showSummary(test.X, test.y);
 
   // Make predictions
-  dnn_predicts(data, labels, model_fn, output_fn);
+  dnn_predicts(test, model_fn, output_fn);
 
   return 0;
 }
 
-void dnn_predicts(mat& data, mat& labels, string model_fn, string output_fn) {
+void dnn_predicts(const DataSet& data, string model_fn, string output_fn) {
 
   FILE* fid = output_fn.empty() ? stdout : fopen(output_fn.c_str(), "w");
 
-  zeroOneLabels(labels);
+  zeroOneLabels(data.y);
 
   DNN dnn(model_fn);
 
   vector<mat> O(dnn.getNLayer());
-  dnn.feedForward(data, &O);
+  dnn.feedForward(data, O);
 
-  if (isLabeled(labels)) {
-    size_t nError = zeroOneError(O.back(), labels);
-    showAccuracy(nError, labels.size());
+  if (isLabeled(data.y)) {
+    size_t nError = zeroOneError(O.back(), data.y);
+    showAccuracy(nError, data.y.size());
   }
 
   if (fid != stdout)

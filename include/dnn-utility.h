@@ -6,7 +6,7 @@
 
 void zeroOneLabels(const mat& label);
 size_t zeroOneError(const mat& predict, const mat& label);
-mat& calcError(const mat& output, mat& trainY, size_t offset = 0, size_t nData = 0);
+mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t nData = 0);
 
 void print(const std::vector<mat>& vm);
 

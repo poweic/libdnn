@@ -28,7 +28,7 @@ size_t zeroOneError(const mat& predict, const mat& label) {
   return nError;
 }
 
-mat& calcError(const mat& output, mat& trainY, size_t offset, size_t nData) {
+mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData) {
 
   mat error(nData, trainY.getCols());
 

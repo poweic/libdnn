@@ -5,8 +5,6 @@
 #include <cmdparser.h>
 using namespace std;
 
-// void dnn_train(DNN& dnn, mat& trainX, mat& trainY, mat& validX, mat& validY, size_t batchSize);
-
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
@@ -45,16 +43,15 @@ int main (int argc, char* argv[]) {
 
   mat data, labels;
   getFeature(train_fn, data, labels);
+  showSummary(data, labels);
   zeroOneLabels(labels);
 
-  mat trainX, trainY, validX, validY;
+  DataSet train, valid;
   splitIntoTrainingAndValidationSet(
-      trainX, trainY,
-      validX, validY,
+      train.X, train.y,
+      valid.X, valid.y,
       ratio,
       data, labels);
-
-  showSummary(data, labels);
 
   // Initialize hidden structure
   vector<size_t> dims = splitAsInt(structure, '-');
@@ -62,83 +59,11 @@ int main (int argc, char* argv[]) {
   dims.push_back(labels.getCols());
   DNN dnn(dims);
 
-  DataSet train(trainX, trainY),
-	  valid(validX, validY);
-
   // Start Training
   dnn.train(train, valid, batchSize, L2ERROR);
-  // dnn_train(dnn, trainX, trainY, validX, validY, batchSize);
 
   // Save the model
   dnn.save(model_fn);
 
   return 0;
 }
-
-/*void dnn_train(DNN& dnn, mat& trainX, mat& trainY, mat& validX, mat& validY, size_t batchSize) {
-
-  printf("Training...\n");
-  perf::Timer timer;
-  timer.start();
-
-  vector<mat> O(dnn.getNLayer());
-  std::vector<mat> gradient;
-  dnn.getEmptyGradient(gradient);
-
-  size_t input_dim = trainX.getCols(),
-	 output_dim= trainY.getCols();
-
-  size_t Ein, Eout;
-  size_t prevEout = validY.size();
-  size_t MAX_EPOCH = 1024, epoch;
-
-  size_t nTrain = trainX.getRows(),
-	 nValid = validX.getRows();
-
-  size_t nBatch = nTrain / batchSize,
-         remained = nTrain - nBatch * batchSize;
-
-  if (remained > 0)
-    ++nBatch;
-
-  for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
-
-    for (size_t b=0; b<nBatch; ++b) {
-
-      size_t offset = b*batchSize;
-      size_t nData = batchSize;
-
-      if (b == nBatch - 1)
-	nData = min(remained - 1, batchSize);
-
-      dnn.feedForward(trainX, &O, offset, nData);
-
-      // mat error = O.back() - trainY;
-      mat error = calcError(O.back(), trainY, offset, nData);
-
-      dnn.backPropagate(error, O, gradient);
-      dnn.updateParameters(gradient, 5 * 1e-3);
-    }
-
-    dnn.feedForward(validX, &O);
-
-    Eout = zeroOneError(O.back(), validY);
-
-    if (Eout > prevEout && (float) Eout / nValid < 0.2)
-      break;
-
-    prevEout = Eout;
-  }
-
-  // Show Summary
-  printf("\n%d epochs in total\n", epoch);
-  timer.elapsed();
-
-  dnn.feedForward(trainX, &O);
-  Ein = zeroOneError(O.back(), trainY);
-
-  printf("[   In-Sample   ] ");
-  showAccuracy(Ein, trainY.size());
-  printf("[ Out-of-Sample ] ");
-  showAccuracy(Eout, validY.size());
-}*/
