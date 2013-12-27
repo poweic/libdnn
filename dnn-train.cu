@@ -5,56 +5,9 @@
 #include <cmdparser.h>
 using namespace std;
 
-void dnn_train(DNN& dnn, mat& trainX, mat& trainY, mat& validX, mat& validY, size_t batchSize);
-
-void playground() {
-  size_t N = 16;
-  size_t d1 = 10, d2 = 8;
-  size_t batchSize = 3;
-
-  mat x(N, d1);
-  mat A(d1, d2);
-  ext::randn(x);
-  ext::randn(A);
-
-  size_t nBatch = N / batchSize;
-  vector<mat> y(nBatch);
-  
-  for (size_t i=0; i<nBatch; ++i)
-    y[i].resize(batchSize, d2);
-
-  /*size_t remained = N - nBatch * batchSize;
-  if (remained > 0)
-    y.back().resize(remained, d2);*/
-
-  for (int i=0; i<nBatch; ++i) {
-    device_matrix<float>::cublas_gemm(
-	CUBLAS_OP_N, CUBLAS_OP_N,
-	batchSize, d2, d1,
-	1.0,
-	x.getData() + i * batchSize, x.getRows(),
-	A.getData(), A.getRows(),
-	0.0,
-	y[i].getData(), batchSize);
-
-    y[i].print();
-
-  }
-
-  printf("\33[33m===========================================================\33[0m\n\n");
-
-  (x*A).print();
-
-  mat B(8, 4);
-  memcpy2D(B, x, 6, 5, 4, 3, 2, 1);
-  x.print();
-  B.print();
-}
+// void dnn_train(DNN& dnn, mat& trainX, mat& trainY, mat& validX, mat& validY, size_t batchSize);
 
 int main (int argc, char* argv[]) {
-
-  /*playground();
-  return 0;*/
 
   CmdParser cmd(argc, argv);
 
@@ -109,8 +62,12 @@ int main (int argc, char* argv[]) {
   dims.push_back(labels.getCols());
   DNN dnn(dims);
 
+  DataSet train(trainX, trainY),
+	  valid(validX, validY);
+
   // Start Training
-  dnn_train(dnn, trainX, trainY, validX, validY, batchSize);
+  dnn.train(train, valid, batchSize, L2ERROR);
+  // dnn_train(dnn, trainX, trainY, validX, validY, batchSize);
 
   // Save the model
   dnn.save(model_fn);
@@ -118,21 +75,7 @@ int main (int argc, char* argv[]) {
   return 0;
 }
 
-mat& calcError(const mat& output, mat& trainY, size_t offset = 0, size_t nData = 0) {
-
-  mat error(nData, trainY.getCols());
-
-  device_matrix<float>::cublas_geam(
-      CUBLAS_OP_N, CUBLAS_OP_N,
-      nData, trainY.getCols(),
-      1.0, output.getData(), nData,
-      -1.0, trainY.getData() + offset, trainY.getRows(),
-      error.getData(), nData);
-
-  return error;
-}
-
-void dnn_train(DNN& dnn, mat& trainX, mat& trainY, mat& validX, mat& validY, size_t batchSize) {
+/*void dnn_train(DNN& dnn, mat& trainX, mat& trainY, mat& validX, mat& validY, size_t batchSize) {
 
   printf("Training...\n");
   perf::Timer timer;
@@ -198,4 +141,4 @@ void dnn_train(DNN& dnn, mat& trainX, mat& trainY, mat& validX, mat& validY, siz
   showAccuracy(Ein, trainY.size());
   printf("[ Out-of-Sample ] ");
   showAccuracy(Eout, validY.size());
-}
+}*/

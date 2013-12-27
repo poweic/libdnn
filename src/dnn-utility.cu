@@ -28,6 +28,21 @@ size_t zeroOneError(const mat& predict, const mat& label) {
   return nError;
 }
 
+mat& calcError(const mat& output, mat& trainY, size_t offset, size_t nData) {
+
+  mat error(nData, trainY.getCols());
+
+  device_matrix<float>::cublas_geam(
+      CUBLAS_OP_N, CUBLAS_OP_N,
+      nData, trainY.getCols(),
+      1.0, output.getData(), nData,
+      -1.0, trainY.getData() + offset, trainY.getRows(),
+      error.getData(), nData);
+
+  return error;
+}
+
+
 void print(const std::vector<mat>& vm) {
   for (size_t i=0; i<vm.size(); ++i) {
     printf("rows = %lu, cols = %lu\n", vm[i].getRows(), vm[i].getCols());

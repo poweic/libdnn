@@ -99,6 +99,21 @@ device_matrix<T> add_bias(const device_matrix<T>& A) {
 
 #define dsigma(x) ((x) & ((float) 1.0 - (x)))
 
+class DataSet {
+public:
+  DataSet(mat& dataX, mat& dataY):
+    X(dataX), y(dataY), nData(dataX.getRows()) {}
+
+  mat& X, &y;
+  size_t nData;
+};
+
+enum ERROR_MEASURE {
+  L2ERROR,  /* for binary-classification only */
+  CROSS_ENTROPY
+};
+
+
 class DNN {
 public:
   DNN();
@@ -121,6 +136,8 @@ public:
   void read(string fn);
   void save(string fn) const;
   void print() const;
+
+  void train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE err);
 
   std::vector<mat>& getWeights();
   const std::vector<mat>& getWeights() const;

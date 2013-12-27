@@ -1,4 +1,5 @@
 #include <dnn.h>
+#include <dnn-utility.h>
 
 DNN::DNN() {}
 
@@ -171,6 +172,75 @@ void print(const mat& m) {
 void print(const thrust::device_vector<float>& dv) {
   thrust::host_vector<float> hv(dv.begin(), dv.end());
   ::print(hv);
+}
+
+void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE err) {
+  
+  /*printf("Training...\n");
+  perf::Timer timer;
+  timer.start();*/
+
+  vector<mat> O(this->getNLayer());
+  std::vector<mat> gradient;
+  this->getEmptyGradient(gradient);
+
+  size_t input_dim = train.X.getCols(),
+	 output_dim= train.y.getCols();
+
+  size_t Ein, Eout;
+  size_t prevEout = valid.y.size();
+  size_t MAX_EPOCH = 1024, epoch;
+
+  size_t nTrain = train.X.getRows(),
+	 nValid = valid.X.getRows();
+
+  size_t nBatch = nTrain / batchSize,
+         remained = nTrain - nBatch * batchSize;
+
+  if (remained > 0)
+    ++nBatch;
+
+  for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
+
+    for (size_t b=0; b<nBatch; ++b) {
+
+      size_t offset = b*batchSize;
+      size_t nData = batchSize;
+
+      if (b == nBatch - 1)
+	nData = min(remained - 1, batchSize);
+
+      this->feedForward(train.X, &O, offset, nData);
+
+      // mat error = O.back() - train.y;
+      mat error = calcError(O.back(), train.y, offset, nData);
+
+      this->backPropagate(error, O, gradient);
+      this->updateParameters(gradient, 5 * 1e-3);
+    }
+
+    this->feedForward(valid.X, &O);
+
+    Eout = zeroOneError(O.back(), valid.y);
+
+    if (Eout > prevEout && (float) Eout / nValid < 0.2)
+      break;
+
+    prevEout = Eout;
+  }
+
+  // Show Summary
+  printf("\n%d epochs in total\n", epoch);
+  // timer.elapsed();
+
+  this->feedForward(train.X, &O);
+  Ein = zeroOneError(O.back(), train.y);
+
+  printf("[   In-Sample   ] ");
+  showAccuracy(Ein, train.y.size());
+  printf("[ Out-of-Sample ] ");
+  showAccuracy(Eout, valid.y.size());
+
 }
 
 void DNN::feedForward(const mat& x, std::vector<mat>* hidden_output, size_t offset, size_t batchSize) {
