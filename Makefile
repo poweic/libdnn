@@ -12,7 +12,7 @@ INCLUDE= -I include/ \
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
-SOURCES=dnn.cu dnn-utility.cu
+SOURCES=dnn.cu dnn-utility.cu feature-transform.cu
 
 EXECUTABLES=dnn-train dnn-predict
 .PHONY: debug all o3 example ctags

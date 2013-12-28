@@ -187,7 +187,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
       this->feedForward(train, O, offset, nData);
       this->backPropagate(train, O, offset, nData);
-      this->updateParameters(5 * 1e-3);
+      this->updateParameters(1e-1);
     }
 
     this->feedForward(valid, O);
@@ -238,12 +238,13 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
 
 void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, size_t offset, size_t nData) {
   // mat error = O.back() - train.y;
-  mat delta = calcError(O.back(), data.y, offset, nData);
-  delta.reserve(delta.getRows() * (delta.getCols() + 1));
-  delta.resize(delta.getRows(), delta.getCols() + 1);
+  mat error = calcError(O.back(), data.y, offset, nData);
+  error.reserve(error.getRows() * (error.getCols() + 1));
+  error.resize(error.getRows(), error.getCols() + 1);
+  O.back().resize(O.back().getRows(), O.back().getCols() + 1);
 
   for (int i=_transforms.size() - 1; i >= 0; --i)
-    _transforms[i].backPropagate(delta, O[i]);
+    _transforms[i].backPropagate(O[i], O[i+1], error);
 }
 
 void DNN::updateParameters(float learning_rate) { 
