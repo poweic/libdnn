@@ -32,46 +32,23 @@ public:
 
 class AffineTransform /*: protected FeatureTransform*/ {
 public:
-  AffineTransform(): _isOutputLayer(false) {}
+  AffineTransform();
+  AffineTransform(const AffineTransform& source);
+  AffineTransform(const mat& w);
+  AffineTransform(size_t rows, size_t cols);
 
-  AffineTransform(const AffineTransform& source):
-    _isOutputLayer(source._isOutputLayer),
-    _w(source._w),
-    _dw(source._dw) {
+  AffineTransform& operator = (AffineTransform rhs);
+  void setOutputLayer(bool flag);
 
-  }
+  mat& getW();
+  const mat& getW() const;
+  mat& getDw();
+  const mat& getDw() const;
 
-  AffineTransform(const mat& w): _w(w), _dw(w.getRows(), w.getCols()), _isOutputLayer(false) {
+  void update(float learning_rate);
+  void resize(size_t rows, size_t cols);
 
-  }
-
-  AffineTransform(size_t rows, size_t cols): _w(rows, cols), _dw(rows, cols), _isOutputLayer(false) {
-    ext::randn(_w);
-  }
-
-  AffineTransform& operator = (AffineTransform rhs) {
-    swap(*this, rhs);
-    return *this;
-  }
-
-  void setOutputLayer(bool flag) { _isOutputLayer = flag; }
-
-  mat& getW() { return _w; }
-  const mat& getW() const { return _w; }
-  mat& getDw() { return _dw; }
-  const mat& getDw() const { return _dw; }
-
-  void update(float learning_rate) {
-    _dw *= learning_rate;
-    // matlog(_dw); matlog(_w);
-    _w -= _dw;
-  }
-
-  void resize(size_t rows, size_t cols) {
-    _w.resize(rows, cols);
-    _dw.resize(rows, cols);
-  }
-
+  virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData);
   virtual void backPropagate(const mat& fin, const mat& fout, mat& error);
 
@@ -83,20 +60,16 @@ protected:
   mat _dw;
 };
 
-class Softmax : protected AffineTransform {
+class Softmax : public AffineTransform {
 public:
-  Softmax(const mat& w): AffineTransform(w) {}
-  Softmax(size_t rows, size_t cols): AffineTransform(rows, cols) {}
+  Softmax(const mat& w);
+  Softmax(size_t rows, size_t cols);
 
-  Softmax& operator = (Softmax rhs) {
-    AffineTransform::operator=(rhs);
-    swap(*this, rhs);
-    return *this;
-  }
+  Softmax& operator = (Softmax rhs);
   
+  virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData);
   virtual void backPropagate(const mat& fin, const mat& fout, mat& error);
-  /*virtual void backPropagate(mat& delta, mat& fin);*/
 
   friend void swap(Softmax& lhs, Softmax& rhs);
 };

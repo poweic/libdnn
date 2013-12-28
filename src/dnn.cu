@@ -1,5 +1,6 @@
 #include <dnn.h>
 #include <dnn-utility.h>
+#include <thrust/extrema.h>
 
 DNN::DNN() {}
 
@@ -16,10 +17,12 @@ DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
     size_t M = _dims[i] + 1;
     size_t N = _dims[i+1] + 1;
 
-    // If not output layer, reserve last column for bias 
-    // if (i < L - 1) N += 1;
-
-    _transforms[i] = AffineTransform(M, N);
+    if (i == L-1) {
+      _transforms[i] = Softmax(M, N);
+      cout << "toString() = " <<  _transforms[i].toString() << endl;
+    }
+    else
+      _transforms[i] = AffineTransform(M, N);
   }
 }
 
@@ -64,17 +67,24 @@ void DNN::read(string fn) {
   _transforms.clear();
 
   size_t rows, cols;
+  char type[80];
 
-  while (fscanf(fid, "<affinetransform> %lu %lu\n [\n", &rows, &cols) != EOF) {
-
-    printf("rows = %lu, cols = %lu \n", rows, cols);
+  while (fscanf(fid, "%s", type) != EOF) {
+    fscanf(fid, "%lu %lu\n [\n", &rows, &cols);
+    printf("%s: rows = %lu, cols = %lu \n", type, rows, cols);
 
     float* hw = new float[(rows + 1) * (cols + 1)];
     readweight(fid, hw, rows + 1, cols);
 
     // Reserve one more column for bias)
     mat w(hw, rows + 1, cols + 1);
-    _transforms.push_back(AffineTransform(w));
+
+    string transformType = string(type);
+    if (transformType == "<affinetransform>")
+      _transforms.push_back(AffineTransform(w));
+    else if (transformType == "<softmax>")
+      _transforms.push_back(Softmax(w));
+
     delete [] hw;
 
     _dims.push_back(rows);
@@ -93,7 +103,7 @@ void DNN::save(string fn) const {
     size_t rows = w.getRows();
     size_t cols = w.getCols() - 1;
 
-    fprintf(fid, "<affinetransform> %lu %lu \n", rows - 1, cols);
+    fprintf(fid, "<%s> %lu %lu \n", _transforms[i].toString().c_str(), rows - 1, cols);
     fprintf(fid, " [");
 
     // ==============================
@@ -151,7 +161,7 @@ void print(const thrust::device_vector<float>& dv) {
   ::print(hv);
 }
 
-void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE err) {
+void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   printf("Training...\n");
   perf::Timer timer;
@@ -186,13 +196,16 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 	nData = min(remained - 1, batchSize);
 
       this->feedForward(train, O, offset, nData);
-      this->backPropagate(train, O, offset, nData);
+
+      mat error = this->getError(train.y, O.back(), offset, nData, errorMeasure);
+
+      this->backPropagate(train, O, error, offset, nData);
       this->updateParameters(1e-1);
     }
 
     this->feedForward(valid, O);
 
-    Eout = zeroOneError(O.back(), valid.y);
+    Eout = zeroOneError(O.back(), valid.y, errorMeasure);
 
     if (Eout > prevEout && (float) Eout / nValid < 0.2)
       break;
@@ -205,13 +218,52 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
   timer.elapsed();
 
   this->feedForward(train, O);
-  Ein = zeroOneError(O.back(), train.y);
+  Ein = zeroOneError(O.back(), train.y, errorMeasure);
 
   printf("[   In-Sample   ] ");
   showAccuracy(Ein, train.y.size());
   printf("[ Out-of-Sample ] ");
   showAccuracy(Eout, valid.y.size());
+}
 
+mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure) {
+
+  mat error;
+
+  mat& O = const_cast<mat&>(output);
+
+  switch (errorMeasure) {
+    case L2ERROR: 
+      // mat error = O.back() - train.y;
+      error = calcError(O, target, offset, batchSize);
+      error.reserve(error.getRows() * (error.getCols() + 1));
+      error.resize(error.getRows(), error.getCols() + 1);
+
+      break;
+    case CROSS_ENTROPY: {
+
+	error.resize(batchSize, target.getCols() + 1);
+
+	mat partialTarget(batchSize, target.getCols() + 1);
+	memcpy2D(partialTarget, target, offset, 0, batchSize, target.getCols(), 0, 0);
+
+	thrust::device_ptr<float> pPtr(partialTarget.getData());
+	thrust::device_ptr<float> oPtr(O.getData());
+
+	thrust::device_ptr<float> ePtr(error.getData());
+
+	thrust::transform(pPtr, pPtr + partialTarget.size(), oPtr, ePtr, func::dcrossentropy<float>());
+
+	break;
+      }
+
+    default:
+      break;
+  }
+
+  O.resize(O.getRows(), O.getCols() + 1);
+
+  return error;
 }
 
 void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, size_t batchSize) {
@@ -236,12 +288,7 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
 // ===== Back Propagation =====
 // ============================
 
-void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, size_t offset, size_t nData) {
-  // mat error = O.back() - train.y;
-  mat error = calcError(O.back(), data.y, offset, nData);
-  error.reserve(error.getRows() * (error.getCols() + 1));
-  error.resize(error.getRows(), error.getCols() + 1);
-  O.back().resize(O.back().getRows(), O.back().getCols() + 1);
+void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset, size_t batchSize) {
 
   for (int i=_transforms.size() - 1; i >= 0; --i)
     _transforms[i].backPropagate(O[i], O[i+1], error);

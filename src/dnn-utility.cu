@@ -1,6 +1,6 @@
 #include <dnn-utility.h>
 
-void zeroOneLabels(const mat& label) {
+void zeroOneLabels(mat& label) {
   thrust::device_ptr<float> dptr(label.getData());
   thrust::host_vector<float> y(dptr, dptr + label.size());
 
@@ -14,17 +14,102 @@ void zeroOneLabels(const mat& label) {
   thrust::replace(dptr, dptr + label.size(), -1, 0);
 }
 
-size_t zeroOneError(const mat& predict, const mat& label) {
-  assert(predict.size() == label.size());
+void reformatLabels(mat& label) {
+  thrust::device_ptr<float> dptr(label.getData());
+  thrust::host_vector<float> y(dptr, dptr + label.size());
 
-  size_t L = label.size();
-  thrust::device_ptr<float> l_ptr(label.getData());
-  thrust::device_ptr<float> p_ptr(predict.getData());
+  map<float, bool> classes;
+  for (size_t i=0; i<y.size(); ++i)
+    classes[y[i]] = true;
 
-  thrust::device_vector<float> p_vec(L);
-  thrust::transform(p_ptr, p_ptr + L, p_vec.begin(), func::to_zero_one<float>());
+  size_t nClasses = classes.size();
+  assert(nClasses == 2);
 
-  float nError = thrust::inner_product(p_vec.begin(), p_vec.end(), l_ptr, 0.0, thrust::plus<float>(), thrust::not_equal_to<float>());
+  thrust::replace(dptr, dptr + label.size(), 1, 2);
+  thrust::replace(dptr, dptr + label.size(), -1, 1);
+}
+
+float max(const mat& v) {
+  thrust::device_ptr<float> vPtr(v.getData());
+  thrust::device_ptr<float> maxPtr = thrust::max_element(vPtr, vPtr + v.size());
+  thrust::host_vector<float> hMaxPtr(maxPtr, maxPtr + 1);
+  return hMaxPtr[0];
+}
+
+void label2PosteriorProb(mat& y) {
+  // Assume class label index start from 1, and there's no skipping.
+  assert(y.getCols() == 1);
+
+  size_t nData = y.getRows();
+  size_t nClasses = (size_t) max(y);
+
+  float* hy = new float[nData];
+
+  CCE(cudaMemcpy(hy, y.getData(), sizeof(float) * nData, cudaMemcpyDeviceToHost));
+
+  float* prob = new float[nData * nClasses];
+  memset(prob, 0, sizeof(float) * nData * nClasses);
+
+  for (size_t i=0; i<nData; ++i)
+    prob[(size_t) (hy[i] - 1) * nData + i] = 1;
+
+  y = mat(prob, nData, nClasses);
+
+  delete [] hy;
+  delete [] prob;
+}
+
+
+size_t zeroOneError(const mat& predict, const mat& label, ERROR_MEASURE errorMeasure) {
+  assert(predict.getRows() == label.getRows() && predict.getCols() == label.getCols());
+
+  size_t nError = 0;
+
+  if (errorMeasure == L2ERROR) {
+
+    size_t L = label.size();
+    thrust::device_ptr<float> l_ptr(label.getData());
+    thrust::device_ptr<float> p_ptr(predict.getData());
+
+    thrust::device_vector<float> p_vec(L);
+    thrust::transform(p_ptr, p_ptr + L, p_vec.begin(), func::to_zero_one<float>());
+
+    nError = (size_t) thrust::inner_product(p_vec.begin(), p_vec.end(), l_ptr, 0.0, thrust::plus<float>(), thrust::not_equal_to<float>());
+  }
+  else {
+    float* hp = new float[predict.size()];
+    float* ht = new float[label.size()];
+    CCE(cudaMemcpy(hp, predict.getData(), sizeof(float) * predict.size(), cudaMemcpyDeviceToHost));
+    CCE(cudaMemcpy(ht, label.getData(), sizeof(float) * label.size(), cudaMemcpyDeviceToHost));
+
+    size_t rows = predict.getRows();
+    size_t cols = predict.getCols();
+    
+    for (size_t i=0; i<rows; ++i) {
+      
+      float max1 = 0, max2 = 0;
+      size_t maxIdx1 = 0, maxIdx2 = 0;
+
+      for (size_t j=0; j<cols; ++j) {
+	if (hp[j * rows + i] > max1) {
+	  max1 = hp[j * rows + i];
+	  maxIdx1 = j;
+	}
+
+	if (ht[j * rows + i] > max2) {
+	  max2 = ht[j * rows + i];
+	  maxIdx2 = j;
+	}
+	
+      }
+
+      nError += (size_t) maxIdx1 != maxIdx2;
+    }
+
+    delete [] hp;
+    delete [] ht;
+  }
+
   return nError;
 }
 
@@ -270,10 +355,11 @@ void splitIntoTrainingAndValidationSet(
     mat& X, mat& y) {
 
   size_t rows = X.getRows(),
-	 cols = X.getCols();
+	 inputDim = X.getCols(),
+	 outputDim = y.getCols();
   
-  float *h_X = new float[rows*cols],
-        *h_y = new float[rows];
+  float *h_X = new float[rows*inputDim],
+        *h_y = new float[rows*outputDim];
 
   CCE(cudaMemcpy(h_X, X.getData(), sizeof(float) * X.size(), cudaMemcpyDeviceToHost));
   CCE(cudaMemcpy(h_y, y.getData(), sizeof(float) * y.size(), cudaMemcpyDeviceToHost));
@@ -285,13 +371,13 @@ void splitIntoTrainingAndValidationSet(
       h_validX, h_validY, nValid,
       ratio,
       h_X, h_y,
-      rows, cols);
+      rows, inputDim, outputDim);
 
-  trainX = mat(h_trainX, nTrain, cols);
-  trainY = mat(h_trainY, nTrain, 1);
+  trainX = mat(h_trainX, nTrain, inputDim);
+  trainY = mat(h_trainY, nTrain, outputDim);
 
-  validX = mat(h_validX, nValid, cols);
-  validY = mat(h_validY, nValid, 1);
+  validX = mat(h_validX, nValid, inputDim);
+  validY = mat(h_validY, nValid, outputDim);
 
   delete [] h_X;
   delete [] h_y;
@@ -302,28 +388,32 @@ void splitIntoTrainingAndValidationSet(
     float* &validX, float* & validY, size_t& nValid,
     int ratio, /* ratio of training / validation */
     const float* const data, const float* const labels,
-    int rows, int cols) {
+    int rows, int inputDim, int outputDim) {
 
   nValid = rows / ratio;
   nTrain = rows - nValid;
   printf("nTrain = %lu, nValid = %lu\n", nTrain, nValid);
 
-  trainX = new float[nTrain * cols];
-  trainY = new float[nTrain];
+  trainX = new float[nTrain * inputDim];
+  trainY = new float[nTrain * outputDim];
 
-  validX = new float[nValid * cols];
-  validY = new float[nValid];
+  validX = new float[nValid * inputDim];
+  validY = new float[nValid * outputDim];
 
   for (size_t i=0; i<nTrain; ++i) {
-    for (size_t j=0; j<cols; ++j)
+    for (size_t j=0; j<inputDim; ++j)
       trainX[j * nTrain + i] = data[j * rows + i];
-    trainY[i] = labels[i];
+    for (size_t j=0; j<outputDim; ++j)
+      trainY[j * nTrain + i] = labels[j * rows + i];
+    // trainY[i] = labels[i];
   }
 
   for (size_t i=0; i<nValid; ++i) {
-    for (size_t j=0; j<cols; ++j)
+    for (size_t j=0; j<inputDim; ++j)
       validX[j * nValid + i] = data[j * rows + i + nTrain];
-    validY[i] = labels[i + nTrain];
+    for (size_t j=0; j<outputDim; ++j)
+      validY[j * nValid + i] = labels[j * rows + i + nTrain];
+    // validY[i] = labels[i + nTrain];
   }
 }
 

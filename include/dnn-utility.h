@@ -4,8 +4,13 @@
 #include <dnn.h>
 #include <perf.h>
 
-void zeroOneLabels(const mat& label);
-size_t zeroOneError(const mat& predict, const mat& label);
+void zeroOneLabels(mat& label);
+void reformatLabels(mat& labels);
+
+float max(const mat& v);
+void label2PosteriorProb(mat& y);
+
+size_t zeroOneError(const mat& predict, const mat& label, ERROR_MEASURE errorMeasure);
 mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t nData = 0);
 
 void print(const std::vector<mat>& vm);
@@ -38,7 +43,7 @@ void splitIntoTrainingAndValidationSet(
     float* &validX, float* & validY, size_t& nValid,
     int ratio, /* ratio of training / validation */
     const float* const data, const float* const labels,
-    int rows, int cols);
+    int rows, int inputDim, int outputDim);
 
 void getFeature(const string &fn, mat& X, mat& y);
 void readFeature(const string &fn, float* &X, float* &y, int &rows, int &cols);

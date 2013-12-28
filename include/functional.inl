@@ -69,6 +69,11 @@ namespace func {
   };
 
   template <typename T>
+  struct dcrossentropy {
+    __host__ __device__ T operator() (const T& x, const T& y) { return -x / y; }
+  };
+
+  template <typename T>
   struct exp {
 #ifndef __CUDACC__
     __host__ __device__ T operator() (const T& x) { return exp(x); }

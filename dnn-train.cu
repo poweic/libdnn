@@ -45,7 +45,15 @@ int main (int argc, char* argv[]) {
   getFeature(train_fn, data, labels);
 
   showSummary(data, labels);
-  zeroOneLabels(labels);
+
+  ERROR_MEASURE err = CROSS_ENTROPY;
+  // ERROR_MEASURE err = L2ERROR;
+  if (err == CROSS_ENTROPY) {
+    reformatLabels(labels);
+    label2PosteriorProb(labels);
+  }
+  else
+    zeroOneLabels(labels);
 
   DataSet train, valid;
   splitIntoTrainingAndValidationSet(
@@ -61,7 +69,7 @@ int main (int argc, char* argv[]) {
   DNN dnn(dims);
 
   // Start Training
-  dnn.train(train, valid, batchSize, L2ERROR);
+  dnn.train(train, valid, batchSize, err);
 
   // Save the model
   dnn.save(model_fn);

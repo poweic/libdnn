@@ -55,9 +55,10 @@ public:
   DNN& operator = (DNN rhs);
 
   void feedForward(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
-  void backPropagate(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
+  void backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset = 0, size_t batchSize = 0);
 
   void updateParameters(float learning_rate = 1e-3);
+  mat getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure);
 
   size_t getNLayer() const;
   size_t getDepth() const;

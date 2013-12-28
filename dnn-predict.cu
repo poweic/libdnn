@@ -30,7 +30,11 @@ int main (int argc, char* argv[]) {
 
   DataSet test;
   getFeature(test_fn, test.X, test.y);
+  // zeroOneLabels(test.y);
   showSummary(test.X, test.y);
+
+  reformatLabels(test.y);
+  label2PosteriorProb(test.y);
 
   // Make predictions
   dnn_predicts(test, model_fn, output_fn);
@@ -42,15 +46,13 @@ void dnn_predicts(const DataSet& data, string model_fn, string output_fn) {
 
   FILE* fid = output_fn.empty() ? stdout : fopen(output_fn.c_str(), "w");
 
-  zeroOneLabels(data.y);
-
   DNN dnn(model_fn);
 
   vector<mat> O(dnn.getNLayer());
   dnn.feedForward(data, O);
 
   if (isLabeled(data.y)) {
-    size_t nError = zeroOneError(O.back(), data.y);
+    size_t nError = zeroOneError(O.back(), data.y, L2ERROR);
     showAccuracy(nError, data.y.size());
   }
 
