@@ -53,6 +53,7 @@ public:
   DNN(const std::vector<size_t>& dims);
   DNN(const DNN& source);
   DNN& operator = (DNN rhs);
+  ~DNN();
 
   void feedForward(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
   void backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset = 0, size_t batchSize = 0);
@@ -74,7 +75,7 @@ public:
   friend void swap(DNN& lhs, DNN& rhs);
 
 private:
-  std::vector<AffineTransform> _transforms;
+  std::vector<AffineTransform*> _transforms;
   std::vector<size_t> _dims;
 };
 

@@ -2,13 +2,13 @@
 #include <dnn-utility.h>
 #include <thrust/extrema.h>
 
-DNN::DNN() {}
+DNN::DNN(): _transforms(), _dims() {}
 
-DNN::DNN(string fn): _dims(0) {
+DNN::DNN(string fn): _transforms(), _dims() {
   this->read(fn);
 }
 
-DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
+DNN::DNN(const std::vector<size_t>& dims): _transforms(), _dims(dims) {
   size_t L = _dims.size() - 1;
 
   _transforms.resize(L);
@@ -17,23 +17,29 @@ DNN::DNN(const std::vector<size_t>& dims): _dims(dims) {
     size_t M = _dims[i] + 1;
     size_t N = _dims[i+1] + 1;
 
-    if (i == L-1) {
-      _transforms[i] = Softmax(M, N);
-      cout << "toString() = " <<  _transforms[i].toString() << endl;
-    }
+    if (i == L-1)
+      _transforms[i] = new Softmax(M, N);
     else
-      _transforms[i] = AffineTransform(M, N);
+      _transforms[i] = new AffineTransform(M, N);
   }
 }
 
-DNN::DNN(const DNN& source): 
-  _dims(source._dims),
-  _transforms(source._transforms) {
+DNN::DNN(const DNN& source): _dims(source._dims), _transforms() {
+
+  _transforms.resize(source._transforms.size());
+
+  for (size_t i=0; i<_transforms.size(); ++i)
+    *_transforms[i] = *source._transforms[i];
 }
 
 DNN& DNN::operator = (DNN rhs) {
   swap(*this, rhs);
   return *this;
+}
+
+DNN::~DNN() {
+  for (size_t i=0; i<_transforms.size(); ++i)
+    delete _transforms[i];
 }
 
 size_t DNN::getNLayer() const {
@@ -81,9 +87,9 @@ void DNN::read(string fn) {
 
     string transformType = string(type);
     if (transformType == "<affinetransform>")
-      _transforms.push_back(AffineTransform(w));
+      _transforms.push_back(new AffineTransform(w));
     else if (transformType == "<softmax>")
-      _transforms.push_back(Softmax(w));
+      _transforms.push_back(new Softmax(w));
 
     delete [] hw;
 
@@ -98,12 +104,12 @@ void DNN::save(string fn) const {
   FILE* fid = fopen(fn.c_str(), "w");
 
   for (size_t i=0; i<_transforms.size(); ++i) {
-    const mat& w = _transforms[i].getW();
+    const mat& w = _transforms[i]->getW();
 
     size_t rows = w.getRows();
     size_t cols = w.getCols() - 1;
 
-    fprintf(fid, "<%s> %lu %lu \n", _transforms[i].toString().c_str(), rows - 1, cols);
+    fprintf(fid, "<%s> %lu %lu \n", _transforms[i]->toString().c_str(), rows - 1, cols);
     fprintf(fid, " [");
 
     // ==============================
@@ -135,7 +141,7 @@ void DNN::save(string fn) const {
 
 void DNN::print() const {
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i].getW().print(stdout);
+    _transforms[i]->getW().print();
 }
 
 // ========================
@@ -279,7 +285,7 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
   memcpy2D(O[0], data.X, offset, 0, batchSize, data.X.getCols(), 0, 0);
 
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i].feedForward(O[i+1], O[i], offset, batchSize);
+    _transforms[i]->feedForward(O[i+1], O[i], offset, batchSize);
 
   O.back().resize(O.back().getRows(), O.back().getCols() - 1);
 }
@@ -291,12 +297,12 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
 void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset, size_t batchSize) {
 
   for (int i=_transforms.size() - 1; i >= 0; --i)
-    _transforms[i].backPropagate(O[i], O[i+1], error);
+    _transforms[i]->backPropagate(O[i], O[i+1], error);
 }
 
 void DNN::updateParameters(float learning_rate) { 
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i].update(learning_rate);
+    _transforms[i]->update(learning_rate);
 }
 
 void swap(DNN& lhs, DNN& rhs) {

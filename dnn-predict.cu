@@ -52,7 +52,7 @@ void dnn_predicts(const DataSet& data, string model_fn, string output_fn) {
   dnn.feedForward(data, O);
 
   if (isLabeled(data.y)) {
-    size_t nError = zeroOneError(O.back(), data.y, L2ERROR);
+    size_t nError = zeroOneError(O.back(), data.y, CROSS_ENTROPY);
     showAccuracy(nError, data.y.size());
   }
 
