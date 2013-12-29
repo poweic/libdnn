@@ -251,17 +251,29 @@ mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t ba
       break;
     case CROSS_ENTROPY: {
 
-	error.resize(batchSize, target.getCols() + 1);
+	size_t output_dim = target.getCols();
 
-	mat partialTarget(batchSize, target.getCols() + 1);
-	memcpy2D(partialTarget, target, offset, 0, batchSize, target.getCols(), 0, 0);
+	error.resize(batchSize, output_dim + 1);
 
-	thrust::device_ptr<float> pPtr(partialTarget.getData());
+	mat batchTarget(batchSize, output_dim);
+	memcpy2D(batchTarget, target, offset, 0, batchSize, output_dim, 0, 0);
+
+	thrust::device_ptr<float> pPtr(batchTarget.getData());
 	thrust::device_ptr<float> oPtr(O.getData());
 
 	thrust::device_ptr<float> ePtr(error.getData());
 
-	thrust::transform(pPtr, pPtr + partialTarget.size(), oPtr, ePtr, func::dcrossentropy<float>());
+	thrust::device_vector<float> TMP(O.size());
+	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(0.001));
+
+	// matlog(O);
+	// matlog(batchTarget);
+
+	thrust::transform(pPtr, pPtr + batchTarget.size(), TMP.begin(), ePtr, func::dcrossentropy<float>());
+
+	// printf("error = batchTarget ./ O \n");
+	// matlog(error);
+	// PAUSE;
 
 	break;
       }

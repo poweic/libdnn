@@ -158,6 +158,8 @@ void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData
 
   // matlog(fout);
 
+  // PAUSE;
+
 }
 
 void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {

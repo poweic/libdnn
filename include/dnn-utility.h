@@ -4,6 +4,10 @@
 #include <dnn.h>
 #include <perf.h>
 
+#ifndef PAUSE
+#define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }
+#endif
+
 size_t getClassNumber(const DataSet& data);
 
 map<int, int> getLabelMapping(const mat& labels);

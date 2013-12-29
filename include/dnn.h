@@ -7,6 +7,10 @@
 #include <math_ext.h>
 #include <feature-transform.h>
 
+#include <limits>
+#define float_min std::numeric_limits<float>::min()
+#define float_max std::numeric_limits<float>::max()
+
 #ifndef __CUDACC__
 
   #include <arithmetic.h>

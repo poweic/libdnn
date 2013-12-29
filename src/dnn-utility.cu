@@ -152,6 +152,8 @@ size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasur
   else {
     mat L = posteriorProb2Label(prob);
     nError = countDifference(L, label);
+
+    // matlog(prob); matlog(L); PAUSE;
   }
 
   return nError;

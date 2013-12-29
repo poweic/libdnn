@@ -54,6 +54,13 @@ namespace func {
   };
   
   template <typename T>
+  struct min_threshold {
+    const float _t;
+    min_threshold(float t) : _t(t) {}
+    __host__ __device__ T operator() (const T& x) const { return x <= _t ? _t : x; }
+  };
+
+  template <typename T>
   struct sigmoid {
 #ifndef __CUDACC__
     __host__ __device__ T operator() (const T& x) { return 1.0 / ( 1.0 + exp(-x) ); }

@@ -5,7 +5,11 @@
 #include <cmdparser.h>
 using namespace std;
 
+
 int main (int argc, char* argv[]) {
+
+  /*printf("float min = %e, float max = %e, log(min) = %e, log(max) = %e\n", float_min, float_max, log(float_min), log(float_max));
+  return 0;*/
 
   CmdParser cmd(argc, argv);
 
@@ -22,7 +26,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Structure of Neural Network: ")
     .add("--hidden-struct", "specify the width of each hidden layer seperated by \"-\":\n"
-	"Ex: 1024-1024-1024 for 3 hidden layer, each with 1024 nodes");
+	"Ex: 1024-1024-1024 for 3 hidden layer, each with 1024 nodes", "32-32");
 
   cmd.addGroup("Pre-training options:")
     .add("--pre", "type of Pretraining. Choose one of the following:\n"
