@@ -92,6 +92,7 @@ vector<string>& split(const string &s, char delim, vector<string>& elems);
 vector<size_t> splitAsInt(const string &s, char delim);
 
 std::vector<size_t> randshuf(size_t N);
+void shuffleFeature(DataSet& data);
 void shuffleFeature(float* const data, float* const labels, int rows, int cols);
 
 void splitIntoTrainingAndValidationSet(

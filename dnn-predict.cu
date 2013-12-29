@@ -28,16 +28,30 @@ int main (int argc, char* argv[]) {
 
   DataSet test;
   getFeature(test_fn, test);
+
   showSummary(test);
 
   DNN dnn(model_fn);
-  mat prediction = dnn.predict(test);
+  mat prob = dnn.predict(test);
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
+
   if (isLabeled(test.y)) {
-    size_t nError = zeroOneError(prediction, test.y, errorMeasure);
+    size_t nError = zeroOneError(prob, test.y, errorMeasure);
     showAccuracy(nError, test.y.size());
   }
+
+  FILE* fid = output_fn.empty() ? stdout : fopen(output_fn.c_str(), "w");
+  if (fid == NULL) {
+    fprintf(stderr, "Failed to open output file");
+    return -1;
+  }
+
+  mat predictions = posteriorProb2Label(prob);
+  predictions.print(fid);
+
+  if (fid != stdout)
+    fclose(fid);
 
   return 0;
 }

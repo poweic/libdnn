@@ -363,6 +363,20 @@ std::vector<size_t> randshuf(size_t N) {
   return perm;
 }
 
+void shuffleFeature(DataSet& data) {
+
+  float *h_X = new float[data.X.size()],
+	*h_y = new float[data.y.size()];
+
+  CCE(cudaMemcpy(h_X, data.X.getData(), sizeof(float) * data.X.size(), cudaMemcpyDeviceToHost));
+  CCE(cudaMemcpy(h_y, data.y.getData(), sizeof(float) * data.y.size(), cudaMemcpyDeviceToHost));
+
+  shuffleFeature(h_X, h_y, data.X.getRows(), data.X.getCols());
+
+  delete [] h_X;
+  delete [] h_y;
+}
+
 void shuffleFeature(float* const data, float* const labels, int rows, int cols) {
 
   printf("Random shuffling features for latter training...\n");
@@ -514,7 +528,7 @@ void readFeature(const string &fn, float* &data, float* &labels, int &rows, int 
   else
     readDenseFeature(fin, data, labels, rows, cols);
 
-  shuffleFeature(data, labels, rows, cols);
+  // shuffleFeature(data, labels, rows, cols);
 
   fin.close();
 }
@@ -522,12 +536,14 @@ void readFeature(const string &fn, float* &data, float* &labels, int &rows, int 
 
 bool isLabeled(const mat& labels) {
 
-  size_t L = labels.size();
+  return getLabelMapping(labels).size() > 1;
+
+  /*size_t L = labels.size();
 
   thrust::device_vector<float> zero_vec(L, 0);
   thrust::device_ptr<float> label_ptr(labels.getData());
 
   bool isAllZero = thrust::equal(label_ptr, label_ptr + L, zero_vec.begin());
-  return !isAllZero;
+  return !isAllZero;*/
 }
 

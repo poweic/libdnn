@@ -44,6 +44,7 @@ int main (int argc, char* argv[]) {
 
   DataSet data;
   getFeature(train_fn, data);
+  shuffleFeature(data);
   showSummary(data);
 
   ERROR_MEASURE err = CROSS_ENTROPY;
