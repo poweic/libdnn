@@ -41,31 +41,22 @@ int main (int argc, char* argv[]) {
   if (model_fn.empty())
     model_fn = train_fn + ".model";
 
-  mat data, labels;
-  getFeature(train_fn, data, labels);
-
-  showSummary(data, labels);
+  DataSet data;
+  getFeature(train_fn, data);
+  showSummary(data);
 
   ERROR_MEASURE err = CROSS_ENTROPY;
-  // ERROR_MEASURE err = L2ERROR;
-  if (err == CROSS_ENTROPY) {
-    reformatLabels(labels);
-    label2PosteriorProb(labels);
-  }
-  else
-    zeroOneLabels(labels);
-
+  
   DataSet train, valid;
-  splitIntoTrainingAndValidationSet(
-      train.X, train.y,
-      valid.X, valid.y,
-      ratio,
-      data, labels);
+  splitIntoTrainingAndValidationSet(train, valid, data, ratio);
 
   // Initialize hidden structure
+  size_t input_dim  = data.X.getCols() - 1;
+  size_t output_dim = data.prob.getCols();
+
   vector<size_t> dims = splitAsInt(structure, '-');
-  dims.insert(dims.begin(), data.getCols() - 1);
-  dims.push_back(labels.getCols());
+  dims.insert(dims.begin(), input_dim);
+  dims.push_back(output_dim);
   DNN dnn(dims);
 
   // Start Training

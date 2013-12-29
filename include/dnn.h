@@ -38,7 +38,7 @@
 #define dsigma(x) ((x) & ((float) 1.0 - (x)))
 
 struct DataSet {
-  mat X, y;
+  mat X, y, prob;
 };
 
 enum ERROR_MEASURE {
@@ -71,6 +71,7 @@ public:
   void print() const;
 
   void train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE err);
+  mat predict(const DataSet& test);
 
   friend void swap(DNN& lhs, DNN& rhs);
 

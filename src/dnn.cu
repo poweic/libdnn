@@ -175,9 +175,6 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
   vector<mat> O(this->getNLayer());
 
-  size_t input_dim = train.X.getCols(),
-	 output_dim= train.y.getCols();
-
   size_t Ein, Eout;
   size_t prevEout = valid.y.size();
   size_t MAX_EPOCH = 1024, epoch;
@@ -192,6 +189,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
     ++nBatch;
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
+    cout << "."; cout.flush();
 
     for (size_t b=0; b<nBatch; ++b) {
 
@@ -203,14 +201,13 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
       this->feedForward(train, O, offset, nData);
 
-      mat error = this->getError(train.y, O.back(), offset, nData, errorMeasure);
+      mat error = this->getError(train.prob, O.back(), offset, nData, errorMeasure);
 
       this->backPropagate(train, O, error, offset, nData);
-      this->updateParameters(1e-1);
+      this->updateParameters(5e-3);
     }
 
     this->feedForward(valid, O);
-
     Eout = zeroOneError(O.back(), valid.y, errorMeasure);
 
     if (Eout > prevEout && (float) Eout / nValid < 0.2)
@@ -230,6 +227,12 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
   showAccuracy(Ein, train.y.size());
   printf("[ Out-of-Sample ] ");
   showAccuracy(Eout, valid.y.size());
+}
+
+mat DNN::predict(const DataSet& test) {
+  vector<mat> O(this->getNLayer());
+  this->feedForward(test, O);
+  return O.back();
 }
 
 mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure) {

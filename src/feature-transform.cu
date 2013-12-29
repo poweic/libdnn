@@ -153,18 +153,35 @@ string Softmax::toString() const {
 void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
 
   mat x = const_cast<mat&>(fin) * _w;
-
-  thrust::device_vector<float> expX(fin.size());
   thrust::device_ptr<float> xPtr(x.getData());
+  // mat p(x.getRows(), x.getCols());
 
-  thrust::transform(xPtr, xPtr + x.size(), expX.begin(), func::exp<float>());
+  /*thrust::device_ptr<float> pPtr(p.getData());
+  thrust::transform(xPtr, xPtr + x.size(), pPtr, func::exp<float>()); */
+
+  // matlog(x);
+  // matlog(p);
+
+
+
 
   mat sum = x * (mat(x.getCols(), x.getCols()) += 1);
+
+  // matlog(sum);
 
   fout.resize(x.getRows(), x.getCols());
   thrust::device_ptr<float> foutPtr(fout.getData());
   thrust::device_ptr<float> sPtr(sum.getData());
   thrust::transform(xPtr, xPtr + x.size(), sPtr, foutPtr, thrust::divides<float>());
+
+  // matlog(fout);
+
+  /*vector<float> hm(fout.size());
+  thrust::device_ptr<float> dPtr(fout.getData());
+  thrust::copy(dPtr, dPtr + fout.size(), hm.begin());
+  for (size_t i=0; i<hm.size(); ++i)
+    assert(hm[i] >= 0);*/
+
 }
 
 void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {
@@ -205,13 +222,4 @@ void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {
 
 void swap(Softmax& lhs, Softmax& rhs) {
 }
-
-
-
-
-
-
-
-
-
 

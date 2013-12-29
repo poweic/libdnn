@@ -5,8 +5,6 @@
 #include <cmdparser.h>
 using namespace std;
 
-void dnn_predicts(const DataSet& data, string model_fn, string output_fn);
-
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
@@ -29,33 +27,18 @@ int main (int argc, char* argv[]) {
   string output_fn = cmd[3];
 
   DataSet test;
-  getFeature(test_fn, test.X, test.y);
-  // zeroOneLabels(test.y);
-  showSummary(test.X, test.y);
+  getFeature(test_fn, test);
+  showSummary(test);
 
-  reformatLabels(test.y);
-  label2PosteriorProb(test.y);
+  DNN dnn(model_fn);
+  mat prediction = dnn.predict(test);
 
-  // Make predictions
-  dnn_predicts(test, model_fn, output_fn);
+  ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
+  if (isLabeled(test.y)) {
+    size_t nError = zeroOneError(prediction, test.y, errorMeasure);
+    showAccuracy(nError, test.y.size());
+  }
 
   return 0;
 }
 
-void dnn_predicts(const DataSet& data, string model_fn, string output_fn) {
-
-  FILE* fid = output_fn.empty() ? stdout : fopen(output_fn.c_str(), "w");
-
-  DNN dnn(model_fn);
-
-  vector<mat> O(dnn.getNLayer());
-  dnn.feedForward(data, O);
-
-  if (isLabeled(data.y)) {
-    size_t nError = zeroOneError(O.back(), data.y, CROSS_ENTROPY);
-    showAccuracy(nError, data.y.size());
-  }
-
-  if (fid != stdout)
-    fclose(stdout);
-}
