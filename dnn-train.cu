@@ -8,9 +8,6 @@ using namespace std;
 
 int main (int argc, char* argv[]) {
 
-  /*printf("float min = %e, float max = %e, log(min) = %e, log(max) = %e\n", float_min, float_max, log(float_min), log(float_max));
-  return 0;*/
-
   CmdParser cmd(argc, argv);
 
   cmd.add("training_set_file")

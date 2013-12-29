@@ -1,5 +1,4 @@
 #include <feature-transform.h>
-#define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }
 
 AffineTransform::AffineTransform(): _isOutputLayer(false) {}
 
@@ -116,8 +115,6 @@ void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData
   mat x = const_cast<mat&>(fin) * _w;
   x.resize(x.getRows(), x.getCols() - 1);
 
-  // matlog(x);
-
   std::vector<float> hx = copyToHost(x);
 
   float* h_max = new float[x.getRows()];
@@ -136,49 +133,31 @@ void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData
   delete [] h_max;
   x -= d_max;
 
-  // matlog(d_max);
-  // matlog(x);
-
   mat p(x.getRows(), x.getCols());
 
   thrust::device_ptr<float> xPtr(x.getData());
   thrust::device_ptr<float> pPtr(p.getData());
   thrust::transform(xPtr, xPtr + x.size(), pPtr, func::exp<float>());
 
-  // matlog(p);
-
   mat sumOfProb = p * (mat(p.getCols(), p.getCols()) += 1);
-
-  // matlog(sumOfProb);
 
   fout.resize(p.getRows(), p.getCols() + 1);
   thrust::device_ptr<float> foutPtr(fout.getData());
   thrust::device_ptr<float> sPtr(sumOfProb.getData());
   thrust::transform(pPtr, pPtr + p.size(), sPtr, foutPtr, thrust::divides<float>());
+}
 
-  // matlog(fout);
-
-  // PAUSE;
-
+mat rowSum(mat& m) {
+  return m * (mat(m.getCols(), m.getCols()) += 1);
 }
 
 void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {
 
-  thrust::device_ptr<float> finPtr(fin.getData());
-  thrust::device_ptr<float> foutPtr(fout.getData());
-  thrust::device_ptr<float> ePtr(error.getData());
+  mat error_times_fout = error & fout;
+  mat sum = rowSum(error_times_fout);
 
-  mat T2(error.getRows(), error.getCols());
-  thrust::device_ptr<float> T2Ptr(T2.getData());
-
-  thrust::transform(ePtr, ePtr + error.size(), foutPtr, T2Ptr, thrust::multiplies<float>());
-
-  mat sum = T2 * (mat(T2.getCols(), T2.getCols()) += 1);
-  thrust::device_ptr<float> sPtr(sum.getData());
-
-  mat delta(error.getRows(), error.getCols());
-  thrust::device_ptr<float> dPtr(delta.getData());
-  thrust::transform(ePtr, ePtr + error.size(), sPtr, dPtr, thrust::minus<float>());
+  mat sum_times_fout = sum & fout;
+  mat delta = error_times_fout - sum_times_fout;
 
   _dw = ~const_cast<mat&>(fin) * delta;
 
@@ -195,7 +174,6 @@ void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {
       _w.getData(), _w.getRows(),
       0.0,
       error.getData(), error.getRows());
-
 }
 
 void swap(Softmax& lhs, Softmax& rhs) {

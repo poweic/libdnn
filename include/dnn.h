@@ -1,54 +1,8 @@
 #ifndef __DNN_H_
 #define __DNN_H_
 
-#define mylog(x) { cout << #x << " = " << x << endl; }
-
-#include <arithmetic.h>
-#include <math_ext.h>
+#include <dnn-utility.h>
 #include <feature-transform.h>
-
-#include <limits>
-#define float_min std::numeric_limits<float>::min()
-#define float_max std::numeric_limits<float>::max()
-
-#ifndef __CUDACC__
-
-  #include <arithmetic.h>
-  #include <matrix_math.h>
-  #include <matrix.h>
-  typedef Matrix2D<float> mat;
-  typedef std::vector<float> vec;
-  #define WHERE std
-
-#else
-
-  #include <device_matrix.h>
-  #include <device_math.h>
-  #include <device_arithmetic.h>
-  
-  #include <thrust/transform_reduce.h>
-  #include <thrust/functional.h>
-  #include <thrust/host_vector.h>
-  #include <thrust/device_vector.h>
-  #include <thrust/inner_product.h>
-  typedef device_matrix<float> mat;
-  typedef thrust::device_vector<float> vec;
-
-  #define WHERE thrust
-
-
-#endif
-
-#define dsigma(x) ((x) & ((float) 1.0 - (x)))
-
-struct DataSet {
-  mat X, y, prob;
-};
-
-enum ERROR_MEASURE {
-  L2ERROR,  /* for binary-classification only */
-  CROSS_ENTROPY
-};
 
 class DNN {
 public:

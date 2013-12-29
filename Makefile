@@ -14,7 +14,7 @@ CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
 SOURCES=dnn.cu dnn-utility.cu feature-transform.cu
 
-EXECUTABLES=dnn-train dnn-predict
+EXECUTABLES=dnn-train dnn-predict svm-to-kaldi
 .PHONY: debug all o3 example ctags
 all: $(EXECUTABLES) ctags
 

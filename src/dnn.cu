@@ -264,7 +264,7 @@ mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t ba
 	thrust::device_ptr<float> ePtr(error.getData());
 
 	thrust::device_vector<float> TMP(O.size());
-	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(0.001));
+	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(0.01));
 
 	// matlog(O);
 	// matlog(batchTarget);

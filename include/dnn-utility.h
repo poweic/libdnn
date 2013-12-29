@@ -1,12 +1,65 @@
 #ifndef _DNN_UTILITY_H_
 #define _DNN_UTILITY_H_
 
-#include <dnn.h>
+#include <limits>
+#include <cstdio>
+
+#include <arithmetic.h>
+#include <math_ext.h>
 #include <perf.h>
+
+#ifndef __CUDACC__
+
+  #include <arithmetic.h>
+  #include <matrix_math.h>
+  #include <matrix.h>
+  typedef Matrix2D<float> mat;
+  typedef std::vector<float> vec;
+  #define WHERE std
+
+#else
+
+  #include <device_matrix.h>
+  #include <device_math.h>
+  #include <device_arithmetic.h>
+  
+  #include <thrust/transform_reduce.h>
+  #include <thrust/functional.h>
+  #include <thrust/host_vector.h>
+  #include <thrust/device_vector.h>
+  #include <thrust/inner_product.h>
+  typedef device_matrix<float> mat;
+  typedef thrust::device_vector<float> vec;
+
+  #define WHERE thrust
+
+
+#endif
 
 #ifndef PAUSE
 #define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }
 #endif
+
+#ifndef matlog
+#define matlog(x) { cout << #x << " = [" << endl; x.print(); cout << "];" << endl; }
+#endif
+#define dsigma(x) ((x) & ((float) 1.0 - (x)))
+#define mylog(x) { cout << #x << " = " << x << endl; }
+
+#define float_min std::numeric_limits<float>::min()
+#define float_max std::numeric_limits<float>::max()
+
+typedef device_matrix<float> mat;
+typedef thrust::device_vector<float> vec;
+
+enum ERROR_MEASURE {
+  L2ERROR,  /* for binary-classification only */
+  CROSS_ENTROPY
+};
+
+struct DataSet {
+  mat X, y, prob;
+};
 
 size_t getClassNumber(const DataSet& data);
 
@@ -61,5 +114,86 @@ size_t getLineNumber(ifstream& fin);
 size_t findMaxDimension(ifstream& fin);
 size_t findDimension(ifstream& fin);
 bool isLabeled(const mat& labels);
+
+mat rowSum(mat& m);
+
+namespace ext {
+  template <typename T>
+  device_matrix<T> b_sigmoid(const device_matrix<T>& x) {
+    device_matrix<T> s(x.getRows(), x.getCols() + 1);
+    
+    thrust::device_ptr<T> xPtr(x.getData());
+    thrust::device_ptr<T> sPtr(s.getData());
+
+    // Leave last column in s untouched
+    thrust::transform(xPtr, xPtr + x.size(), sPtr, func::sigmoid<float>());
+
+    // Fill last column in s with 1.0
+    thrust::fill(sPtr + s.size() - s.getRows(), sPtr + s.size(), (float) 1.0);
+
+    return s;
+  }
+
+  template <typename T>
+  device_matrix<T> sigmoid(const device_matrix<T>& x) {
+    device_matrix<T> s(x.getRows(), x.getCols());
+
+    thrust::device_ptr<T> xPtr(x.getData());
+    thrust::device_ptr<T> sPtr(s.getData());
+
+    thrust::transform(xPtr, xPtr + x.size(), sPtr, func::sigmoid<float>());
+
+    return s;
+  }
+
+  template <typename T>
+  device_matrix<T> softmax(const device_matrix<T>& x) {
+    // TODO
+    // Do the softmax
+    device_matrix<T> s(x.getRows(), x.getCols());
+
+    thrust::device_ptr<T> xPtr(x.getData());
+    thrust::device_ptr<T> sPtr(s.getData());
+
+    thrust::transform(xPtr, xPtr + x.size(), sPtr, func::sigmoid<float>());
+
+    return s;
+  }
+}
+
+template <typename T>
+void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src, size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {
+
+  device_matrix<float>::cublas_geam(
+      CUBLAS_OP_N, CUBLAS_OP_N,
+      h, w,
+      1.0, src.getData() + c0 * src.getRows() + r0, src.getRows(),
+      0.0, dest.getData(), dest.getRows(),
+      dest.getData() + c1 * dest.getRows() + r1, dest.getRows());
+}
+
+template <typename T>
+void fillLastColumnWith(device_matrix<T>& A, const T value) {
+  thrust::device_ptr<T> ptr(A.getData());
+  thrust::fill(ptr + A.size() - A.getRows(), ptr + A.size(), value);
+}
+
+template <typename T>
+device_matrix<T> add_bias(const device_matrix<T>& A) {
+  device_matrix<T> B(A.getRows(), A.getCols() + 1);
+
+  B += 1.0;
+
+  device_matrix<T>::cublas_geam(
+      CUBLAS_OP_N, CUBLAS_OP_N,
+      A.getRows(), A.getCols(),
+      1.0, A.getData(), A.getRows(),
+      0.0, B.getData(), B.getRows(),
+      B.getData(), B.getRows()
+  );
+
+  return B;
+}
+
 
 #endif // _DNN_UTILITY_H_

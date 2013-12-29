@@ -5,3 +5,4 @@ gpu_example
 tags
 dnn-predict
 dnn-train
+svm-to-kaldi
