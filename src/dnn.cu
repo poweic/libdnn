@@ -204,7 +204,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
       mat error = this->getError(train.prob, O.back(), offset, nData, errorMeasure);
 
       this->backPropagate(train, O, error, offset, nData);
-      this->updateParameters(5e-3);
+      this->updateParameters(1e-1);
     }
 
     this->feedForward(valid, O);
