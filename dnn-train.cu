@@ -13,28 +13,31 @@ int main (int argc, char* argv[]) {
     .add("model_file", false);
 
   cmd.addGroup("Training options: ")
-    .add("-v", "ratio of training set to validation set (split automatically)", "5")
-    .add("--epoch", "number of maximum epochs", "inf")
-    .add("--batch-size", "number of data per mini-batch", "32")
-    .add("--type", "choose one of the following:\n"
+     .add("-v", "ratio of training set to validation set (split automatically)", "5")
+     .add("--epoch", "number of maximum epochs", "inf")
+     .add("--batch-size", "number of data per mini-batch", "32")
+     .add("--type", "choose one of the following:\n"
 	"0 -- classfication\n"
 	"1 -- regression", "0");
 
   cmd.addGroup("Structure of Neural Network: ")
-    .add("--hidden-struct", "specify the width of each hidden layer seperated by \"-\":\n"
-	"Ex: 1024-1024-1024 for 3 hidden layer, each with 1024 nodes", "32-32");
+     .add("--nodes", "specify the width(nodes) of each hidden layer seperated by \"-\":\n"
+	"Ex: 1024-1024-1024 for 3 hidden layer, each with 1024 nodes. \n"
+	"(Note: This does not include input and output layer)");
 
-  cmd.addGroup("Pre-training options:")
-    .add("--pre", "type of Pretraining. Choose one of the following:\n"
+  /*cmd.addGroup("Pre-training options:")
+     .add("--pre", "type of Pretraining. Choose one of the following:\n"
 	"0 -- RBM (Restricted Boltzman Machine)\n"
-	"1 -- Layer-wise", "0");
+	"1 -- Layer-wise", "0");*/
+
+  cmd.addGroup("Example usage: dnn-train data/train3.dat --nodes=16-8");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
 
   string train_fn   = cmd[1];
   string model_fn   = cmd[2];
-  string structure  = cmd["--hidden-struct"];
+  string structure  = cmd["--nodes"];
   int ratio	    = cmd["-v"];
   size_t batchSize  = cmd["--batch-size"];
 

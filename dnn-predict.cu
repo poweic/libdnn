@@ -13,11 +13,7 @@ int main (int argc, char* argv[]) {
     .add("model_file")
     .add("output_file", false);
 
-  cmd.addGroup("Prediction options: ")
-    .add("--itr", "number of maximum iteration", "inf")
-    .add("--type", "choose one of the following:\n"
-	"0 -- classfication\n"
-	"1 -- regression", "0");
+  cmd.addGroup("Example usage: dnn-predict test3.dat train3.dat.model");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
@@ -36,10 +32,15 @@ int main (int argc, char* argv[]) {
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
-  if (isLabeled(test.y)) {
+  bool hasAnswer = isLabeled(test.y);
+
+  if (hasAnswer) {
     size_t nError = zeroOneError(prob, test.y, errorMeasure);
     showAccuracy(nError, test.y.size());
   }
+
+  if (hasAnswer && output_fn.empty())
+    return 0;
 
   FILE* fid = output_fn.empty() ? stdout : fopen(output_fn.c_str(), "w");
   if (fid == NULL) {
