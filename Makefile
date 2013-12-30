@@ -3,10 +3,14 @@ CXX=g++-4.6
 CFLAGS=
 NVCC=nvcc -arch=sm_21 -w
 
+BOTON_UTIL_ROOT=/usr/local/boton/
+CUMATRIX_ROOT=../libcumatrix
+MATH_EXT_ROOT=../math_ext/
+
 INCLUDE= -I include/ \
-	 -I /usr/local/boton/include/ \
-	 -I /share/Dropbox/libcumatrix/include \
-	 -I ../math_ext/ \
+	 -I $(BOTON_UTIL_ROOT)/include/ \
+	 -I $(CUMATRIX_ROOT)/include \
+	 -I $(MATH_EXT_ROOT) \
  	 -isystem /usr/local/cuda/samples/common/inc/ \
 	 -isystem /usr/local/cuda/include
 
@@ -31,7 +35,7 @@ OBJ:=$(addprefix obj/, $(addsuffix .o,$(basename $(SOURCES))))
 
 LIBRARY=-lmatrix -lcumatrix
 CUDA_LIBRARY=-lcuda -lcudart -lcublas
-LIBRARY_PATH=-L/usr/local/boton/lib/ -L/share/Dropbox/libcumatrix/lib
+LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib
 
 $(EXECUTABLES): % : %.cu $(OBJ)
 	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)

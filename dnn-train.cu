@@ -39,7 +39,7 @@ int main (int argc, char* argv[]) {
   size_t batchSize  = cmd["--batch-size"];
 
   if (model_fn.empty())
-    model_fn = train_fn + ".model";
+    model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data;
   getFeature(train_fn, data);
