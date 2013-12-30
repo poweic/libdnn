@@ -27,12 +27,12 @@ size_t getClassNumber(const DataSet& data) {
   return classes.size();
 }
 
-float max(const mat& v) {
+/*float max(const mat& v) {
   thrust::device_ptr<float> vPtr(v.getData());
   thrust::device_ptr<float> maxPtr = thrust::max_element(vPtr, vPtr + v.size());
   thrust::host_vector<float> hMaxPtr(maxPtr, maxPtr + 1);
   return hMaxPtr[0];
-}
+}*/
 
 mat getStandardLabels(const mat& labels) {
   // Assume class label index start from 1, and there's no skipping.

@@ -65,7 +65,7 @@ size_t getClassNumber(const DataSet& data);
 
 map<int, int> getLabelMapping(const mat& labels);
 
-float max(const mat& v);
+// float max(const mat& v);
 mat label2PosteriorProb(const mat& labels);
 mat posteriorProb2Label(const mat& prob);
 

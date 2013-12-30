@@ -18,6 +18,8 @@ device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& 
   return C;
 }
 
+void substractMaxPerRow(mat& x);
+
 /*class FeatureTransform {
 public:
   virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) { }

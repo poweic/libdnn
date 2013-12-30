@@ -5,7 +5,6 @@
 #include <cmdparser.h>
 using namespace std;
 
-
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);

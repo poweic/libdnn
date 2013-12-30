@@ -108,10 +108,69 @@ string Softmax::toString() const {
   return "softmax";
 }
 
-vector<float> copyToHost(const mat& m);
+__global__ void substract_max_per_row(float* const A, unsigned int rows, unsigned int cols) {
+  extern __shared__ float sdata[];
+
+  // Matrix index
+  int ty = threadIdx.y;
+  int x = threadIdx.x;
+  int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+  if (x >= cols || y >= rows)
+    return;
+
+  sdata[x * blockDim.y + ty] = A[x * rows + y];
+
+  for (unsigned int s = blockDim.x/2 ; s > 0; s >>= 1) {
+    if (x < s && x + s < cols) {
+      if (sdata[(x + s) * blockDim.y + ty] > sdata[x * blockDim.y + ty])
+	sdata[x * blockDim.y + ty] = sdata[(x + s) * blockDim.y + ty];
+    }
+    __syncthreads();
+  }
+
+  A[x * rows + y] -= sdata[ty];
+}
+
+void substractMaxPerRow(mat& x) {
+  size_t rows = x.getRows(),
+	 cols = x.getCols();
+
+  const size_t N = 32;
+  assert(cols <= N);
+
+  dim3 grid;
+  grid.x = 1;
+  grid.y = (unsigned int) ceil((float) rows / N);
+  dim3 threads(N, N);
+
+  size_t smSize = N * N * sizeof(float);
+
+  substract_max_per_row<<< grid, threads, smSize >>>(x.getData(), rows, cols);
+  CCE(cudaDeviceSynchronize());
+}
+
 
 void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
 
+  mat x = const_cast<mat&>(fin) * const_cast<mat&>(_w);
+  x.resize(x.getRows(), x.getCols() - 1);
+  substractMaxPerRow(x);
+
+  mat p(x.getRows(), x.getCols());
+
+  thrust::device_ptr<float> xPtr(x.getData());
+  thrust::device_ptr<float> pPtr(p.getData());
+  thrust::transform(xPtr, xPtr + x.size(), pPtr, func::exp<float>());
+
+  mat sumOfProb = p * (mat(p.getCols(), p.getCols()) += 1);
+
+  fout.resize(p.getRows(), p.getCols() + 1);
+  thrust::device_ptr<float> foutPtr(fout.getData());
+  thrust::device_ptr<float> sPtr(sumOfProb.getData());
+  thrust::transform(pPtr, pPtr + p.size(), sPtr, foutPtr, thrust::divides<float>());
+
+  /*
   mat x = const_cast<mat&>(fin) * _w;
   x.resize(x.getRows(), x.getCols() - 1);
 
@@ -145,6 +204,7 @@ void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData
   thrust::device_ptr<float> foutPtr(fout.getData());
   thrust::device_ptr<float> sPtr(sumOfProb.getData());
   thrust::transform(pPtr, pPtr + p.size(), sPtr, foutPtr, thrust::divides<float>());
+  */
 }
 
 mat rowSum(mat& m) {
