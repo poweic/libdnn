@@ -16,7 +16,7 @@ INCLUDE= -I include/ \
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
-SOURCES=dnn.cu dnn-utility.cu feature-transform.cu
+SOURCES=dnn.cu dnn-utility.cu feature-transform.cu config.cpp
 
 EXECUTABLES=dnn-train dnn-predict svm-to-kaldi
 .PHONY: debug all o3 example ctags
@@ -35,10 +35,10 @@ OBJ:=$(addprefix obj/, $(addsuffix .o,$(basename $(SOURCES))))
 
 LIBRARY=-lmatrix -lcumatrix
 CUDA_LIBRARY=-lcuda -lcudart -lcublas
-LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib
+LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 
-$(EXECUTABLES): % : %.cu $(OBJ)
-	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
+$(EXECUTABLES): % : %.cpp $(OBJ)
+	$(CXX) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
 
 # +==============================+
 # +===== Other Phony Target =====+

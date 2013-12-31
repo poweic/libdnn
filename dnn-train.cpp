@@ -60,12 +60,19 @@ int main (int argc, char* argv[]) {
   DataSet train, valid;
   splitIntoTrainingAndValidationSet(train, valid, data, ratio);
 
-  DNN dnn(getDimensions(data, structure), variance);
+  // Set configurations
+  Config config;
+  config.variance = variance;
+  config.learningRate = learningRate;
+
+  // Initialize Deep Neural Network
+  DNN dnn(config);
+  dnn.init(getDimensions(data, structure));
 
   // Start Training
   dnn.train(train, valid, batchSize, err);
 
-  dnn.setLearningRate(learningRate);
+  // dnn.setLearningRate(learningRate);
 
   // Save the model
   dnn.save(model_fn);

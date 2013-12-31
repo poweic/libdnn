@@ -8,34 +8,6 @@
 #include <math_ext.h>
 #include <perf.h>
 
-#ifndef __CUDACC__
-
-  #include <arithmetic.h>
-  #include <matrix_math.h>
-  #include <matrix.h>
-  typedef Matrix2D<float> mat;
-  typedef std::vector<float> vec;
-  #define WHERE std
-
-#else
-
-  #include <device_matrix.h>
-  #include <device_math.h>
-  #include <device_arithmetic.h>
-  
-  #include <thrust/transform_reduce.h>
-  #include <thrust/functional.h>
-  #include <thrust/host_vector.h>
-  #include <thrust/device_vector.h>
-  #include <thrust/inner_product.h>
-  typedef device_matrix<float> mat;
-  typedef thrust::device_vector<float> vec;
-
-  #define WHERE thrust
-
-
-#endif
-
 #ifndef PAUSE
 #define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }
 #endif
@@ -49,8 +21,20 @@
 #define float_min std::numeric_limits<float>::min()
 #define float_max std::numeric_limits<float>::max()
 
+#include <device_matrix.h>
+
+#ifdef __CUDACC__
+  #include <device_math.h>
+  #include <device_arithmetic.h>
+  #define WHERE thrust
+#endif
+
+#include <thrust/transform_reduce.h>
+#include <thrust/functional.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/inner_product.h>
 typedef device_matrix<float> mat;
-typedef thrust::device_vector<float> vec;
 
 enum ERROR_MEASURE {
   L2ERROR,  /* for binary-classification only */

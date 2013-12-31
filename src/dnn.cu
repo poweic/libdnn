@@ -1,26 +1,20 @@
 #include <dnn.h>
-#include <dnn-utility.h>
 #include <thrust/extrema.h>
 
-DNN::DNN():
-  _transforms(),
-  _dims(),
-  _learning_rate(0.01),
-  _variance(0.01) {}
+DNN::DNN(): _transforms(), _dims(), _config() {}
 
-DNN::DNN(string fn):
-  _transforms(),
-  _dims(),
-  _learning_rate(0.01),
-  _variance(0.01) {
+DNN::DNN(string fn): _transforms(), _dims(), _config() {
   this->read(fn);
 }
 
-DNN::DNN(const std::vector<size_t>& dims, float variance):
-  _transforms(),
-  _dims(dims),
-  _learning_rate(0.01),
-  _variance(variance) {
+DNN::DNN(const Config& config): _transforms(), _dims(), _config(config) {
+  config.print();
+}
+
+void DNN::init(const std::vector<size_t>& dims) {
+  _dims = dims;
+
+  assert(_dims.size() > 0);
   size_t L = _dims.size() - 1;
 
   _transforms.resize(L);
@@ -30,17 +24,16 @@ DNN::DNN(const std::vector<size_t>& dims, float variance):
     size_t N = _dims[i+1] + 1;
 
     if (i == L-1)
-      _transforms[i] = new Softmax(M, N, _variance);
+      _transforms[i] = new Softmax(M, N, _config.variance);
     else
-      _transforms[i] = new AffineTransform(M, N, _variance);
+      _transforms[i] = new AffineTransform(M, N, _config.variance);
   }
 }
 
 DNN::DNN(const DNN& source):
   _dims(source._dims),
   _transforms(source._transforms.size()),
-  _learning_rate(0.01),
-  _variance(0.01) {
+  _config() {
 
   for (size_t i=0; i<_transforms.size(); ++i)
     *_transforms[i] = *source._transforms[i];
@@ -191,7 +184,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
   size_t Ein, Eout;
   size_t prevEout = valid.y.size();
-  size_t MAX_EPOCH = 1024, epoch;
+  size_t MAX_EPOCH = 4096, epoch;
 
   size_t nTrain = train.X.getRows(),
 	 nValid = valid.X.getRows();
@@ -224,7 +217,9 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
     this->feedForward(valid, O);
     Eout = zeroOneError(O.back(), valid.y, errorMeasure);
 
-    if (Eout > prevEout && (float) Eout / nValid < 0.2)
+    float validAccuracy = 1.0f - (float) Eout / nValid;
+    // printf("[On validation set] Accuracy = %.2f %%\n", validAccuracy * 100);
+    if (Eout > prevEout && validAccuracy >= 0.8)
       break;
 
     prevEout = Eout;
@@ -324,30 +319,24 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
 // ============================
 
 void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset, size_t batchSize) {
-
   for (int i=_transforms.size() - 1; i >= 0; --i)
     _transforms[i]->backPropagate(O[i], O[i+1], error);
 }
 
 void DNN::updateParameters() { 
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->update(_learning_rate);
+    _transforms[i]->update(_config.learningRate);
 }
 
-void DNN::setLearningRate(float learning_rate) {
-  _learning_rate = learning_rate;
-}
-
-void DNN::setVariance(float variance) {
-  _variance = variance;
+Config DNN::getConfig() const {
+  return _config;
 }
 
 void swap(DNN& lhs, DNN& rhs) {
   using WHERE::swap;
   swap(lhs._transforms, rhs._transforms);
   swap(lhs._dims, rhs._dims);
-  swap(lhs._learning_rate, rhs._learning_rate);
-  swap(lhs._variance, rhs._variance);
+  swap(lhs._config, rhs._config);
 }
 
 // =============================

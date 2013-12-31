@@ -463,7 +463,8 @@ void splitIntoTrainingAndValidationSet(
 
   nValid = rows / ratio;
   nTrain = rows - nValid;
-  printf("nTrain = %lu, nValid = %lu\n", nTrain, nValid);
+  printf("| nTrain                         |%9lu |\n", nTrain);
+  printf("| nValid                         |%9lu |\n", nValid);
 
   trainX    = new float[nTrain * inputDim];
   trainProb = new float[nTrain * outputDim];

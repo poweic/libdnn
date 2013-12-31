@@ -3,6 +3,7 @@
 
 #include <dnn-utility.h>
 #include <feature-transform.h>
+#include <config.h>
 
 // sigmoid mapping
 //    x     sigmoid(x) percentage
@@ -22,11 +23,13 @@ class DNN {
 public:
   DNN();
   DNN(string fn);
-  DNN(const std::vector<size_t>& dims, float variance = 0.01);
+  DNN(const Config& config);
   DNN(const DNN& source);
-  DNN& operator = (DNN rhs);
   ~DNN();
 
+  DNN& operator = (DNN rhs);
+
+  void init(const std::vector<size_t>& dims);
   void feedForward(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
   void backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset = 0, size_t batchSize = 0);
 
@@ -37,8 +40,7 @@ public:
   size_t getDepth() const;
   void getEmptyGradient(std::vector<mat>& g) const;
 
-  void setLearningRate(float learning_rate);
-  void setVariance(float variance);
+  Config getConfig() const;
 
   void _read(FILE* fid);
   void read(string fn);
@@ -53,19 +55,10 @@ public:
 private:
   std::vector<AffineTransform*> _transforms;
   std::vector<size_t> _dims;
-  float _learning_rate;
-  float _variance;
+  Config _config;
 };
 
 void swap(DNN& lhs, DNN& rhs);
-
-template <typename T>
-vector<T> add_bias(const vector<T>& v) {
-  vector<T> vb(v.size() + 1);
-  WHERE::copy(v.begin(), v.end(), vb.begin());
-  vb.back() = 1.0;
-  return vb;
-}
 
 template <typename T>
 void remove_bias(vector<T>& v) {

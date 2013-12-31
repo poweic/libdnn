@@ -10,7 +10,7 @@ void saveFeature(string fn, const vector<float>& X, size_t nData, size_t dim) {
   FILE* fout = fopen(fn.c_str(), "w");
 
   for (size_t i=0; i<nData; ++i) {
-    fprintf(fout, "train_%d [\n  ", i);
+    fprintf(fout, "train_%lu [\n  ", i);
     for (size_t j=0; j<dim; ++j) {
       fprintf(fout, "%g ", X[j*nData + i]);
     }
