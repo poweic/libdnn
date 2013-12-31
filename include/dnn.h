@@ -46,7 +46,8 @@ public:
   void read(string fn);
   void save(string fn) const;
   void print() const;
-
+  
+  bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch);
   void train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE err);
   mat predict(const DataSet& test);
 

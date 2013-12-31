@@ -6,7 +6,8 @@ Config::Config():
     variance(0.01),
     batchSize(32),
     trainValidRatio(5),
-    nNonIncEpoch(6) {
+    nNonIncEpoch(6),
+    minValidAccuracy(0) {
   }
     
 
@@ -16,6 +17,7 @@ void Config::print() const {
   printf("| std for random init            |%9g |\n", variance);
   printf("| batchSize                      |%9lu |\n", batchSize);
   printf("| training / validation          |%9lu |\n", trainValidRatio);
+  printf("| minimun validation accuracy    |%9g |\n", minValidAccuracy);
   printf("+--------------------------------+----------+\n");
   printf("When the accuracy on validation set doesn't go up for %lu epochs, the training procedure would stop\n", nNonIncEpoch);
 }

@@ -12,6 +12,7 @@ struct Config {
   size_t batchSize;
   size_t trainValidRatio;
   size_t nNonIncEpoch;
+  float minValidAccuracy;
 
   void print() const;
 };

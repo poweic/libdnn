@@ -174,6 +174,16 @@ void print(const thrust::device_vector<float>& dv) {
   ::print(hv);
 }
 
+bool DNN::isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch) {
+
+  for (size_t i=0; i<_config.nNonIncEpoch; ++i) {
+    if (epoch - i > 0 && Eout[epoch] > Eout[epoch - i])
+      return false;
+  }
+
+  return true;
+}
+
 void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   printf("Training...\n");
@@ -182,9 +192,10 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
   vector<mat> O(this->getNLayer());
 
-  size_t Ein, Eout;
-  size_t prevEout = valid.y.size();
-  size_t MAX_EPOCH = 4096, epoch;
+  size_t Ein;
+  size_t MAX_EPOCH = _config.maxEpoch, epoch;
+  std::vector<size_t> Eout;
+  Eout.reserve(MAX_EPOCH);
 
   size_t nTrain = train.X.getRows(),
 	 nValid = valid.X.getRows();
@@ -215,14 +226,21 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
     }
 
     this->feedForward(valid, O);
-    Eout = zeroOneError(O.back(), valid.y, errorMeasure);
+    Eout.push_back(zeroOneError(O.back(), valid.y, errorMeasure));
+  
+    this->feedForward(train, O);
+    Ein = zeroOneError(O.back(), train.y, errorMeasure);
 
-    float validAccuracy = 1.0f - (float) Eout / nValid;
-    // printf("[On validation set] Accuracy = %.2f %%\n", validAccuracy * 100);
-    if (Eout > prevEout && validAccuracy >= 0.8)
+    float trainAcc = 1.0f - (float) Ein / nTrain;
+
+    if (trainAcc < 0.5)
+      continue;
+
+    float validAcc= 1.0f - (float) Eout[epoch] / nValid;
+    if (validAcc > _config.minValidAccuracy && isEoutStopDecrease(Eout, epoch))
       break;
 
-    prevEout = Eout;
+    // printf("Training Acc = %.4f %%, Validation Acc = %.4f %%, Eout[%lu] = %lu\n", trainAcc, validAcc, epoch, Eout[epoch]); 
   }
 
   // Show Summary
@@ -235,7 +253,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
   printf("[   In-Sample   ] ");
   showAccuracy(Ein, train.y.size());
   printf("[ Out-of-Sample ] ");
-  showAccuracy(Eout, valid.y.size());
+  showAccuracy(Eout.back(), valid.y.size());
 }
 
 mat DNN::predict(const DataSet& test) {
