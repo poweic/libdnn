@@ -5,6 +5,8 @@
 #include <cmdparser.h>
 using namespace std;
 
+std::vector<size_t> getDimensions(const DataSet& data, const string& structure);
+
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
@@ -15,6 +17,8 @@ int main (int argc, char* argv[]) {
   cmd.addGroup("Training options: ")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--epoch", "number of maximum epochs", "inf")
+     .add("--learning-rate", "learning rate in back-propagation", "0.01")
+     .add("--variance", "the variance of normal distribution when initializing the weights", "0.01")
      .add("--batch-size", "number of data per mini-batch", "32")
      .add("--type", "choose one of the following:\n"
 	"0 -- classfication\n"
@@ -40,6 +44,8 @@ int main (int argc, char* argv[]) {
   string structure  = cmd["--nodes"];
   int ratio	    = cmd["-v"];
   size_t batchSize  = cmd["--batch-size"];
+  float learningRate= cmd["--learning-rate"];
+  float variance    = cmd["--variance"];
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
@@ -54,6 +60,21 @@ int main (int argc, char* argv[]) {
   DataSet train, valid;
   splitIntoTrainingAndValidationSet(train, valid, data, ratio);
 
+  DNN dnn(getDimensions(data, structure), variance);
+
+  // Start Training
+  dnn.train(train, valid, batchSize, err);
+
+  dnn.setLearningRate(learningRate);
+
+  // Save the model
+  dnn.save(model_fn);
+
+  return 0;
+}
+
+std::vector<size_t> getDimensions(const DataSet& data, const string& structure) {
+
   // Initialize hidden structure
   size_t input_dim  = data.X.getCols() - 1;
   size_t output_dim = data.prob.getCols();
@@ -61,13 +82,6 @@ int main (int argc, char* argv[]) {
   vector<size_t> dims = splitAsInt(structure, '-');
   dims.insert(dims.begin(), input_dim);
   dims.push_back(output_dim);
-  DNN dnn(dims);
 
-  // Start Training
-  dnn.train(train, valid, batchSize, err);
-
-  // Save the model
-  dnn.save(model_fn);
-
-  return 0;
+  return dims;
 }

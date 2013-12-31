@@ -31,7 +31,7 @@ public:
   AffineTransform();
   AffineTransform(const AffineTransform& source);
   AffineTransform(const mat& w);
-  AffineTransform(size_t rows, size_t cols);
+  AffineTransform(size_t rows, size_t cols, float variance);
 
   AffineTransform& operator = (AffineTransform rhs);
   void setOutputLayer(bool flag);
@@ -59,7 +59,7 @@ protected:
 class Softmax : public AffineTransform {
 public:
   Softmax(const mat& w);
-  Softmax(size_t rows, size_t cols);
+  Softmax(size_t rows, size_t cols, float variance);
 
   Softmax& operator = (Softmax rhs);
   

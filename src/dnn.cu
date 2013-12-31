@@ -2,13 +2,25 @@
 #include <dnn-utility.h>
 #include <thrust/extrema.h>
 
-DNN::DNN(): _transforms(), _dims() {}
+DNN::DNN():
+  _transforms(),
+  _dims(),
+  _learning_rate(0.01),
+  _variance(0.01) {}
 
-DNN::DNN(string fn): _transforms(), _dims() {
+DNN::DNN(string fn):
+  _transforms(),
+  _dims(),
+  _learning_rate(0.01),
+  _variance(0.01) {
   this->read(fn);
 }
 
-DNN::DNN(const std::vector<size_t>& dims): _transforms(), _dims(dims) {
+DNN::DNN(const std::vector<size_t>& dims, float variance):
+  _transforms(),
+  _dims(dims),
+  _learning_rate(0.01),
+  _variance(variance) {
   size_t L = _dims.size() - 1;
 
   _transforms.resize(L);
@@ -18,15 +30,17 @@ DNN::DNN(const std::vector<size_t>& dims): _transforms(), _dims(dims) {
     size_t N = _dims[i+1] + 1;
 
     if (i == L-1)
-      _transforms[i] = new Softmax(M, N);
+      _transforms[i] = new Softmax(M, N, _variance);
     else
-      _transforms[i] = new AffineTransform(M, N);
+      _transforms[i] = new AffineTransform(M, N, _variance);
   }
 }
 
-DNN::DNN(const DNN& source): _dims(source._dims), _transforms() {
-
-  _transforms.resize(source._transforms.size());
+DNN::DNN(const DNN& source):
+  _dims(source._dims),
+  _transforms(source._transforms.size()),
+  _learning_rate(0.01),
+  _variance(0.01) {
 
   for (size_t i=0; i<_transforms.size(); ++i)
     *_transforms[i] = *source._transforms[i];
@@ -204,7 +218,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
       mat error = this->getError(train.prob, O.back(), offset, nData, errorMeasure);
 
       this->backPropagate(train, O, error, offset, nData);
-      this->updateParameters(1e-1);
+      this->updateParameters();
     }
 
     this->feedForward(valid, O);
@@ -315,15 +329,25 @@ void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, si
     _transforms[i]->backPropagate(O[i], O[i+1], error);
 }
 
-void DNN::updateParameters(float learning_rate) { 
+void DNN::updateParameters() { 
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->update(learning_rate);
+    _transforms[i]->update(_learning_rate);
+}
+
+void DNN::setLearningRate(float learning_rate) {
+  _learning_rate = learning_rate;
+}
+
+void DNN::setVariance(float variance) {
+  _variance = variance;
 }
 
 void swap(DNN& lhs, DNN& rhs) {
   using WHERE::swap;
-  swap(lhs._dims, rhs._dims);
   swap(lhs._transforms, rhs._transforms);
+  swap(lhs._dims, rhs._dims);
+  swap(lhs._learning_rate, rhs._learning_rate);
+  swap(lhs._variance, rhs._variance);
 }
 
 // =============================

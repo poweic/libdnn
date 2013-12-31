@@ -13,8 +13,8 @@ AffineTransform::AffineTransform(const mat& w): _w(w), _dw(w.getRows(), w.getCol
 
 }
 
-AffineTransform::AffineTransform(size_t rows, size_t cols): _w(rows, cols), _dw(rows, cols), _isOutputLayer(false) {
-  ext::randn(_w);
+AffineTransform::AffineTransform(size_t rows, size_t cols, float variance): _w(rows, cols), _dw(rows, cols), _isOutputLayer(false) {
+  ext::randn(_w, 0.0f, variance);
 }
 
 AffineTransform& AffineTransform::operator = (AffineTransform rhs) {
@@ -95,7 +95,7 @@ void swap(AffineTransform& lhs, AffineTransform& rhs) {
 Softmax::Softmax(const mat& w): AffineTransform(w) {
 }
 
-Softmax::Softmax(size_t rows, size_t cols): AffineTransform(rows, cols) {
+Softmax::Softmax(size_t rows, size_t cols, float variance): AffineTransform(rows, cols, variance) {
 }
 
 Softmax& Softmax::operator = (Softmax rhs) {

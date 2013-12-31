@@ -20,11 +20,11 @@ namespace ext {
   }
 
   template <typename T>
-  void randn(Matrix2D<T>& m) {
+  void randn(Matrix2D<T>& m, float mean = 0, float variance = 1) {
 
     for (size_t i=0; i<m.getRows(); ++i)
       for (size_t j=0; j<m.getCols(); ++j)
-	m[i][j] = randn<T>(0, 1);
+	m[i][j] = randn<T>(mean, variance);
   }
 
   template <typename T>
