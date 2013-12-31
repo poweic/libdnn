@@ -16,7 +16,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Training options: ")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
-     .add("--epoch", "number of maximum epochs", "inf")
+     .add("--max-epoch", "number of maximum epochs", "100000")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
      .add("--learning-rate", "learning rate in back-propagation", "0.01")
      .add("--variance", "the variance of normal distribution when initializing the weights", "0.01")
@@ -48,6 +48,7 @@ int main (int argc, char* argv[]) {
   float learningRate= cmd["--learning-rate"];
   float variance    = cmd["--variance"];
   float minValidAcc = cmd["--min-acc"];
+  size_t maxEpoch   = cmd["--max-epoch"];
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
@@ -67,6 +68,7 @@ int main (int argc, char* argv[]) {
   config.variance = variance;
   config.learningRate = learningRate;
   config.minValidAccuracy = minValidAcc;
+  config.maxEpoch = maxEpoch;
 
   // Initialize Deep Neural Network
   DNN dnn(config);
