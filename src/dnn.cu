@@ -11,6 +11,19 @@ DNN::DNN(const Config& config): _transforms(), _dims(), _config(config) {
   config.print();
 }
 
+void DNN::init(const std::vector<size_t>& dims, const std::vector<mat>& weights) {
+  _dims = dims;
+
+  assert(_dims.size() > 0);
+  size_t L = _dims.size() - 1;
+
+  _transforms.resize(L);
+
+  for (size_t i=0; i<L-1; ++i)
+      _transforms[i] = new AffineTransform(weights[i]);
+  _transforms[L-1] = new Softmax(weights[L-1]);
+}
+
 void DNN::init(const std::vector<size_t>& dims) {
   _dims = dims;
 
@@ -240,7 +253,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
     if (validAcc > _config.minValidAccuracy && isEoutStopDecrease(Eout, epoch))
       break;
 
-    // printf("Training Acc = %.4f %%, Validation Acc = %.4f %%, Eout[%lu] = %lu\n", trainAcc, validAcc, epoch, Eout[epoch]); 
+    printf("Training Acc = %.4f %%, Validation Acc = %.4f %%, Eout[%lu] = %lu\n", trainAcc, validAcc, epoch, Eout[epoch]); 
   }
 
   // Show Summary

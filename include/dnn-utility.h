@@ -13,7 +13,7 @@
 #endif
 
 #ifndef matlog
-#define matlog(x) { cout << #x << " = [" << endl; x.print(); cout << "];" << endl; }
+#define matlog(x) { cout << "\33[34m" << #x << "\33[0m = [" << endl; x.print(); cout << "];" << endl; }
 #endif
 #define dsigma(x) ((x) & ((float) 1.0 - (x)))
 #define mylog(x) { cout << #x << " = " << x << endl; }
@@ -44,6 +44,7 @@ enum ERROR_MEASURE {
 struct DataSet {
   mat X, y, prob;
 };
+
 
 size_t getClassNumber(const DataSet& data);
 

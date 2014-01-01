@@ -30,6 +30,7 @@ public:
   DNN& operator = (DNN rhs);
 
   void init(const std::vector<size_t>& dims);
+  void init(const std::vector<size_t>& dims, const std::vector<mat>& weights);
   void feedForward(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
   void backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset = 0, size_t batchSize = 0);
 

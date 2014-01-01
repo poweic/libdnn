@@ -3,9 +3,12 @@
 #include <dnn.h>
 #include <dnn-utility.h>
 #include <cmdparser.h>
+#include <rbm.h>
 using namespace std;
 
 std::vector<size_t> getDimensions(const DataSet& data, const string& structure);
+
+std::vector<mat> rbminit(DataSet& data, const std::vector<size_t> &dims);
 
 int main (int argc, char* argv[]) {
 
@@ -72,12 +75,11 @@ int main (int argc, char* argv[]) {
 
   // Initialize Deep Neural Network
   DNN dnn(config);
-  dnn.init(getDimensions(data, structure));
+  std::vector<size_t> dims = getDimensions(data, structure);
+  dnn.init(dims, rbminit(data, dims));
 
   // Start Training
   dnn.train(train, valid, batchSize, err);
-
-  // dnn.setLearningRate(learningRate);
 
   // Save the model
   dnn.save(model_fn);
