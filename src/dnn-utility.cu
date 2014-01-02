@@ -373,6 +373,11 @@ void shuffleFeature(DataSet& data) {
 
   shuffleFeature(h_X, h_y, data.X.getRows(), data.X.getCols());
 
+  CCE(cudaMemcpy(data.X.getData(), h_X, sizeof(float) * data.X.size(), cudaMemcpyHostToDevice));
+  CCE(cudaMemcpy(data.y.getData(), h_y, sizeof(float) * data.y.size(), cudaMemcpyHostToDevice));
+
+  data.prob = label2PosteriorProb(data.y);
+
   delete [] h_X;
   delete [] h_y;
 }
