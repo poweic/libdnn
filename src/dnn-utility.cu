@@ -1,5 +1,37 @@
 #include <dnn-utility.h>
 
+void playground() {
+  mat A(10, 10);
+  ext::randn(A, 0.0f, 128.0f);
+  A.print();
+
+  ext::rescale(A, 0, 1);
+  A.print();
+}
+
+void rescaleFeature(float* data, size_t rows, size_t cols, float lower, float upper) {
+  for (size_t i=0; i<rows; ++i) {
+    float min = data[i],
+	  max = data[i];
+
+    for (size_t j=0; j<cols; ++j) {
+      float x = data[j*rows + i];
+      if (x > max) max = x;
+      if (x < min) min = x;
+    }
+
+    if (max == min) {
+      for (size_t j=0; j<cols; ++j)
+	data[j*rows + i] = upper;
+      continue;
+    }
+
+    float ratio = (upper - lower) / (max - min);
+    for (size_t j=0; j<cols; ++j)
+      data[j*rows + i] = (data[j*rows + i] - min) * ratio + lower;
+  }
+}
+
 map<int, int> getLabelMapping(const mat& labels) {
   thrust::device_ptr<float> dptr(labels.getData());
   thrust::host_vector<float> y(dptr, dptr + labels.size());
@@ -27,12 +59,31 @@ size_t getClassNumber(const DataSet& data) {
   return classes.size();
 }
 
-/*float max(const mat& v) {
-  thrust::device_ptr<float> vPtr(v.getData());
-  thrust::device_ptr<float> maxPtr = thrust::max_element(vPtr, vPtr + v.size());
-  thrust::host_vector<float> hMaxPtr(maxPtr, maxPtr + 1);
-  return hMaxPtr[0];
-}*/
+namespace ext {
+
+  void rescale(mat& data, float lower, float upper) {
+    float min = ext::min(data);
+    float max = ext::max(data);
+
+    float ratio = (upper - lower) / (max - min);
+    data = (data - min) * ratio + lower;
+  }
+
+  float max(const mat& v) {
+    thrust::device_ptr<float> vPtr(v.getData());
+    thrust::device_ptr<float> maxPtr = thrust::max_element(vPtr, vPtr + v.size());
+    thrust::host_vector<float> hMaxPtr(maxPtr, maxPtr + 1);
+    return hMaxPtr[0];
+  }
+
+  float min(const mat& v) {
+    thrust::device_ptr<float> vPtr(v.getData());
+    thrust::device_ptr<float> minPtr = thrust::min_element(vPtr, vPtr + v.size());
+    thrust::host_vector<float> hMaxPtr(minPtr, minPtr + 1);
+    return hMaxPtr[0];
+  }
+
+};
 
 mat getStandardLabels(const mat& labels) {
   // Assume class label index start from 1, and there's no skipping.
@@ -384,10 +435,10 @@ void shuffleFeature(DataSet& data) {
 
 void shuffleFeature(float* const data, float* const labels, int rows, int cols) {
 
-  printf("Random shuffling features for latter training...\n");
+  // printf("Random shuffling features for latter training...\n");
 
-  perf::Timer timer;
-  timer.start();
+  // perf::Timer timer;
+  // timer.start();
 
   std::vector<size_t> perm = randshuf(rows);
 
@@ -410,7 +461,7 @@ void shuffleFeature(float* const data, float* const labels, int rows, int cols) 
   delete [] tmp_data;
   delete [] tmp_labels;
 
-  timer.elapsed();
+  // timer.elapsed();
 }
 
 void splitIntoTrainingAndValidationSet(
@@ -502,16 +553,18 @@ void getFeature(const string &fn, DataSet& dataset) {
   int rows, cols;
   readFeature(fn, data, labels, rows, cols);
 
+  rescaleFeature(data, rows, cols);
+
   mat rawX(data, rows, cols);
 
   dataset.y = mat(labels, rows, 1);
   dataset.X = mat(rows, cols + 1);
   CCE(cudaMemcpy(dataset.X.getData(), rawX.getData(), sizeof(float) * rawX.size(), cudaMemcpyDeviceToDevice));
+  fillLastColumnWith(dataset.X, (float) 1.0);
 
   dataset.y = getStandardLabels(dataset.y);
   dataset.prob = label2PosteriorProb(dataset.y);
 
-  fillLastColumnWith(dataset.X, (float) 1.0);
 
   delete [] data;
   delete [] labels;

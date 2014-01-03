@@ -45,12 +45,13 @@ struct DataSet {
   mat X, y, prob;
 };
 
+void playground();
 
+void rescaleFeature(float* data, size_t rows, size_t cols, float lower = 0, float upper = 1);
 size_t getClassNumber(const DataSet& data);
 
 map<int, int> getLabelMapping(const mat& labels);
 
-// float max(const mat& v);
 mat label2PosteriorProb(const mat& labels);
 mat posteriorProb2Label(const mat& prob);
 
@@ -104,6 +105,11 @@ bool isLabeled(const mat& labels);
 mat rowSum(mat& m);
 
 namespace ext {
+  void rescale(mat& data, float lower, float upper);
+
+  float max(const mat& v);
+  float min(const mat& v);
+
   template <typename T>
   device_matrix<T> b_sigmoid(const device_matrix<T>& x) {
     device_matrix<T> s(x.getRows(), x.getCols() + 1);
@@ -145,7 +151,7 @@ namespace ext {
 
     return s;
   }
-}
+};
 
 template <typename T>
 void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src, size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {

@@ -11,5 +11,6 @@ __global__ void turnOnWithProbabilityKernel(float* const data, const float* cons
 void turnOnWithProbability(mat &y);
 
 mat RBMinit(mat& data, size_t nHiddenUnits);
+void fast_rand(mat& x);
 
 #endif

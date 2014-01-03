@@ -220,7 +220,6 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
     ++nBatch;
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
-    cout << "."; cout.flush();
 
     for (size_t b=0; b<nBatch; ++b) {
 
@@ -246,14 +245,17 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
-    if (trainAcc < 0.5)
+    if (trainAcc < 0.5) {
+      cout << "."; cout.flush();
       continue;
+    }
 
     float validAcc= 1.0f - (float) Eout[epoch] / nValid;
     if (validAcc > _config.minValidAccuracy && isEoutStopDecrease(Eout, epoch))
       break;
 
-    printf("Training Acc = %.4f %%, Validation Acc = %.4f %%, Eout[%lu] = %lu\n", trainAcc, validAcc, epoch, Eout[epoch]); 
+    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
+      epoch, trainAcc, nTrain - Ein, nTrain, validAcc, nValid - Eout[epoch], nValid); 
   }
 
   // Show Summary
@@ -304,7 +306,7 @@ mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t ba
 	thrust::device_ptr<float> ePtr(error.getData());
 
 	thrust::device_vector<float> TMP(O.size());
-	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(0.01));
+	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(1e-10));
 
 	// matlog(O);
 	// matlog(batchTarget);

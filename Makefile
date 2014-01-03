@@ -43,7 +43,6 @@ LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/
 
 $(EXECUTABLES): % : %.cpp $(OBJ)
 	$(CXX) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
-
 # +==============================+
 # +===== Other Phony Target =====+
 # +==============================+

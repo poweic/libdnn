@@ -33,10 +33,11 @@ int main (int argc, char* argv[]) {
 	"Ex: 1024-1024-1024 for 3 hidden layer, each with 1024 nodes. \n"
 	"(Note: This does not include input and output layer)");
 
-  /*cmd.addGroup("Pre-training options:")
+  cmd.addGroup("Pre-training options:")
      .add("--pre", "type of Pretraining. Choose one of the following:\n"
-	"0 -- RBM (Restricted Boltzman Machine)\n"
-	"1 -- Layer-wise", "0");*/
+	"0 -- Random initialization (no pre-training)\n"
+	"1 -- RBM (Restricted Boltzman Machine)\n"
+	"2 -- Layer-wise", "0");
 
   cmd.addGroup("Example usage: dnn-train data/train3.dat --nodes=16-8");
 
@@ -52,6 +53,7 @@ int main (int argc, char* argv[]) {
   float variance    = cmd["--variance"];
   float minValidAcc = cmd["--min-acc"];
   size_t maxEpoch   = cmd["--max-epoch"];
+  size_t preTraining= cmd["--pre"];
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
@@ -59,7 +61,9 @@ int main (int argc, char* argv[]) {
   DataSet data;
   getFeature(train_fn, data);
   shuffleFeature(data);
+
   showSummary(data);
+  std::vector<size_t> dims = getDimensions(data, structure);
 
   ERROR_MEASURE err = CROSS_ENTROPY;
   
@@ -75,8 +79,10 @@ int main (int argc, char* argv[]) {
 
   // Initialize Deep Neural Network
   DNN dnn(config);
-  std::vector<size_t> dims = getDimensions(data, structure);
-  dnn.init(dims, rbminit(data, dims));
+  if (preTraining == 0)
+    dnn.init(dims);
+  else
+    dnn.init(dims, rbminit(data, dims));
 
   // Start Training
   dnn.train(train, valid, batchSize, err);
@@ -96,6 +102,8 @@ std::vector<size_t> getDimensions(const DataSet& data, const string& structure) 
   vector<size_t> dims = splitAsInt(structure, '-');
   dims.insert(dims.begin(), input_dim);
   dims.push_back(output_dim);
+
+  printf("| Number of Hidden Layers        |%9lu |\n", dims.size() - 2);
 
   return dims;
 }
