@@ -251,7 +251,7 @@ mat RBMinit(mat& data, size_t nHiddenUnits) {
       float ratio = abs(getSlope(errors, 5) / initialSlope);
       char status[100];
       sprintf(status, "RBM init ( error = %.4e, slope ratio = %.4e )", errors[epoch], ratio);
-      pBar.refresh(std::max(1.0f, threshold / ratio), status);
+      pBar.refresh(std::min(1.0f, threshold / ratio), status);
 
       if (ratio < threshold)
 	break;
