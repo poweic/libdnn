@@ -92,7 +92,7 @@ void splitIntoTrainingAndValidationSet(
     const float* const data, const float* const prob, const float* const labels,
     int rows, int inputDim, int outputDim);
 
-void getFeature(const string &fn, DataSet& dataset);
+void getFeature(const string &fn, DataSet& dataset, bool rescale = false);
 void readFeature(const string &fn, float* &X, float* &y, int &rows, int &cols);
 void readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
 void readDenseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);

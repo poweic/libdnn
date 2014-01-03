@@ -34,6 +34,7 @@ int main (int argc, char* argv[]) {
 	"(Note: This does not include input and output layer)");
 
   cmd.addGroup("Pre-training options:")
+     .add("--rescale", "Rescale each feature to [0, 1]", "false")
      .add("--pre", "type of Pretraining. Choose one of the following:\n"
 	"0 -- Random initialization (no pre-training)\n"
 	"1 -- RBM (Restricted Boltzman Machine)\n"
@@ -54,12 +55,13 @@ int main (int argc, char* argv[]) {
   float minValidAcc = cmd["--min-acc"];
   size_t maxEpoch   = cmd["--max-epoch"];
   size_t preTraining= cmd["--pre"];
+  bool rescale      = cmd["--rescale"];
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data;
-  getFeature(train_fn, data);
+  getFeature(train_fn, data, rescale);
   shuffleFeature(data);
 
   showSummary(data);

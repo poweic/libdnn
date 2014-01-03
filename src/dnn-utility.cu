@@ -547,13 +547,16 @@ void splitIntoTrainingAndValidationSet(
   }
 }
 
-void getFeature(const string &fn, DataSet& dataset) {
+void getFeature(const string &fn, DataSet& dataset, bool rescale) {
 
   float* data, *labels;
   int rows, cols;
   readFeature(fn, data, labels, rows, cols);
 
-  rescaleFeature(data, rows, cols);
+  if (rescale) {
+    printf("\33[33m[Info]\33[0m rescale each feature to [0, 1]\n");
+    rescaleFeature(data, rows, cols);
+  }
 
   mat rawX(data, rows, cols);
 

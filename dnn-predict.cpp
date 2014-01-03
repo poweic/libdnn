@@ -13,17 +13,23 @@ int main (int argc, char* argv[]) {
     .add("model_file")
     .add("output_file", false);
 
+  cmd.addGroup("Options:")
+    .add("--rescale", "Rescale each feature to [0, 1]", "false")
+    .add("--prob", "output posterior probabilities if true", "false");
+
   cmd.addGroup("Example usage: dnn-predict test3.dat train3.dat.model");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
 
-  string test_fn = cmd[1];
-  string model_fn = cmd[2];
-  string output_fn = cmd[3];
+  string test_fn    = cmd[1];
+  string model_fn   = cmd[2];
+  string output_fn  = cmd[3];
+  bool rescale      = cmd["--rescale"];
+  bool isOutputProb = cmd["--prob"];
 
   DataSet test;
-  getFeature(test_fn, test);
+  getFeature(test_fn, test, rescale);
 
   showSummary(test);
 
@@ -48,7 +54,12 @@ int main (int argc, char* argv[]) {
     return -1;
   }
 
-  mat predictions = posteriorProb2Label(prob);
+  mat predictions;
+  if (!isOutputProb)
+    predictions = posteriorProb2Label(prob);
+  else
+    predictions = prob;
+
   predictions.print(fid);
 
   if (fid != stdout)
