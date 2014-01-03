@@ -13,6 +13,7 @@ struct Config {
   size_t trainValidRatio;
   size_t nNonIncEpoch;
   float minValidAccuracy;
+  bool randperm;
 
   void print() const;
 };

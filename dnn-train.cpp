@@ -8,8 +8,6 @@ using namespace std;
 
 std::vector<size_t> getDimensions(const DataSet& data, const string& structure);
 
-std::vector<mat> rbminit(DataSet& data, const std::vector<size_t> &dims);
-
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
@@ -18,6 +16,7 @@ int main (int argc, char* argv[]) {
     .add("model_file", false);
 
   cmd.addGroup("Training options: ")
+     .add("--rp", "perform random permutation at the start of each epoch", "false")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "100000")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
@@ -35,6 +34,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Pre-training options:")
      .add("--rescale", "Rescale each feature to [0, 1]", "false")
+     .add("--slope-thres", "threshold of ratio of slope in RBM pre-training", "0.05")
      .add("--pre", "type of Pretraining. Choose one of the following:\n"
 	"0 -- Random initialization (no pre-training)\n"
 	"1 -- RBM (Restricted Boltzman Machine)\n"
@@ -56,6 +56,8 @@ int main (int argc, char* argv[]) {
   size_t maxEpoch   = cmd["--max-epoch"];
   size_t preTraining= cmd["--pre"];
   bool rescale      = cmd["--rescale"];
+  bool randperm	    = cmd["--rp"];
+  float slopeThres  = cmd["--slope-thres"];
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
@@ -84,7 +86,7 @@ int main (int argc, char* argv[]) {
   if (preTraining == 0)
     dnn.init(dims);
   else
-    dnn.init(dims, rbminit(data, dims));
+    dnn.init(dims, rbminit(data, dims, slopeThres));
 
   // Start Training
   dnn.train(train, valid, batchSize, err);

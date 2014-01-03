@@ -208,7 +208,7 @@ void DNN::adjustLearningRate(float trainAcc) {
        (trainAcc > 0.97 && phase == 5)
      ) {
 
-    float ratio = 0.7;
+    float ratio = 0.9;
     printf("\33[33m[Info]\33[0m Adjust learning rate from \33[32m%.7f\33[0m to \33[32m%.7f\33[0m\n", _config.learningRate, _config.learningRate * ratio);
     _config.learningRate *= ratio;
     ++phase;
@@ -238,6 +238,9 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
     ++nBatch;
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
+
+    if (_config.randperm)
+      shuffleFeature(const_cast<DataSet&>(train));
 
     for (size_t b=0; b<nBatch; ++b) {
 

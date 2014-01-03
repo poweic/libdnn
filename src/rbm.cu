@@ -60,12 +60,12 @@ void fast_rand(mat& x) {
   mat_rand <<< grid, threads >>> (x.getData(), devStates, rows, cols);
 }
 
-std::vector<mat> rbminit(DataSet& data, const std::vector<size_t> &dims) {
+std::vector<mat> rbminit(DataSet& data, const std::vector<size_t> &dims, float slopeThres) {
   std::vector<mat> weights(dims.size() - 1);
 
   mat X = data.X;
   for (size_t i=0; i<weights.size(); ++i) {
-    weights[i] = RBMinit(X, dims[i + 1]);
+    weights[i] = RBMinit(X, dims[i + 1], slopeThres);
     X = ext::sigmoid(X * weights[i]);
     fillLastColumnWith(X, 1.0f);
   }
@@ -183,7 +183,7 @@ float calcStd(const std::vector<float> &error, size_t N) {
   return std;
 }
 
-mat RBMinit(mat& data, size_t nHiddenUnits) {
+mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
   // Make sure the visible units have values in the range [0, 1]
   float max = ext::max(data),
 	min = ext::min(data);
@@ -246,8 +246,6 @@ mat RBMinit(mat& data, size_t nHiddenUnits) {
       initialSlope = getSlope(errors, minEpoch);
 
     if (epoch > minEpoch) {
-      const float threshold = 0.05;
-
       float ratio = abs(getSlope(errors, 5) / initialSlope);
       char status[100];
       sprintf(status, "RBM init ( error = %.4e, slope ratio = %.4e )", errors[epoch], ratio);
