@@ -197,6 +197,24 @@ bool DNN::isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch) {
   return true;
 }
 
+void DNN::adjustLearningRate(float trainAcc) {
+  static size_t phase = 0;
+
+  if ( (trainAcc > 0.80 && phase == 0) ||
+       (trainAcc > 0.85 && phase == 1) ||
+       (trainAcc > 0.90 && phase == 2) ||
+       (trainAcc > 0.92 && phase == 3) ||
+       (trainAcc > 0.95 && phase == 4) ||
+       (trainAcc > 0.97 && phase == 5)
+     ) {
+
+    float ratio = 0.7;
+    printf("\33[33m[Info]\33[0m Adjust learning rate from \33[32m%.7f\33[0m to \33[32m%.7f\33[0m\n", _config.learningRate, _config.learningRate * ratio);
+    _config.learningRate *= ratio;
+    ++phase;
+  }
+}
+
 void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   printf("Training...\n");
@@ -256,6 +274,8 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
     printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
       epoch, trainAcc, nTrain - Ein, nTrain, validAcc, nValid - Eout[epoch], nValid); 
+
+    this->adjustLearningRate(trainAcc);
   }
 
   // Show Summary

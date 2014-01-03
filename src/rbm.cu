@@ -246,19 +246,14 @@ mat RBMinit(mat& data, size_t nHiddenUnits) {
       initialSlope = getSlope(errors, minEpoch);
 
     if (epoch > minEpoch) {
-      /*float minimum = getAsymptoticBound(errors, epoch, maxEpoch, 15);
-      float ratio = (errors.back() - minimum) / (errors[0] - minimum);
-      printf("\nerros[0] = %.7f, error[end] = %.7f, minimum = %.7f, ratio = %.7f\n", errors[0], errors.back(), minimum, ratio);
-      float threshold = 0.15;
-      char status[100];
-      sprintf(status, "RBM initialization ( avg reconstruction error = %.4e )", errors[epoch]);*/
+      const float threshold = 0.05;
 
       float ratio = abs(getSlope(errors, 5) / initialSlope);
       char status[100];
       sprintf(status, "RBM init ( error = %.4e, slope ratio = %.4e )", errors[epoch], ratio);
-      pBar.refresh(epoch, maxEpoch, status);
+      pBar.refresh(std::max(1.0f, threshold / ratio), status);
 
-      if (ratio < 0.05)
+      if (ratio < threshold)
 	break;
     }
   }

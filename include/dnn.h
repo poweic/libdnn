@@ -42,6 +42,7 @@ public:
   void getEmptyGradient(std::vector<mat>& g) const;
 
   Config getConfig() const;
+  void adjustLearningRate(float trainAcc);
 
   void _read(FILE* fid);
   void read(string fn);
