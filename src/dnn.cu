@@ -8,7 +8,6 @@ DNN::DNN(string fn): _transforms(), _dims(), _config() {
 }
 
 DNN::DNN(const Config& config): _transforms(), _dims(), _config(config) {
-  config.print();
 }
 
 void DNN::init(const std::vector<size_t>& dims, const std::vector<mat>& weights) {
@@ -60,6 +59,10 @@ DNN& DNN::operator = (DNN rhs) {
 DNN::~DNN() {
   for (size_t i=0; i<_transforms.size(); ++i)
     delete _transforms[i];
+}
+  
+void DNN::setConfig(const Config& config) {
+  _config = config;
 }
 
 size_t DNN::getNLayer() const {

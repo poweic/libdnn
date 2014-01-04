@@ -9,6 +9,21 @@ void playground() {
   A.print();
 }
 
+std::vector<size_t> getDimensions(const DataSet& data, const string& structure) {
+
+  // Initialize hidden structure
+  size_t input_dim  = data.X.getCols() - 1;
+  size_t output_dim = data.prob.getCols();
+
+  vector<size_t> dims = splitAsInt(structure, '-');
+  dims.insert(dims.begin(), input_dim);
+  dims.push_back(output_dim);
+
+  printf("| Number of Hidden Layers        |%9lu |\n", dims.size() - 2);
+
+  return dims;
+}
+
 void rescaleFeature(float* data, size_t rows, size_t cols, float lower, float upper) {
   for (size_t i=0; i<rows; ++i) {
     float min = data[i],
@@ -568,7 +583,6 @@ void getFeature(const string &fn, DataSet& dataset, bool rescale) {
   dataset.y = getStandardLabels(dataset.y);
   dataset.prob = label2PosteriorProb(dataset.y);
 
-
   delete [] data;
   delete [] labels;
 }
@@ -590,22 +604,10 @@ void readFeature(const string &fn, float* &data, float* &labels, int &rows, int 
   else
     readDenseFeature(fin, data, labels, rows, cols);
 
-  // shuffleFeature(data, labels, rows, cols);
-
   fin.close();
 }
 
 
 bool isLabeled(const mat& labels) {
-
   return getLabelMapping(labels).size() > 1;
-
-  /*size_t L = labels.size();
-
-  thrust::device_vector<float> zero_vec(L, 0);
-  thrust::device_ptr<float> label_ptr(labels.getData());
-
-  bool isAllZero = thrust::equal(label_ptr, label_ptr + L, zero_vec.begin());
-  return !isAllZero;*/
 }
-

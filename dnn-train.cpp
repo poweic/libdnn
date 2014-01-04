@@ -6,14 +6,12 @@
 #include <rbm.h>
 using namespace std;
 
-std::vector<size_t> getDimensions(const DataSet& data, const string& structure);
-
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
 
   cmd.add("training_set_file")
-    .add("model_file", false);
+     .add("model_file", false);
 
   cmd.addGroup("Training options: ")
      .add("--rp", "perform random permutation at the start of each epoch", "false")
@@ -30,7 +28,7 @@ int main (int argc, char* argv[]) {
   cmd.addGroup("Structure of Neural Network: ")
      .add("--nodes", "specify the width(nodes) of each hidden layer seperated by \"-\":\n"
 	"Ex: 1024-1024-1024 for 3 hidden layer, each with 1024 nodes. \n"
-	"(Note: This does not include input and output layer)");
+	"(Note: This does not include input and output layer)", "-1");
 
   cmd.addGroup("Pre-training options:")
      .add("--rescale", "Rescale each feature to [0, 1]", "false")
@@ -38,26 +36,28 @@ int main (int argc, char* argv[]) {
      .add("--pre", "type of Pretraining. Choose one of the following:\n"
 	"0 -- Random initialization (no pre-training)\n"
 	"1 -- RBM (Restricted Boltzman Machine)\n"
-	"2 -- Layer-wise", "0");
+	"2 -- Load from pre-trained model", "0")
+     .add("-f", "when option --pre is set to 2, specify the filename of the pre-trained model", "train.dat.model");
 
   cmd.addGroup("Example usage: dnn-train data/train3.dat --nodes=16-8");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
 
-  string train_fn   = cmd[1];
-  string model_fn   = cmd[2];
-  string structure  = cmd["--nodes"];
-  int ratio	    = cmd["-v"];
-  size_t batchSize  = cmd["--batch-size"];
-  float learningRate= cmd["--learning-rate"];
-  float variance    = cmd["--variance"];
-  float minValidAcc = cmd["--min-acc"];
-  size_t maxEpoch   = cmd["--max-epoch"];
-  size_t preTraining= cmd["--pre"];
-  bool rescale      = cmd["--rescale"];
-  bool randperm	    = cmd["--rp"];
-  float slopeThres  = cmd["--slope-thres"];
+  string train_fn     = cmd[1];
+  string model_fn     = cmd[2];
+  string structure    = cmd["--nodes"];
+  int ratio	      = cmd["-v"];
+  size_t batchSize    = cmd["--batch-size"];
+  float learningRate  = cmd["--learning-rate"];
+  float variance      = cmd["--variance"];
+  float minValidAcc   = cmd["--min-acc"];
+  size_t maxEpoch     = cmd["--max-epoch"];
+  size_t preTraining  = cmd["--pre"];
+  bool rescale        = cmd["--rescale"];
+  bool randperm	      = cmd["--rp"];
+  float slopeThres    = cmd["--slope-thres"];
+  string pre_model_fn = cmd["-f"];
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
@@ -67,7 +67,6 @@ int main (int argc, char* argv[]) {
   shuffleFeature(data);
 
   showSummary(data);
-  std::vector<size_t> dims = getDimensions(data, structure);
 
   ERROR_MEASURE err = CROSS_ENTROPY;
   
@@ -81,12 +80,27 @@ int main (int argc, char* argv[]) {
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
 
+  config.print();
+
+  DNN dnn;
   // Initialize Deep Neural Network
-  DNN dnn(config);
-  if (preTraining == 0)
-    dnn.init(dims);
-  else
-    dnn.init(dims, rbminit(data, dims, slopeThres));
+  if (preTraining == 2) {
+    assert(!pre_model_fn.empty());
+    printf("Loading pre-trained model from file: \"%s\"\n", pre_model_fn.c_str());
+    dnn = DNN(pre_model_fn);
+  }
+  else {
+    assert(!structure.empty());
+    std::vector<size_t> dims = getDimensions(data, structure);
+    if (preTraining == 0)
+      dnn.init(dims);
+    else if (preTraining == 1)
+      dnn.init(dims, rbminit(data, dims, slopeThres));
+    else
+      return -1;
+  }
+
+  dnn.setConfig(config);
 
   // Start Training
   dnn.train(train, valid, batchSize, err);
@@ -95,19 +109,4 @@ int main (int argc, char* argv[]) {
   dnn.save(model_fn);
 
   return 0;
-}
-
-std::vector<size_t> getDimensions(const DataSet& data, const string& structure) {
-
-  // Initialize hidden structure
-  size_t input_dim  = data.X.getCols() - 1;
-  size_t output_dim = data.prob.getCols();
-
-  vector<size_t> dims = splitAsInt(structure, '-');
-  dims.insert(dims.begin(), input_dim);
-  dims.push_back(output_dim);
-
-  printf("| Number of Hidden Layers        |%9lu |\n", dims.size() - 2);
-
-  return dims;
 }

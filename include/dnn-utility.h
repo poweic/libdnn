@@ -47,6 +47,8 @@ struct DataSet {
 
 void playground();
 
+std::vector<size_t> getDimensions(const DataSet& data, const string& structure);
+
 void rescaleFeature(float* data, size_t rows, size_t cols, float lower = 0, float upper = 1);
 size_t getClassNumber(const DataSet& data);
 

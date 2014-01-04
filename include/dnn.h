@@ -37,6 +37,7 @@ public:
   void updateParameters();
   mat getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure);
 
+  void setConfig(const Config& config);
   size_t getNLayer() const;
   size_t getDepth() const;
   void getEmptyGradient(std::vector<mat>& g) const;

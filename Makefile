@@ -22,7 +22,7 @@ SOURCES=dnn.cu\
 	feature-transform.cu\
 	config.cpp
 
-EXECUTABLES=dnn-train dnn-predict svm-to-kaldi
+EXECUTABLES=dnn-train dnn-predict dnn-init
 .PHONY: debug all o3 example ctags
 all: $(EXECUTABLES) ctags
 
