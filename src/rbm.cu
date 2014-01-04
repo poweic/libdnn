@@ -108,7 +108,7 @@ void turnOnWithProbability(mat &y) {
   }
 
   if (devStates == NULL) {
-    printf("\n\nAllocate curandState of size %lu MBytes\n", N * sizeof(curandState) / 1024 / 1024);
+    // printf("\n\nAllocate curandState of size %lu MBytes\n", N * sizeof(curandState) / 1024 / 1024);
     cudaMalloc ( &devStates, N * sizeof( curandState ) );
     setupCuRandState <<< grid, threads >>> ( devStates, rows, cols, unsigned(time(NULL)) );
   }
@@ -208,7 +208,7 @@ mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
 
   float initialSlope = 0;
 
-  ProgressBar pBar("RBM initialization");
+  ProgressBar pBar("RBM init ( error = ...       , slope ratio = ...        )");
   for (size_t epoch=0; epoch < maxEpoch; ++epoch) {
 
     float error = 0;
@@ -259,4 +259,40 @@ mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
   printf("\nAverage magnitude of element in weight W = %.7f\n", nrm2(W) / sqrt(W.size()));
   
   return W;
+}
+
+bool is_number(const std::string& s) {
+  std::string::const_iterator it = s.begin();
+  while (it != s.end() && std::isdigit(*it)) ++it;
+  return !s.empty() && it == s.end();
+}
+
+std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure) {
+
+  string userInput = "";
+
+  while (!is_number(userInput)) {
+    printf("\33[33m Since RBM is a kind of UNSUPERVISED pre-training. "
+	   "Please enter how many nodes you want in the output layer.\33[0m "
+	   "[      ]\b\b\b\b\b");
+    cin >> userInput;
+  }
+
+  size_t output_dim = atoi(userInput.c_str());
+
+  // ===========================================================================
+  // Initialize hidden structure
+  size_t input_dim = data.X.getCols() - 1;
+  std::vector<size_t> dims = splitAsInt(structure, '-');
+  dims.insert(dims.begin(), input_dim);
+  dims.push_back((size_t) output_dim);
+
+  printf("\33[32m Start RBM pre-training with following hidden structure:\33[0m\n");
+  printf("\33[34m [   input  layer  ]\33[0m %lu\n", dims[0]);
+  for (size_t i=1; i<dims.size()-1; ++i)
+    printf("\33[34m [ hidden layer #%-2lu]\33[0m %lu\n", i, dims[i]);
+  printf("\33[34m [   output layer  ]\33[0m %lu\n\n", dims.back());
+  // ===========================================================================
+
+  return dims;
 }

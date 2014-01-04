@@ -63,10 +63,9 @@ int main (int argc, char* argv[]) {
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data;
-  getFeature(train_fn, data, rescale);
-  shuffleFeature(data);
-
-  showSummary(data);
+  data.getFeature(train_fn, rescale);
+  data.shuffleFeature();
+  data.showSummary();
 
   ERROR_MEASURE err = CROSS_ENTROPY;
   
@@ -91,7 +90,7 @@ int main (int argc, char* argv[]) {
   }
   else {
     assert(!structure.empty());
-    std::vector<size_t> dims = getDimensions(data, structure);
+    std::vector<size_t> dims = data.getDimensions(structure);
     if (preTraining == 0)
       dnn.init(dims);
     else if (preTraining == 1)

@@ -42,11 +42,11 @@ int main (int argc, char* argv[]) {
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data;
-  getFeature(train_fn, data, rescale);
-  shuffleFeature(data);
+  data.getFeature(train_fn, rescale);
+  data.shuffleFeature();
+  data.showSummary();
 
-  showSummary(data);
-  std::vector<size_t> dims = getDimensions(data, structure);
+  std::vector<size_t> dims = getDimensionsForRBM(data, structure);
 
   ERROR_MEASURE err = CROSS_ENTROPY;
   

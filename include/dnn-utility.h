@@ -34,6 +34,7 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/inner_product.h>
+
 typedef device_matrix<float> mat;
 
 enum ERROR_MEASURE {
@@ -41,16 +42,8 @@ enum ERROR_MEASURE {
   CROSS_ENTROPY
 };
 
-struct DataSet {
-  mat X, y, prob;
-};
-
 void playground();
 
-std::vector<size_t> getDimensions(const DataSet& data, const string& structure);
-
-void rescaleFeature(float* data, size_t rows, size_t cols, float lower = 0, float upper = 1);
-size_t getClassNumber(const DataSet& data);
 
 map<int, int> getLabelMapping(const mat& labels);
 
@@ -65,7 +58,6 @@ size_t countDifference(const mat& m1, const mat& m2);
 
 void print(const std::vector<mat>& vm);
 
-void showSummary(const DataSet& data);
 void showAccuracy(size_t nError, size_t nTotal);
 
 void getDataAndLabels(string train_fn, mat& data, mat& labels);
@@ -80,28 +72,7 @@ vector<string>& split(const string &s, char delim, vector<string>& elems);
 vector<size_t> splitAsInt(const string &s, char delim);
 
 std::vector<size_t> randshuf(size_t N);
-void shuffleFeature(DataSet& data);
-void shuffleFeature(float* const data, float* const labels, int rows, int cols);
 
-void splitIntoTrainingAndValidationSet(
-    DataSet& train, DataSet& valid,
-    DataSet& data, int ratio);
-
-void splitIntoTrainingAndValidationSet(
-    float* &trainX, float* &trainProb, float* &trainY, size_t& nTrain,
-    float* &validX, float* &validProb, float* &validY, size_t& nValid,
-    int ratio, /* ratio of training / validation */
-    const float* const data, const float* const prob, const float* const labels,
-    int rows, int inputDim, int outputDim);
-
-void getFeature(const string &fn, DataSet& dataset, bool rescale = false);
-void readFeature(const string &fn, float* &X, float* &y, int &rows, int &cols);
-void readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
-void readDenseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
-
-size_t getLineNumber(ifstream& fin);
-size_t findMaxDimension(ifstream& fin);
-size_t findDimension(ifstream& fin);
 bool isLabeled(const mat& labels);
 
 mat rowSum(mat& m);

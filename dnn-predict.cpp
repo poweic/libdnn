@@ -29,9 +29,8 @@ int main (int argc, char* argv[]) {
   bool isOutputProb = cmd["--prob"];
 
   DataSet test;
-  getFeature(test_fn, test, rescale);
-
-  showSummary(test);
+  test.getFeature(test_fn, rescale);
+  test.showSummary();
 
   DNN dnn(model_fn);
   mat prob = dnn.predict(test);
@@ -54,13 +53,15 @@ int main (int argc, char* argv[]) {
     return -1;
   }
 
-  mat predictions;
-  if (!isOutputProb)
-    predictions = posteriorProb2Label(prob);
+  if (!isOutputProb) {
+    mat d_labels = posteriorProb2Label(prob);
+    std::vector<float> labels = copyToHost(d_labels);
+    for (size_t i=0; i<labels.size(); ++i)
+      fprintf(fid, "%d\n", (int) labels[i]);
+  }
   else
-    predictions = prob;
+    prob.print(fid);
 
-  predictions.print(fid);
 
   if (fid != stdout)
     fclose(fid);

@@ -3,6 +3,7 @@
 
 #include <pbar.h>
 #include <dnn-utility.h>
+#include <dataset.h>
 
 std::vector<mat> rbminit(DataSet& data, const std::vector<size_t> &dims, float slopeThres);
 
@@ -12,5 +13,7 @@ void turnOnWithProbability(mat &y);
 
 mat RBMinit(mat& data, size_t nHiddenUnits, float threshold);
 void fast_rand(mat& x);
+
+std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure);
 
 #endif

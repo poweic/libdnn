@@ -2,6 +2,7 @@
 #define __DNN_H_
 
 #include <dnn-utility.h>
+#include <dataset.h>
 #include <feature-transform.h>
 #include <config.h>
 

@@ -100,7 +100,7 @@ void DNN::read(string fn) {
 
   while (fscanf(fid, "%s", type) != EOF) {
     fscanf(fid, "%lu %lu\n [\n", &rows, &cols);
-    printf("%s: rows = %lu, cols = %lu \n", type, rows, cols);
+    printf("\33[34m%-17s\33[0m %-6lu x %-6lu \n", type, rows, cols);
 
     float* hw = new float[(rows + 1) * (cols + 1)];
     readweight(fid, hw, rows + 1, cols);
@@ -243,7 +243,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
 
     if (_config.randperm)
-      shuffleFeature(const_cast<DataSet&>(train));
+      const_cast<DataSet&>(train).shuffleFeature();
 
     for (size_t b=0; b<nBatch; ++b) {
 
