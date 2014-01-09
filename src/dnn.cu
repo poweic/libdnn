@@ -19,7 +19,7 @@ void DNN::init(const std::vector<size_t>& dims, const std::vector<mat>& weights)
   _transforms.resize(L);
 
   for (size_t i=0; i<L-1; ++i)
-      _transforms[i] = new FeatureTransform(weights[i]);
+      _transforms[i] = new Sigmoid(weights[i]);
   _transforms[L-1] = new Softmax(weights[L-1]);
 }
 
@@ -38,7 +38,7 @@ void DNN::init(const std::vector<size_t>& dims) {
     if (i == L-1)
       _transforms[i] = new Softmax(M, N, _config.variance);
     else
-      _transforms[i] = new FeatureTransform(M, N, _config.variance);
+      _transforms[i] = new Sigmoid(M, N, _config.variance);
   }
 }
 
@@ -48,7 +48,7 @@ DNN::DNN(const DNN& source):
   _config() {
 
   for (size_t i=0; i<_transforms.size(); ++i)
-    *_transforms[i] = *source._transforms[i];
+    _transforms[i] = source._transforms[i]->clone();
 }
 
 DNN& DNN::operator = (DNN rhs) {
@@ -109,8 +109,8 @@ void DNN::read(string fn) {
     mat w(hw, rows + 1, cols + 1);
 
     string transformType = string(type);
-    if (transformType == "<affinetransform>")
-      _transforms.push_back(new FeatureTransform(w));
+    if (transformType == "<sigmoid>")
+      _transforms.push_back(new Sigmoid(w));
     else if (transformType == "<softmax>")
       _transforms.push_back(new Softmax(w));
 

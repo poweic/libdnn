@@ -1,29 +1,19 @@
 #include <feature-transform.h>
 
-FeatureTransform::FeatureTransform(): _isOutputLayer(false) {}
+void substractMaxPerRow(mat& x);
 
-FeatureTransform::FeatureTransform(const FeatureTransform& source):
-  _isOutputLayer(source._isOutputLayer),
-  _w(source._w),
-  _dw(source._dw) {
+// ============================
+// ===== FeatureTransform =====
+// ============================
 
-  }
-
-FeatureTransform::FeatureTransform(const mat& w): _w(w), _dw(w.getRows(), w.getCols()), _isOutputLayer(false) {
-
+FeatureTransform::FeatureTransform(const FeatureTransform& source): _w(source._w), _dw(source._dw) {
 }
 
-FeatureTransform::FeatureTransform(size_t rows, size_t cols, float variance): _w(rows, cols), _dw(rows, cols), _isOutputLayer(false) {
+FeatureTransform::FeatureTransform(const mat& w): _w(w), _dw(w.getRows(), w.getCols()) {
+}
+
+FeatureTransform::FeatureTransform(size_t rows, size_t cols, float variance): _w(rows, cols), _dw(rows, cols) {
   ext::randn(_w, 0.0f, variance);
-}
-
-FeatureTransform& FeatureTransform::operator = (FeatureTransform rhs) {
-  swap(*this, rhs);
-  return *this;
-}
-
-void FeatureTransform::setOutputLayer(bool flag) {
-  _isOutputLayer = flag;
 }
 
 mat& FeatureTransform::getW() {
@@ -47,22 +37,33 @@ void FeatureTransform::update(float learning_rate) {
   _w -= _dw;
 }
 
-void FeatureTransform::resize(size_t rows, size_t cols) {
-  _w.resize(rows, cols);
-  _dw.resize(rows, cols);
+// ===================
+// ===== Sigmoid =====
+// ===================
+
+Sigmoid::Sigmoid(const mat& w): FeatureTransform(w) {
 }
 
-string FeatureTransform::toString() const {
-  return "affinetransform";
+Sigmoid::Sigmoid(size_t rows, size_t cols, float variance): FeatureTransform(rows, cols, variance) {
 }
 
-void FeatureTransform::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+Sigmoid::Sigmoid(const Sigmoid& src): FeatureTransform(src) {
+}
+
+Sigmoid* Sigmoid::clone() const {
+  return new Sigmoid(*this);
+}
+
+string Sigmoid::toString() const {
+  return "sigmoid";
+}
+
+void Sigmoid::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
   fout = ext::sigmoid(const_cast<mat&>(fin) * _w);
   fillLastColumnWith(fout, (float) 1.0);
 }
 
-void FeatureTransform::backPropagate(const mat& fin, const mat& fout, mat& error) {
-
+void Sigmoid::backPropagate(const mat& fin, const mat& fout, mat& error) {
   mat delta = error & (1 - fout) & fout;
 
   _dw = ~const_cast<mat&>(fin) * delta;
@@ -82,12 +83,6 @@ void FeatureTransform::backPropagate(const mat& fin, const mat& fout, mat& error
       error.getData(), error.getRows());
 }
 
-void swap(FeatureTransform& lhs, FeatureTransform& rhs) {
-  std::swap(lhs._isOutputLayer, rhs._isOutputLayer);
-  std::swap(lhs._w, rhs._w);
-  std::swap(lhs._dw, rhs._dw);
-}
-
 // ===================
 // ===== Softmax =====
 // ===================
@@ -98,10 +93,11 @@ Softmax::Softmax(const mat& w): FeatureTransform(w) {
 Softmax::Softmax(size_t rows, size_t cols, float variance): FeatureTransform(rows, cols, variance) {
 }
 
-Softmax& Softmax::operator = (Softmax rhs) {
-  FeatureTransform::operator=(rhs);
-  swap(*this, rhs);
-  return *this;
+Softmax::Softmax(const Softmax& src): FeatureTransform(src) {
+}
+
+Softmax* Softmax::clone() const {
+  return new Softmax(*this);
 }
 
 string Softmax::toString() const {
@@ -122,10 +118,12 @@ __global__ void substract_max_per_row(float* const A, unsigned int rows, unsigne
   sdata[x * blockDim.y + ty] = A[x * rows + y];
 
   for (unsigned int s = blockDim.x/2 ; s > 0; s >>= 1) {
-    if (x < s && x + s < cols) {
-      if (sdata[(x + s) * blockDim.y + ty] > sdata[x * blockDim.y + ty])
-	sdata[x * blockDim.y + ty] = sdata[(x + s) * blockDim.y + ty];
-    }
+    if (x >= s || x + s >= cols)
+      continue;
+
+    if (sdata[(x + s) * blockDim.y + ty] > sdata[x * blockDim.y + ty])
+      sdata[x * blockDim.y + ty] = sdata[(x + s) * blockDim.y + ty];
+
     __syncthreads();
   }
 
@@ -197,7 +195,4 @@ void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {
       _w.getData(), _w.getRows(),
       0.0,
       error.getData(), error.getRows());
-}
-
-void swap(Softmax& lhs, Softmax& rhs) {
 }

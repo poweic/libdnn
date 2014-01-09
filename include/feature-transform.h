@@ -3,72 +3,61 @@
 
 #include <dnn-utility.h>
 
-template <typename T>
-device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& B) {
-  assert(A.getRows() == B.getRows() && A.getCols() == B.getCols());
-
-  device_matrix<T> C(A.getRows(), A.getCols());
-
-  thrust::device_ptr<T> aPtr(A.getData());
-  thrust::device_ptr<T> bPtr(B.getData());
-  thrust::device_ptr<T> cPtr(C.getData());
-
-  thrust::transform(aPtr, aPtr + A.size(), bPtr, cPtr, thrust::multiplies<T>());
-
-  return C;
-}
-
-void substractMaxPerRow(mat& x);
-
-/*class FeatureTransform {
+class FeatureTransform {
 public:
-  virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) { }
-  virtual void backPropagate(mat& delta, mat& fin) { }
-};*/
-
-class FeatureTransform /*: protected FeatureTransform*/ {
-public:
-  FeatureTransform();
   FeatureTransform(const FeatureTransform& source);
-  FeatureTransform(const mat& w);
   FeatureTransform(size_t rows, size_t cols, float variance);
 
-  FeatureTransform& operator = (FeatureTransform rhs);
-  void setOutputLayer(bool flag);
+  virtual FeatureTransform* clone() const = 0;
+  virtual string toString() const = 0;
+  virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) = 0;
+  virtual void backPropagate(const mat& fin, const mat& fout, mat& error) = 0;
 
   mat& getW();
-  const mat& getW() const;
   mat& getDw();
+  const mat& getW() const;
   const mat& getDw() const;
 
   void update(float learning_rate);
-  void resize(size_t rows, size_t cols);
 
+protected:
+  FeatureTransform(const mat& w);
+
+  mat _w;
+  mat _dw;
+
+private:
+  virtual FeatureTransform& operator = (const FeatureTransform& rhs) {}
+};
+
+class Sigmoid : public FeatureTransform {
+public:
+  Sigmoid(const mat& w);
+  Sigmoid(const Sigmoid& src);
+  Sigmoid(size_t rows, size_t cols, float variance);
+
+  virtual Sigmoid* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData);
   virtual void backPropagate(const mat& fin, const mat& fout, mat& error);
 
-  friend void swap(FeatureTransform& lhs, FeatureTransform& rhs);
-
-protected:
-  bool _isOutputLayer;
-  mat _w;
-  mat _dw;
+private:
+  virtual Sigmoid& operator = (Sigmoid rhs) {}
 };
 
 class Softmax : public FeatureTransform {
 public:
   Softmax(const mat& w);
   Softmax(size_t rows, size_t cols, float variance);
+  Softmax(const Softmax& src);
 
-  Softmax& operator = (Softmax rhs);
-  
+  virtual Softmax* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData);
   virtual void backPropagate(const mat& fin, const mat& fout, mat& error);
 
-  friend void swap(Softmax& lhs, Softmax& rhs);
+private:
+  virtual Softmax& operator = (Softmax rhs) {}
 };
-
 
 #endif // _FEATURE_TRANSFORM_H_

@@ -103,4 +103,19 @@ void fillLastColumnWith(device_matrix<T>& A, const T value) {
   thrust::fill(ptr + A.size() - A.getRows(), ptr + A.size(), value);
 }
 
+template <typename T>
+device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& B) {
+  assert(A.getRows() == B.getRows() && A.getCols() == B.getCols());
+
+  device_matrix<T> C(A.getRows(), A.getCols());
+
+  thrust::device_ptr<T> aPtr(A.getData());
+  thrust::device_ptr<T> bPtr(B.getData());
+  thrust::device_ptr<T> cPtr(C.getData());
+
+  thrust::transform(aPtr, aPtr + A.size(), bPtr, cPtr, thrust::multiplies<T>());
+
+  return C;
+}
+
 #endif // _DNN_UTILITY_H_
