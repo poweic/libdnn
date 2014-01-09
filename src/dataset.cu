@@ -201,6 +201,13 @@ void DataSet::shuffleFeature() {
   delete [] h_y;
 }
 
+bool isFileSparse(string train_fn) {
+  ifstream fin(train_fn.c_str());
+  string line;
+  std::getline(fin, line);
+  return line.find(':') != string::npos;
+}
+
 size_t getLineNumber(ifstream& fin) {
   int previous_pos = fin.tellg();
   string a;
@@ -257,7 +264,7 @@ size_t findDimension(ifstream& fin) {
 
 void DataSet::shuffleFeature(float* const data, float* const labels, int rows, int cols) {
 
-  std::vector<size_t> perm = randshuf(rows);
+  std::vector<size_t> perm = randperm(rows);
 
   float* tmp_data = new float[rows*cols];
   float* tmp_labels = new float[rows];

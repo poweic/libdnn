@@ -1,14 +1,5 @@
 #include <dnn-utility.h>
 
-void playground() {
-  mat A(10, 10);
-  ext::randn(A, 0.0f, 128.0f);
-  A.print();
-
-  ext::rescale(A, 0, 1);
-  A.print();
-}
-
 map<int, int> getLabelMapping(const mat& labels) {
   thrust::device_ptr<float> dptr(labels.getData());
   thrust::host_vector<float> y(dptr, dptr + labels.size());
@@ -114,14 +105,14 @@ vector<float> copyToHost(const mat& m) {
 }
 
 size_t countDifference(const mat& m1, const mat& m2) {
-
   assert(m1.size() == m2.size());
 
   size_t L = m1.size();
   thrust::device_ptr<float> ptr1(m1.getData());
   thrust::device_ptr<float> ptr2(m2.getData());
 
-  return thrust::inner_product(ptr1, ptr1 + L, ptr2, 0.0, thrust::plus<float>(), thrust::not_equal_to<float>());
+  size_t nDiff = thrust::inner_product(ptr1, ptr1 + L, ptr2, 0.0, thrust::plus<float>(), thrust::not_equal_to<float>());
+  return nDiff;
 }
 
 size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasure) {
@@ -157,49 +148,9 @@ mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData
   return error;
 }
 
-
-void print(const std::vector<mat>& vm) {
-  for (size_t i=0; i<vm.size(); ++i) {
-    printf("rows = %lu, cols = %lu\n", vm[i].getRows(), vm[i].getCols());
-    vm[i].print();
-  }
-}
-
 void showAccuracy(size_t nError, size_t nTotal) {
   size_t nCorr = nTotal - nError;
   printf("Accuracy = %.2f%% ( %lu / %lu ) \n", (float) nCorr / nTotal * 100, nCorr, nTotal);
-}
-
-void getDataAndLabels(string train_fn, mat& data, mat& labels) {
-
-  string tmpfn = getTempFilename();
-
-  exec("cut -f 1 -d ':' " + train_fn + " > " + tmpfn);
-  labels = mat(tmpfn);
-
-  exec("cut -f 2 -d ':' " + train_fn + " > " + tmpfn);
-  data	 = mat(tmpfn);
-
-  exec("rm " + tmpfn);
-}
-
-bool isFileSparse(string train_fn) {
-  ifstream fin(train_fn.c_str());
-  string line;
-  std::getline(fin, line);
-  return line.find(':') != string::npos;
-}
-
-string getTempFilename() {
-  std::stringstream ss;
-  time_t seconds;
-  time(&seconds);
-  ss << seconds;
-  return ".tmp." + ss.str();
-}
-
-void exec(string command) {
-  system(command.c_str());
 }
 
 float str2float(const string &s) {
@@ -229,7 +180,7 @@ vector<size_t> splitAsInt(const string &s, char delim) {
   return ints;
 }
 
-std::vector<size_t> randshuf(size_t N) {
+std::vector<size_t> randperm(size_t N) {
   std::vector<size_t> perm(N);
 
   for (size_t i=0; i<N; ++i)

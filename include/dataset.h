@@ -25,6 +25,8 @@ public:
   mat X, y, prob;
 };
 
+bool isFileSparse(string train_fn);
+
 size_t getLineNumber(ifstream& fin);
 size_t findMaxDimension(ifstream& fin);
 size_t findDimension(ifstream& fin);
