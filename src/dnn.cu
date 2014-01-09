@@ -19,7 +19,7 @@ void DNN::init(const std::vector<size_t>& dims, const std::vector<mat>& weights)
   _transforms.resize(L);
 
   for (size_t i=0; i<L-1; ++i)
-      _transforms[i] = new AffineTransform(weights[i]);
+      _transforms[i] = new FeatureTransform(weights[i]);
   _transforms[L-1] = new Softmax(weights[L-1]);
 }
 
@@ -38,7 +38,7 @@ void DNN::init(const std::vector<size_t>& dims) {
     if (i == L-1)
       _transforms[i] = new Softmax(M, N, _config.variance);
     else
-      _transforms[i] = new AffineTransform(M, N, _config.variance);
+      _transforms[i] = new FeatureTransform(M, N, _config.variance);
   }
 }
 
@@ -110,7 +110,7 @@ void DNN::read(string fn) {
 
     string transformType = string(type);
     if (transformType == "<affinetransform>")
-      _transforms.push_back(new AffineTransform(w));
+      _transforms.push_back(new FeatureTransform(w));
     else if (transformType == "<softmax>")
       _transforms.push_back(new Softmax(w));
 

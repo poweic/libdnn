@@ -26,14 +26,14 @@ public:
   virtual void backPropagate(mat& delta, mat& fin) { }
 };*/
 
-class AffineTransform /*: protected FeatureTransform*/ {
+class FeatureTransform /*: protected FeatureTransform*/ {
 public:
-  AffineTransform();
-  AffineTransform(const AffineTransform& source);
-  AffineTransform(const mat& w);
-  AffineTransform(size_t rows, size_t cols, float variance);
+  FeatureTransform();
+  FeatureTransform(const FeatureTransform& source);
+  FeatureTransform(const mat& w);
+  FeatureTransform(size_t rows, size_t cols, float variance);
 
-  AffineTransform& operator = (AffineTransform rhs);
+  FeatureTransform& operator = (FeatureTransform rhs);
   void setOutputLayer(bool flag);
 
   mat& getW();
@@ -48,7 +48,7 @@ public:
   virtual void feedForward(mat& fout, const mat& fin, size_t offset, size_t nData);
   virtual void backPropagate(const mat& fin, const mat& fout, mat& error);
 
-  friend void swap(AffineTransform& lhs, AffineTransform& rhs);
+  friend void swap(FeatureTransform& lhs, FeatureTransform& rhs);
 
 protected:
   bool _isOutputLayer;
@@ -56,7 +56,7 @@ protected:
   mat _dw;
 };
 
-class Softmax : public AffineTransform {
+class Softmax : public FeatureTransform {
 public:
   Softmax(const mat& w);
   Softmax(size_t rows, size_t cols, float variance);

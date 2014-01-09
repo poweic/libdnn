@@ -1,67 +1,67 @@
 #include <feature-transform.h>
 
-AffineTransform::AffineTransform(): _isOutputLayer(false) {}
+FeatureTransform::FeatureTransform(): _isOutputLayer(false) {}
 
-AffineTransform::AffineTransform(const AffineTransform& source):
+FeatureTransform::FeatureTransform(const FeatureTransform& source):
   _isOutputLayer(source._isOutputLayer),
   _w(source._w),
   _dw(source._dw) {
 
   }
 
-AffineTransform::AffineTransform(const mat& w): _w(w), _dw(w.getRows(), w.getCols()), _isOutputLayer(false) {
+FeatureTransform::FeatureTransform(const mat& w): _w(w), _dw(w.getRows(), w.getCols()), _isOutputLayer(false) {
 
 }
 
-AffineTransform::AffineTransform(size_t rows, size_t cols, float variance): _w(rows, cols), _dw(rows, cols), _isOutputLayer(false) {
+FeatureTransform::FeatureTransform(size_t rows, size_t cols, float variance): _w(rows, cols), _dw(rows, cols), _isOutputLayer(false) {
   ext::randn(_w, 0.0f, variance);
 }
 
-AffineTransform& AffineTransform::operator = (AffineTransform rhs) {
+FeatureTransform& FeatureTransform::operator = (FeatureTransform rhs) {
   swap(*this, rhs);
   return *this;
 }
 
-void AffineTransform::setOutputLayer(bool flag) {
+void FeatureTransform::setOutputLayer(bool flag) {
   _isOutputLayer = flag;
 }
 
-mat& AffineTransform::getW() {
+mat& FeatureTransform::getW() {
   return _w;
 }
 
-const mat& AffineTransform::getW() const {
+const mat& FeatureTransform::getW() const {
   return _w;
 }
 
-mat& AffineTransform::getDw() {
+mat& FeatureTransform::getDw() {
   return _dw;
 }
 
-const mat& AffineTransform::getDw() const {
+const mat& FeatureTransform::getDw() const {
   return _dw;
 }
 
-void AffineTransform::update(float learning_rate) {
+void FeatureTransform::update(float learning_rate) {
   _dw *= learning_rate;
   _w -= _dw;
 }
 
-void AffineTransform::resize(size_t rows, size_t cols) {
+void FeatureTransform::resize(size_t rows, size_t cols) {
   _w.resize(rows, cols);
   _dw.resize(rows, cols);
 }
 
-string AffineTransform::toString() const {
+string FeatureTransform::toString() const {
   return "affinetransform";
 }
 
-void AffineTransform::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+void FeatureTransform::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
   fout = ext::sigmoid(const_cast<mat&>(fin) * _w);
   fillLastColumnWith(fout, (float) 1.0);
 }
 
-void AffineTransform::backPropagate(const mat& fin, const mat& fout, mat& error) {
+void FeatureTransform::backPropagate(const mat& fin, const mat& fout, mat& error) {
 
   mat delta = error & (1 - fout) & fout;
 
@@ -82,7 +82,7 @@ void AffineTransform::backPropagate(const mat& fin, const mat& fout, mat& error)
       error.getData(), error.getRows());
 }
 
-void swap(AffineTransform& lhs, AffineTransform& rhs) {
+void swap(FeatureTransform& lhs, FeatureTransform& rhs) {
   std::swap(lhs._isOutputLayer, rhs._isOutputLayer);
   std::swap(lhs._w, rhs._w);
   std::swap(lhs._dw, rhs._dw);
@@ -92,14 +92,14 @@ void swap(AffineTransform& lhs, AffineTransform& rhs) {
 // ===== Softmax =====
 // ===================
 
-Softmax::Softmax(const mat& w): AffineTransform(w) {
+Softmax::Softmax(const mat& w): FeatureTransform(w) {
 }
 
-Softmax::Softmax(size_t rows, size_t cols, float variance): AffineTransform(rows, cols, variance) {
+Softmax::Softmax(size_t rows, size_t cols, float variance): FeatureTransform(rows, cols, variance) {
 }
 
 Softmax& Softmax::operator = (Softmax rhs) {
-  AffineTransform::operator=(rhs);
+  FeatureTransform::operator=(rhs);
   swap(*this, rhs);
   return *this;
 }
@@ -150,7 +150,6 @@ void substractMaxPerRow(mat& x) {
   CCE(cudaDeviceSynchronize());
 }
 
-
 void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
 
   mat x = const_cast<mat&>(fin) * const_cast<mat&>(_w);
@@ -169,42 +168,6 @@ void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData
   thrust::device_ptr<float> foutPtr(fout.getData());
   thrust::device_ptr<float> sPtr(sumOfProb.getData());
   thrust::transform(pPtr, pPtr + p.size(), sPtr, foutPtr, thrust::divides<float>());
-
-  /*
-  mat x = const_cast<mat&>(fin) * _w;
-  x.resize(x.getRows(), x.getCols() - 1);
-
-  std::vector<float> hx = copyToHost(x);
-
-  float* h_max = new float[x.getRows()];
-
-  for (size_t i=0; i<x.getRows(); ++i) {
-    float m = hx[i];
-    for (size_t j=0; j<x.getCols(); ++j) {
-      float v = hx[j * x.getRows() + i];
-      if (v > m)
-	m = v;
-    }
-    h_max[i] = m;
-  }
-
-  mat d_max = mat(h_max, x.getRows(), 1) * (mat(1, x.getCols()) += 1);
-  delete [] h_max;
-  x -= d_max;
-
-  mat p(x.getRows(), x.getCols());
-
-  thrust::device_ptr<float> xPtr(x.getData());
-  thrust::device_ptr<float> pPtr(p.getData());
-  thrust::transform(xPtr, xPtr + x.size(), pPtr, func::exp<float>());
-
-  mat sumOfProb = p * (mat(p.getCols(), p.getCols()) += 1);
-
-  fout.resize(p.getRows(), p.getCols() + 1);
-  thrust::device_ptr<float> foutPtr(fout.getData());
-  thrust::device_ptr<float> sPtr(sumOfProb.getData());
-  thrust::transform(pPtr, pPtr + p.size(), sPtr, foutPtr, thrust::divides<float>());
-  */
 }
 
 mat rowSum(mat& m) {
@@ -238,4 +201,3 @@ void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {
 
 void swap(Softmax& lhs, Softmax& rhs) {
 }
-

@@ -58,7 +58,7 @@ public:
   friend void swap(DNN& lhs, DNN& rhs);
 
 private:
-  std::vector<AffineTransform*> _transforms;
+  std::vector<FeatureTransform*> _transforms;
   std::vector<size_t> _dims;
   Config _config;
 };
