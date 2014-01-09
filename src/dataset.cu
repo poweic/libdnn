@@ -201,7 +201,7 @@ void DataSet::shuffleFeature() {
   delete [] h_y;
 }
 
-size_t DataSet::getLineNumber(ifstream& fin) {
+size_t getLineNumber(ifstream& fin) {
   int previous_pos = fin.tellg();
   string a;
   size_t n = 0;
@@ -211,7 +211,7 @@ size_t DataSet::getLineNumber(ifstream& fin) {
   return n;
 }
 
-size_t DataSet::findMaxDimension(ifstream& fin) {
+size_t findMaxDimension(ifstream& fin) {
   int previous_pos = fin.tellg();
 
   string token;
@@ -232,7 +232,7 @@ size_t DataSet::findMaxDimension(ifstream& fin) {
   return maxDimension;
 }
 
-size_t DataSet::findDimension(ifstream& fin) {
+size_t findDimension(ifstream& fin) {
 
   size_t dim = 0;
 
@@ -257,11 +257,6 @@ size_t DataSet::findDimension(ifstream& fin) {
 
 void DataSet::shuffleFeature(float* const data, float* const labels, int rows, int cols) {
 
-  // printf("Random shuffling features for latter training...\n");
-
-  // perf::Timer timer;
-  // timer.start();
-
   std::vector<size_t> perm = randshuf(rows);
 
   float* tmp_data = new float[rows*cols];
@@ -282,8 +277,6 @@ void DataSet::shuffleFeature(float* const data, float* const labels, int rows, i
 
   delete [] tmp_data;
   delete [] tmp_labels;
-
-  // timer.elapsed();
 }
 
 void splitIntoTrainingAndValidationSet(

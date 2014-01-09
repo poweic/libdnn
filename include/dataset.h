@@ -21,13 +21,13 @@ public:
   void shuffleFeature();
   void shuffleFeature(float* const data, float* const labels, int rows, int cols);
 
-  size_t getLineNumber(ifstream& fin);
-  size_t findMaxDimension(ifstream& fin);
-  size_t findDimension(ifstream& fin);
-
 public:
   mat X, y, prob;
 };
+
+size_t getLineNumber(ifstream& fin);
+size_t findMaxDimension(ifstream& fin);
+size_t findDimension(ifstream& fin);
 
 void splitIntoTrainingAndValidationSet(
     DataSet& train, DataSet& valid,

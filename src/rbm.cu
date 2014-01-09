@@ -2,6 +2,21 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
+__global__ void setupCuRandState( curandState * state, size_t rows, size_t cols, unsigned long seed );
+
+std::vector<mat> rbminit(DataSet& data, const std::vector<size_t> &dims, float slopeThres) {
+  std::vector<mat> weights(dims.size() - 1);
+
+  mat X = data.X;
+  for (size_t i=0; i<weights.size(); ++i) {
+    weights[i] = RBMinit(X, dims[i + 1], slopeThres);
+    X = ext::sigmoid(X * weights[i]);
+    fillLastColumnWith(X, 1.0f);
+  }
+
+  return weights;
+}
+
 __device__ float generate_rand(curandState* globalState) {
   curandState localState = *globalState;
   float RANDOM = curand_uniform( &localState );
@@ -18,59 +33,6 @@ __global__ void setupCuRandState( curandState * state, size_t rows, size_t cols,
 
   unsigned int i = x * rows + y;
   curand_init ( seed, i, 0, &state[i] );
-}
-
-__global__ void mat_rand(float* data, curandState* globalState, size_t rows, size_t cols) {
-
-  int x = blockIdx.x*blockDim.x + threadIdx.x;
-  int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-  if (x >= cols || y >= rows)
-    return;
-
-  unsigned int i = x * rows + y;
-  data[i] = generate_rand(globalState + i);
-}
-
-void fast_rand(mat& x) {
-  size_t rows = x.getRows(),
-	 cols = x.getCols();
-  size_t N = rows * cols;
-
-  const size_t BLOCK_DIM = 32;
-  dim3 threads(BLOCK_DIM, BLOCK_DIM);
-  dim3 grid;
-  grid.x = (unsigned int) ceil((float) cols / BLOCK_DIM);
-  grid.y = (unsigned int) ceil((float) rows / BLOCK_DIM);
-
-  static curandState* devStates = NULL;
-  static size_t prevN = N;
-  if (N > prevN) {
-    prevN = N;
-    cudaFree(devStates);
-    devStates = NULL;
-  }
-
-  if (devStates == NULL) {
-    cudaMalloc ( &devStates, N*sizeof( curandState ) );
-    setupCuRandState <<< grid, threads >>> ( devStates, rows, cols, unsigned(time(NULL)) );
-  }
-
-  // setup seeds
-  mat_rand <<< grid, threads >>> (x.getData(), devStates, rows, cols);
-}
-
-std::vector<mat> rbminit(DataSet& data, const std::vector<size_t> &dims, float slopeThres) {
-  std::vector<mat> weights(dims.size() - 1);
-
-  mat X = data.X;
-  for (size_t i=0; i<weights.size(); ++i) {
-    weights[i] = RBMinit(X, dims[i + 1], slopeThres);
-    X = ext::sigmoid(X * weights[i]);
-    fillLastColumnWith(X, 1.0f);
-  }
-
-  return weights;
 }
 
 __global__ void turnOnWithProbabilityKernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
@@ -115,72 +77,6 @@ void turnOnWithProbability(mat &y) {
 
   turnOnWithProbabilityKernel<<< grid, threads >>>(y.getData(), devStates, y.getRows(), y.getCols());
   CCE(cudaDeviceSynchronize());
-}
-
-mat sum(mat& m, size_t dimension = 1) {
-  if (dimension == 1)
-    return (mat(1, m.getRows()) += 1) * m;
-  else
-    return m * (mat(m.getCols(), 1) += 1);
-}
-
-void linearRegression(const std::vector<float> &x, const std::vector<float>& y, float* const &m, float* const &c) {
-  int n = x.size();
-  double A=0.0,B=0.0,C=0.0,D=0.0;
-
-  for (size_t i=0; i<n; ++i) {
-    A += x[i];
-    B += y[i];
-    C += x[i]*x[i];
-    D += x[i]*y[i];
-  }
-
-  *m = (n*D-A*B) / (n*C-A*A);
-  *c = (B-(*m)*A) / n;
-} 
-
-float getSlope(const std::vector<float> &error, size_t N) {
-  std::vector<float> x(N);
-  for (size_t i=0; i<N; ++i)
-    x[i] = N - 1 - i;
-
-  std::vector<float> y(N);
-  for (size_t i=error.size() - N; i<error.size(); ++i)
-    y[i - (error.size() - N)] = error[i];
-
-  float m, c;
-  linearRegression(x, y, &m, &c);
-
-  return m;
-}
-
-float getAsymptoticBound(const std::vector<float> &error, size_t epoch, size_t maxEpoch, size_t N) {
-  std::vector<float> x(N);
-  for (size_t i=0; i<N; ++i)
-    x[i] = epoch - (N - 1 - i);
-
-  std::vector<float> y(N);
-  for (size_t i=error.size() - N; i<error.size(); ++i)
-    y[i - (error.size() - N)] = error[i];
-
-  float m, c;
-  linearRegression(x, y, &m, &c);
-
-  return m * (float) maxEpoch + c;
-}
-
-float calcStd(const std::vector<float> &error, size_t N) {
-  float mean = 0;
-  for (size_t i=error.size() - N; i < error.size(); ++i)
-    mean += error[i];
-  mean /= N;
-
-  float std = 0;
-  for (size_t i=error.size() - N; i < error.size(); ++i)
-    std += pow(error[i] - mean, 2.0f);
-  std = sqrt(std / (N-1));
-
-  return std;
 }
 
 mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
@@ -296,3 +192,56 @@ std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& struc
 
   return dims;
 }
+
+
+void linearRegression(const std::vector<float> &x, const std::vector<float>& y, float* const &m, float* const &c) {
+  int n = x.size();
+  double A=0.0,B=0.0,C=0.0,D=0.0;
+
+  for (size_t i=0; i<n; ++i) {
+    A += x[i];
+    B += y[i];
+    C += x[i]*x[i];
+    D += x[i]*y[i];
+  }
+
+  *m = (n*D-A*B) / (n*C-A*A);
+  *c = (B-(*m)*A) / n;
+} 
+
+float getSlope(const std::vector<float> &error, size_t N) {
+  std::vector<float> x(N);
+  for (size_t i=0; i<N; ++i)
+    x[i] = N - 1 - i;
+
+  std::vector<float> y(N);
+  for (size_t i=error.size() - N; i<error.size(); ++i)
+    y[i - (error.size() - N)] = error[i];
+
+  float m, c;
+  linearRegression(x, y, &m, &c);
+
+  return m;
+}
+
+float getAsymptoticBound(const std::vector<float> &error, size_t epoch, size_t maxEpoch, size_t N) {
+  std::vector<float> x(N);
+  for (size_t i=0; i<N; ++i)
+    x[i] = epoch - (N - 1 - i);
+
+  std::vector<float> y(N);
+  for (size_t i=error.size() - N; i<error.size(); ++i)
+    y[i - (error.size() - N)] = error[i];
+
+  float m, c;
+  linearRegression(x, y, &m, &c);
+
+  return m * (float) maxEpoch + c;
+}
+
+/*mat sum(mat& m, size_t dimension = 1) {
+  if (dimension == 1)
+    return (mat(1, m.getRows()) += 1) * m;
+  else
+    return m * (mat(m.getCols(), 1) += 1);
+} */
