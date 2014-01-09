@@ -18,46 +18,30 @@ void DataSet::getFeature(const string &fn, bool rescale) {
   CCE(cudaMemcpy(this->X.getData(), rawX.getData(), sizeof(float) * rawX.size(), cudaMemcpyDeviceToDevice));
   fillLastColumnWith(this->X, (float) 1.0);
 
-  this->y = getStandardLabels(this->y);
+  this->y = getStandardLabels();
   this->prob = label2PosteriorProb(this->y);
 
   delete [] data;
   delete [] labels;
 }
 
-mat DataSet::getStandardLabels(const mat& labels) {
-  // Assume class label index start from 1, and there's no skipping.
-  assert(labels.getCols() == 1);
+mat DataSet::getStandardLabels() {
+  assert(y.getCols() == 1);
 
-  size_t nData = labels.getRows();
-
-  float* hy = new float[nData];
-  std::vector<bool> replaced(nData, false);
-
-  CCE(cudaMemcpy(hy, labels.getData(), sizeof(float) * nData, cudaMemcpyDeviceToHost));
+  size_t N = y.getRows();
+  float* hy = new float[N];
+  CCE(cudaMemcpy(hy, y.getData(), sizeof(float) * N, cudaMemcpyDeviceToHost));
 
   // Replace labels to 1, 2, 3, N, using mapping
-  map<int, int> classes = getLabelMapping(labels);
+  map<int, int> classes = getLabelMapping(y);
+  for (size_t i=0; i<N; ++i)
+    hy[i] = classes[hy[i]];
 
-  map<int, int>::const_iterator itr = classes.begin();
-  for (; itr != classes.end(); ++itr) {
-    int from = itr->first,
-	to   = itr->second;
-    
-    for (size_t i=0; i<nData; ++i) {
-      if (!replaced[i] && hy[i] == from) {
-	replaced[i] = true;
-	hy[i] = to;
-      }
-    }
-  }
-
-  mat sLabels(hy, nData, 1);
+  mat sLabels(hy, N, 1);
   delete [] hy;
 
   return sLabels;
 }
-
 
 void DataSet::rescaleFeature(float* data, size_t rows, size_t cols, float lower, float upper) {
   for (size_t i=0; i<rows; ++i) {

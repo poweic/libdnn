@@ -12,8 +12,8 @@ public:
   void readFeature(const string &fn, float* &X, float* &y, int &rows, int &cols);
   void readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
   void readDenseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
-
-  mat getStandardLabels(const mat& labels);
+  
+  mat getStandardLabels();
 
   void showSummary() const;
   std::vector<size_t> getDimensions(const string& structure) const;
@@ -24,6 +24,8 @@ public:
 public:
   mat X, y, prob;
 };
+
+
 
 bool isFileSparse(string train_fn);
 
