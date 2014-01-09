@@ -1,39 +1,32 @@
 #include <dnn.h>
 #include <thrust/extrema.h>
 
-DNN::DNN(): _transforms(), _dims(), _config() {}
+DNN::DNN(): _transforms(), _config() {}
 
-DNN::DNN(string fn): _transforms(), _dims(), _config() {
+DNN::DNN(string fn): _transforms(), _config() {
   this->read(fn);
 }
 
-DNN::DNN(const Config& config): _transforms(), _dims(), _config(config) {
+DNN::DNN(const Config& config): _transforms(), _config(config) {
 }
 
 void DNN::init(const std::vector<size_t>& dims, const std::vector<mat>& weights) {
-  _dims = dims;
+  _transforms.resize(weights.size());
 
-  assert(_dims.size() > 0);
-  size_t L = _dims.size() - 1;
-
-  _transforms.resize(L);
-
-  for (size_t i=0; i<L-1; ++i)
+  for (size_t i=0; i<_transforms.size(); ++i)
       _transforms[i] = new Sigmoid(weights[i]);
-  _transforms[L-1] = new Softmax(weights[L-1]);
+  _transforms.back() = new Softmax(weights.back());
 }
 
 void DNN::init(const std::vector<size_t>& dims) {
-  _dims = dims;
-
-  assert(_dims.size() > 0);
-  size_t L = _dims.size() - 1;
+  assert(dims.size() > 0);
+  size_t L = dims.size() - 1;
 
   _transforms.resize(L);
 
   for (size_t i=0; i<L; ++i) {
-    size_t M = _dims[i] + 1;
-    size_t N = _dims[i+1] + 1;
+    size_t M = dims[i] + 1;
+    size_t N = dims[i+1] + 1;
 
     if (i == L-1)
       _transforms[i] = new Softmax(M, N, _config.variance);
@@ -43,7 +36,6 @@ void DNN::init(const std::vector<size_t>& dims) {
 }
 
 DNN::DNN(const DNN& source):
-  _dims(source._dims),
   _transforms(source._transforms.size()),
   _config() {
 
@@ -66,11 +58,7 @@ void DNN::setConfig(const Config& config) {
 }
 
 size_t DNN::getNLayer() const {
-  return _dims.size(); 
-}
-
-size_t DNN::getDepth() const {
-  return _dims.size() - 2;
+  return _transforms.size() + 1;
 }
 
 #pragma GCC diagnostic ignored "-Wunused-result"
@@ -80,7 +68,7 @@ void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
     for (size_t j=0; j<cols; ++j)
       fscanf(fid, "%f ", &(w[j * rows + i]));
 
-  fscanf(fid, "]\n<sigmoid>\n [");
+  fscanf(fid, "]\n<bias>\n [");
 
   for (size_t j=0; j<cols; ++j)
     fscanf(fid, "%f ", &(w[j * rows + rows - 1]));
@@ -92,7 +80,6 @@ void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
 void DNN::read(string fn) {
   FILE* fid = fopen(fn.c_str(), "r");
 
-  _dims.clear();
   _transforms.clear();
 
   size_t rows, cols;
@@ -115,10 +102,7 @@ void DNN::read(string fn) {
       _transforms.push_back(new Softmax(w));
 
     delete [] hw;
-
-    _dims.push_back(rows);
   }
-  _dims.push_back(cols);
 
   fclose(fid);
 }
@@ -146,7 +130,7 @@ void DNN::save(string fn) const {
     }
     fprintf(fid, "]\n");
 
-    fprintf(fid, "<sigmoid> \n [");
+    fprintf(fid, "<bias> \n [");
     for (size_t j=0; j<cols; ++j)
       fprintf(fid, "%g ", data[j * rows + rows - 1]);
     fprintf(fid, " ]\n");
@@ -154,10 +138,10 @@ void DNN::save(string fn) const {
     delete [] data;
   }
 
-  fprintf(stdout, "nn_structure ");
-  for (size_t i=0; i<_dims.size(); ++i)
-    fprintf(stdout, "%lu ", _dims[i]);
-  fprintf(stdout, "\n");
+  printf("nn_structure ");
+  for (size_t i=0; i<_transforms.size(); ++i)
+    printf("%lu ", _transforms[i]->getW().getRows());
+  printf("%lu\n", _transforms.back()->getW().getCols());
   
   fclose(fid);
 }
@@ -362,8 +346,6 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
   if (batchSize == 0)
     batchSize = data.X.getRows();
 
-  assert(O.size() == _dims.size());
-
   O[0].resize(batchSize, data.X.getCols());
   memcpy2D(O[0], data.X, offset, 0, batchSize, data.X.getCols(), 0, 0);
 
@@ -394,7 +376,6 @@ Config DNN::getConfig() const {
 void swap(DNN& lhs, DNN& rhs) {
   using WHERE::swap;
   swap(lhs._transforms, rhs._transforms);
-  swap(lhs._dims, rhs._dims);
   swap(lhs._config, rhs._config);
 }
 

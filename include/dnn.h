@@ -40,7 +40,6 @@ public:
 
   void setConfig(const Config& config);
   size_t getNLayer() const;
-  size_t getDepth() const;
   void getEmptyGradient(std::vector<mat>& g) const;
 
   Config getConfig() const;
@@ -59,7 +58,6 @@ public:
 
 private:
   std::vector<FeatureTransform*> _transforms;
-  std::vector<size_t> _dims;
   Config _config;
 };
 
