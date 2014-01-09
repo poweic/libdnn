@@ -1,28 +1,14 @@
 #include <dataset.h>
 
-void DataSet::getFeature(const string &fn, bool rescale) {
+DataSet::DataSet() {
+}
 
-  float* data, *labels;
-  int rows, cols;
-  readFeature(fn, data, labels, rows, cols);
+DataSet::DataSet(const string &fn, bool rescale) {
 
-  if (rescale) {
-    printf("\33[33m[Info]\33[0m rescale each feature to [0, 1]\n");
-    rescaleFeature(data, rows, cols);
-  }
-
-  mat rawX(data, rows, cols);
-
-  this->y = mat(labels, rows, 1);
-  this->X = mat(rows, cols + 1);
-  CCE(cudaMemcpy(this->X.getData(), rawX.getData(), sizeof(float) * rawX.size(), cudaMemcpyDeviceToDevice));
-  fillLastColumnWith(this->X, (float) 1.0);
+  read(fn, rescale);
 
   this->y = getStandardLabels();
   this->prob = label2PosteriorProb(this->y);
-
-  delete [] data;
-  delete [] labels;
 }
 
 mat DataSet::getStandardLabels() {
@@ -66,15 +52,15 @@ void DataSet::rescaleFeature(float* data, size_t rows, size_t cols, float lower,
   }
 }
 
-void DataSet::readFeature(const string &fn, float* &data, float* &labels, int &rows, int &cols) {
+void DataSet::read(const string &fn, bool rescale) {
   ifstream fin(fn.c_str());
 
   bool isSparse = isFileSparse(fn);
 
-  cols = isSparse ? findMaxDimension(fin) : findDimension(fin);
-  rows = getLineNumber(fin);
-  data = new float[rows * cols];
-  labels = new float[rows];
+  size_t cols = isSparse ? findMaxDimension(fin) : findDimension(fin);
+  size_t rows = getLineNumber(fin);
+  float* data = new float[rows * cols];
+  float* labels = new float[rows];
 
   memset(data, 0, sizeof(float) * rows * cols);
 
@@ -84,6 +70,23 @@ void DataSet::readFeature(const string &fn, float* &data, float* &labels, int &r
     readDenseFeature(fin, data, labels, rows, cols);
 
   fin.close();
+
+  // --------------------------------------
+  if (rescale) {
+    printf("\33[33m[Info]\33[0m rescale each feature to [0, 1]\n");
+    rescaleFeature(data, rows, cols);
+  }
+
+  X = mat(data, rows, cols);
+  X.reserve(rows * (cols + 1));
+  X.resize(rows, cols + 1);
+  fillLastColumnWith(X, (float) 1.0);
+
+  y = mat(labels, rows, 1);
+  // --------------------------------------
+
+  delete [] data;
+  delete [] labels;
 }
 
 void DataSet::readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols) {

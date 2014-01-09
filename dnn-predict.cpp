@@ -28,8 +28,7 @@ int main (int argc, char* argv[]) {
   bool rescale      = cmd["--rescale"];
   bool isOutputProb = cmd["--prob"];
 
-  DataSet test;
-  test.getFeature(test_fn, rescale);
+  DataSet test(test_fn, rescale);
   test.showSummary();
 
   DNN dnn(model_fn);

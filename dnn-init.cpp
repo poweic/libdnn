@@ -41,8 +41,7 @@ int main (int argc, char* argv[]) {
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
-  DataSet data;
-  data.getFeature(train_fn, rescale);
+  DataSet data(train_fn, rescale);
   data.shuffleFeature();
   data.showSummary();
 

@@ -5,11 +5,12 @@
 
 class DataSet {
 public:
-  void getFeature(const string &fn, bool rescale = false);
+  DataSet();
+  DataSet(const string &fn, bool rescale = false);
 
   void rescaleFeature(float* data, size_t rows, size_t cols, float lower = 0, float upper = 1);
 
-  void readFeature(const string &fn, float* &X, float* &y, int &rows, int &cols);
+  void read(const string &fn, bool rescale);
   void readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
   void readDenseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
   
@@ -24,8 +25,6 @@ public:
 public:
   mat X, y, prob;
 };
-
-
 
 bool isFileSparse(string train_fn);
 
