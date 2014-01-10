@@ -1,7 +1,8 @@
 #ifndef __DATASET_H_
 #define __DATASET_H_
 
-#include <dnn-utility.h>
+#include <device_matrix.h>
+typedef device_matrix<float> mat;
 
 class DataSet {
 public:
@@ -15,6 +16,8 @@ public:
   void read(const string &fn, bool rescale);
   void readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
   void readDenseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
+
+  void showSummary() const;
   
   mat getStandardLabels();
 
@@ -26,7 +29,6 @@ public:
   mat X, y, prob;
 };
 
-void showSummary(const DataSet& data);
 bool isFileSparse(string train_fn);
 
 size_t getLineNumber(ifstream& fin);
@@ -43,5 +45,6 @@ void splitIntoTrainingAndValidationSet(
     int ratio, /* ratio of training / validation */
     const float* const data, const float* const prob, const float* const labels,
     int rows, int inputDim, int outputDim);
+
 
 #endif

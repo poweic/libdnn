@@ -1,4 +1,5 @@
 #include <dataset.h>
+#include <dnn-utility.h>
 
 DataSet::DataSet() {
 }
@@ -139,6 +140,19 @@ void DataSet::readDenseFeature(ifstream& fin, float* data, float* labels, size_t
   }
 }
 
+void DataSet::showSummary() const {
+  size_t input_dim  = this->X.getCols();
+  size_t nData	    = this->X.getRows();
+  size_t nClasses   = this->prob.getCols();
+
+  printf("+--------------------------------+-----------+\n");
+  printf("| Number of classes              | %9lu |\n", nClasses);
+  printf("| Number of input feature (data) | %9lu |\n", nData);
+  printf("| Dimension of  input feature    | %9lu |\n", input_dim);
+  printf("+--------------------------------+-----------+\n");
+
+}
+
 size_t DataSet::getClassNumber() const {
   thrust::device_ptr<float> dptr(this->y.getData());
   thrust::host_vector<float> y(dptr, dptr + this->y.size());
@@ -148,18 +162,6 @@ size_t DataSet::getClassNumber() const {
     classes[y[i]] = true;
 
   return classes.size();
-}
-
-void showSummary(const DataSet& data) {
-  size_t input_dim  = data.X.getCols();
-  size_t nData	    = data.X.getRows();
-  size_t nClasses   = data.prob.getCols();
-
-  printf("+--------------------------------+----------+\n");
-  printf("| Number of classes              |%9lu |\n", nClasses);
-  printf("| Number of input feature (data) |%9lu |\n", nData);
-  printf("| Dimension of  input feature    |%9lu |\n", input_dim);
-  printf("+--------------------------------+----------+\n");
 }
 
 void DataSet::shuffleFeature() {
@@ -321,8 +323,8 @@ void splitIntoTrainingAndValidationSet(
 
   nValid = rows / ratio;
   nTrain = rows - nValid;
-  printf("| nTrain                         |%9lu |\n", nTrain);
-  printf("| nValid                         |%9lu |\n", nValid);
+  printf("| nTrain                         | %9lu |\n", nTrain);
+  printf("| nValid                         | %9lu |\n", nValid);
 
   trainX    = new float[nTrain * inputDim];
   trainProb = new float[nTrain * outputDim];
@@ -348,4 +350,3 @@ void splitIntoTrainingAndValidationSet(
     validY[i] = labels[i + nTrain];
   }
 }
-

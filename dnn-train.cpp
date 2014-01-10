@@ -64,10 +64,8 @@ int main (int argc, char* argv[]) {
 
   DataSet data(train_fn, rescale);
   data.shuffleFeature();
-  showSummary(data);
+  data.showSummary();
 
-  ERROR_MEASURE err = CROSS_ENTROPY;
-  
   DataSet train, valid;
   splitIntoTrainingAndValidationSet(train, valid, data, ratio);
 
@@ -77,7 +75,7 @@ int main (int argc, char* argv[]) {
   config.learningRate = learningRate;
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
-
+  config.setDimensions(structure, data);
   config.print();
 
   DNN dnn;
@@ -88,18 +86,17 @@ int main (int argc, char* argv[]) {
     dnn = DNN(pre_model_fn);
   }
   else {
-    assert(!structure.empty());
-    std::vector<size_t> dims = getDimensions(structure, data.getInputDimension(), data.getOutputDimension());
     if (preTraining == 0)
-      dnn.init(dims);
+      dnn.init(config.dims);
     else if (preTraining == 1)
-      dnn.init(dims, rbminit(data, dims, slopeThres));
+      dnn.init(rbminit(data, getDimensionsForRBM(data, structure), slopeThres));
     else
       return -1;
   }
 
   dnn.setConfig(config);
 
+  ERROR_MEASURE err = CROSS_ENTROPY;
   // Start Training
   dnn.train(train, valid, batchSize, err);
 

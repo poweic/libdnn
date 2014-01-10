@@ -2,6 +2,8 @@
 #define __CONFIG_H_
 
 #include <utility.h>
+#include <vector>
+#include <dataset.h>
 
 struct Config {
   Config();
@@ -14,10 +16,10 @@ struct Config {
   size_t nNonIncEpoch;
   float minValidAccuracy;
   bool randperm;
+  std::vector<size_t> dims;
 
   void print() const;
+  void setDimensions(const std::string& structure, const DataSet& data);
 };
-
-std::vector<size_t> getDimensions(const std::string& structure, size_t input_dim, size_t output_dim);
 
 #endif // __CONFIG_H_

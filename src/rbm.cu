@@ -4,7 +4,7 @@
 
 __global__ void setupCuRandState( curandState * state, size_t rows, size_t cols, unsigned long seed );
 
-std::vector<mat> rbminit(DataSet& data, const std::vector<size_t> &dims, float slopeThres) {
+std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres) {
   std::vector<mat> weights(dims.size() - 1);
 
   mat X = data.X;

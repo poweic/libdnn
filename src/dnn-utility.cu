@@ -115,6 +115,7 @@ size_t countDifference(const mat& m1, const mat& m2) {
   return nDiff;
 }
 
+
 size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasure) {
   assert(prob.getRows() == label.getRows());
   assert(label.getCols() == 1);

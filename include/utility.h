@@ -3,12 +3,15 @@
 
 #include <limits>
 #include <cstdio>
-#include <perf.h>
-
 #include <string>
 #include <vector>
 #include <sstream>
 #include <algorithm>
+
+#include <perf.h>
+
+#include <device_matrix.h>
+typedef device_matrix<float> mat;
 
 #define float_min std::numeric_limits<float>::min()
 #define float_max std::numeric_limits<float>::max()

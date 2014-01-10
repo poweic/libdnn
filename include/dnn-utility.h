@@ -5,8 +5,6 @@
 #include <math_ext.h>
 #include <utility.h>
 
-#include <device_matrix.h>
-
 #ifdef __CUDACC__
   #include <device_math.h>
   #include <device_arithmetic.h>
@@ -18,8 +16,6 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/inner_product.h>
-
-typedef device_matrix<float> mat;
 
 map<int, int> getLabelMapping(const mat& labels);
 bool isLabeled(const mat& labels);

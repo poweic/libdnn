@@ -16,7 +16,7 @@ DNN::DNN(const DNN& source): _transforms(source._transforms.size()), _config() {
     _transforms[i] = source._transforms[i]->clone();
 }
 
-void DNN::init(const std::vector<size_t>& dims, const std::vector<mat>& weights) {
+void DNN::init(const std::vector<mat>& weights) {
   _transforms.resize(weights.size());
 
   for (size_t i=0; i<_transforms.size(); ++i)

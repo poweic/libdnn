@@ -43,18 +43,14 @@ int main (int argc, char* argv[]) {
 
   DataSet data(train_fn, rescale);
   data.shuffleFeature();
-  showSummary(data);
+  data.showSummary();
 
-  std::vector<size_t> dims = getDimensionsForRBM(data, structure);
-
-  ERROR_MEASURE err = CROSS_ENTROPY;
-  
   // Set configurations
   Config config;
 
   // Initialize Deep Neural Network
   DNN dnn(config);
-  dnn.init(dims, rbminit(data, dims, slopeThres));
+  dnn.init(rbminit(data, getDimensionsForRBM(data, structure), slopeThres));
 
   // Save the model
   dnn.save(model_fn);
