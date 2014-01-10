@@ -1,29 +1,9 @@
 #ifndef _DNN_UTILITY_H_
 #define _DNN_UTILITY_H_
 
-#include <limits>
-#include <cstdio>
-
 #include <arithmetic.h>
 #include <math_ext.h>
-#include <perf.h>
-
-#ifdef DEBUG
-#ifndef PAUSE
-#define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }
-#endif
-
-#ifndef matlog
-#define matlog(x) { cout << "\33[34m" << #x << "\33[0m = [" << endl; x.print(); cout << "];" << endl; }
-#endif
-
-#ifndef mylog
-#define mylog(x) { cout << #x << " = " << x << endl; }
-#endif
-#endif
-
-#define float_min std::numeric_limits<float>::min()
-#define float_max std::numeric_limits<float>::max()
+#include <utility.h>
 
 #include <device_matrix.h>
 
@@ -41,11 +21,6 @@
 
 typedef device_matrix<float> mat;
 
-enum ERROR_MEASURE {
-  L2ERROR,  /* for binary-classification only */
-  CROSS_ENTROPY
-};
-
 map<int, int> getLabelMapping(const mat& labels);
 bool isLabeled(const mat& labels);
 
@@ -57,15 +32,6 @@ mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t n
 
 vector<float> copyToHost(const mat& m);
 size_t countDifference(const mat& m1, const mat& m2);
-
-void showAccuracy(size_t nError, size_t nTotal);
-
-float str2float(const string &s);
-vector<string> split(const string &s, char delim);
-vector<string>& split(const string &s, char delim, vector<string>& elems);
-vector<size_t> splitAsInt(const string &s, char delim);
-
-std::vector<size_t> randperm(size_t N);
 
 namespace ext {
   void rescale(mat& data, float lower, float upper);

@@ -8,16 +8,16 @@ public:
   DataSet();
   DataSet(const string &fn, bool rescale = false);
 
-  void rescaleFeature(float* data, size_t rows, size_t cols, float lower = 0, float upper = 1);
+  size_t getInputDimension() const;
+  size_t getOutputDimension() const;
 
+  void rescaleFeature(float* data, size_t rows, size_t cols, float lower = 0, float upper = 1);
   void read(const string &fn, bool rescale);
   void readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
   void readDenseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols);
   
   mat getStandardLabels();
 
-  void showSummary() const;
-  std::vector<size_t> getDimensions(const string& structure) const;
   size_t getClassNumber() const;
   void shuffleFeature();
   void shuffleFeature(float* const data, float* const labels, int rows, int cols);
@@ -26,6 +26,7 @@ public:
   mat X, y, prob;
 };
 
+void showSummary(const DataSet& data);
 bool isFileSparse(string train_fn);
 
 size_t getLineNumber(ifstream& fin);

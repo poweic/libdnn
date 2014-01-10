@@ -29,7 +29,7 @@ int main (int argc, char* argv[]) {
   bool isOutputProb = cmd["--prob"];
 
   DataSet test(test_fn, rescale);
-  test.showSummary();
+  showSummary(test);
 
   DNN dnn(model_fn);
   mat prob = dnn.predict(test);

@@ -43,7 +43,7 @@ int main (int argc, char* argv[]) {
 
   DataSet data(train_fn, rescale);
   data.shuffleFeature();
-  data.showSummary();
+  showSummary(data);
 
   std::vector<size_t> dims = getDimensionsForRBM(data, structure);
 

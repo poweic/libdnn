@@ -1,7 +1,7 @@
 #ifndef __CONFIG_H_
 #define __CONFIG_H_
 
-#include <iostream>
+#include <utility.h>
 
 struct Config {
   Config();
@@ -18,48 +18,6 @@ struct Config {
   void print() const;
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+std::vector<size_t> getDimensions(const std::string& structure, size_t input_dim, size_t output_dim);
 
 #endif // __CONFIG_H_

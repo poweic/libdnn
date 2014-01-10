@@ -43,7 +43,7 @@ namespace ext {
 };
 
 mat label2PosteriorProb(const mat& labels) {
-
+  
   map<int, int> classes = getLabelMapping(labels);
   size_t nClasses = classes.size();
   size_t nData = labels.getRows();
@@ -146,49 +146,6 @@ mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData
       error.getData(), nData);
 
   return error;
-}
-
-void showAccuracy(size_t nError, size_t nTotal) {
-  size_t nCorr = nTotal - nError;
-  printf("Accuracy = %.2f%% ( %lu / %lu ) \n", (float) nCorr / nTotal * 100, nCorr, nTotal);
-}
-
-float str2float(const string &s) {
-  return atof(s.c_str());
-}
-
-vector<string>& split(const string &s, char delim, vector<string>& elems) {
-  stringstream ss(s);
-  string item;
-  while(getline(ss, item, delim))
-    elems.push_back(item);
-  return elems;
-}
-
-vector<string> split(const string &s, char delim) {
-  vector<string> elems;
-  return split(s, delim, elems);
-}
-
-vector<size_t> splitAsInt(const string &s, char delim) {
-  vector<string> tokens = split(s, delim);
-  vector<size_t> ints(tokens.size());
-
-  for (size_t i=0; i<ints.size(); ++i)
-    ints[i] = ::atoi(tokens[i].c_str());
-
-  return ints;
-}
-
-std::vector<size_t> randperm(size_t N) {
-  std::vector<size_t> perm(N);
-
-  for (size_t i=0; i<N; ++i)
-    perm[i] = i;
-  
-  std::random_shuffle ( perm.begin(), perm.end() );
-
-  return perm;
 }
 
 bool isLabeled(const mat& labels) {

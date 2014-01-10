@@ -64,7 +64,7 @@ int main (int argc, char* argv[]) {
 
   DataSet data(train_fn, rescale);
   data.shuffleFeature();
-  data.showSummary();
+  showSummary(data);
 
   ERROR_MEASURE err = CROSS_ENTROPY;
   
@@ -89,7 +89,7 @@ int main (int argc, char* argv[]) {
   }
   else {
     assert(!structure.empty());
-    std::vector<size_t> dims = data.getDimensions(structure);
+    std::vector<size_t> dims = getDimensions(structure, data.getInputDimension(), data.getOutputDimension());
     if (preTraining == 0)
       dnn.init(dims);
     else if (preTraining == 1)

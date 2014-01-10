@@ -29,6 +29,15 @@ mat DataSet::getStandardLabels() {
   return sLabels;
 }
 
+size_t DataSet::getInputDimension() const {
+  // FIXME the input dimension shouldn't be so unclear
+  return this->X.getCols() - 1;
+}
+
+size_t DataSet::getOutputDimension() const {
+  return this->prob.getCols();
+}
+
 void DataSet::rescaleFeature(float* data, size_t rows, size_t cols, float lower, float upper) {
   for (size_t i=0; i<rows; ++i) {
     float min = data[i],
@@ -130,22 +139,6 @@ void DataSet::readDenseFeature(ifstream& fin, float* data, float* labels, size_t
   }
 }
 
-
-std::vector<size_t> DataSet::getDimensions(const string& structure) const {
-
-  // Initialize hidden structure
-  size_t input_dim  = this->X.getCols() - 1;
-  size_t output_dim = this->prob.getCols();
-
-  vector<size_t> dims = splitAsInt(structure, '-');
-  dims.insert(dims.begin(), input_dim);
-  dims.push_back(output_dim);
-
-  printf("| Number of Hidden Layers        |%9lu |\n", dims.size() - 2);
-
-  return dims;
-}
-
 size_t DataSet::getClassNumber() const {
   thrust::device_ptr<float> dptr(this->y.getData());
   thrust::host_vector<float> y(dptr, dptr + this->y.size());
@@ -157,10 +150,10 @@ size_t DataSet::getClassNumber() const {
   return classes.size();
 }
 
-void DataSet::showSummary() const {
-  size_t input_dim  = this->X.getCols();
-  size_t nData	    = this->X.getRows();
-  size_t nClasses   = this->prob.getCols();
+void showSummary(const DataSet& data) {
+  size_t input_dim  = data.X.getCols();
+  size_t nData	    = data.X.getRows();
+  size_t nClasses   = data.prob.getCols();
 
   printf("+--------------------------------+----------+\n");
   printf("| Number of classes              |%9lu |\n", nClasses);

@@ -18,6 +18,7 @@ CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
 SOURCES=dnn.cu\
 	dnn-utility.cu\
+	utility.cpp\
 	rbm.cu\
 	feature-transform.cu\
 	dataset.cpp\
