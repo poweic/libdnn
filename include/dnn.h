@@ -33,9 +33,9 @@ public:
   void init(const std::vector<size_t>& dims);
   void init(const std::vector<size_t>& dims, const std::vector<mat>& weights);
   void feedForward(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
-  void backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset = 0, size_t batchSize = 0);
+  void backPropagate(const DataSet& data, std::vector<mat>& O, mat& error);
 
-  void updateParameters();
+  void update(float learning_rate);
   mat getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure);
 
   void setConfig(const Config& config);
@@ -68,7 +68,7 @@ void remove_bias(vector<T>& v) {
   v.pop_back();
 }
 
-template <typename T>
+/*template <typename T>
 Matrix2D<T> add_bias(const Matrix2D<T>& A) {
   Matrix2D<T> B(A.getRows(), A.getCols() + 1);
 
@@ -92,9 +92,9 @@ void remove_bias(Matrix2D<T>& A) {
 }
 
 mat l2error(mat& targets, mat& predicts);
+*/
 
 void print(const thrust::host_vector<float>& hv);
-void print(const mat& m);
 void print(const thrust::device_vector<float>& dv);
 
 #endif  // __DNN_H_

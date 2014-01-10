@@ -10,6 +10,12 @@ DNN::DNN(string fn): _transforms(), _config() {
 DNN::DNN(const Config& config): _transforms(), _config(config) {
 }
 
+DNN::DNN(const DNN& source): _transforms(source._transforms.size()), _config() {
+
+  for (size_t i=0; i<_transforms.size(); ++i)
+    _transforms[i] = source._transforms[i]->clone();
+}
+
 void DNN::init(const std::vector<size_t>& dims, const std::vector<mat>& weights) {
   _transforms.resize(weights.size());
 
@@ -35,22 +41,14 @@ void DNN::init(const std::vector<size_t>& dims) {
   }
 }
 
-DNN::DNN(const DNN& source):
-  _transforms(source._transforms.size()),
-  _config() {
-
+DNN::~DNN() {
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i] = source._transforms[i]->clone();
+    delete _transforms[i];
 }
 
 DNN& DNN::operator = (DNN rhs) {
   swap(*this, rhs);
   return *this;
-}
-
-DNN::~DNN() {
-  for (size_t i=0; i<_transforms.size(); ++i)
-    delete _transforms[i];
 }
   
 void DNN::setConfig(const Config& config) {
@@ -76,7 +74,6 @@ void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
 
 }
 
-#pragma GCC diagnostic ignored "-Wunused-result"
 void DNN::read(string fn) {
   FILE* fid = fopen(fn.c_str(), "r");
 
@@ -120,8 +117,9 @@ void DNN::save(string fn) const {
     fprintf(fid, " [");
 
     // ==============================
-    float* data = new float[w.size()];
-    CCE(cudaMemcpy(data, w.getData(), sizeof(float) * w.size(), cudaMemcpyDeviceToHost));
+    std::vector<float> data = copyToHost(w);
+    // float* data = new float[w.size()];
+    // CCE(cudaMemcpy(data, w.getData(), sizeof(float) * w.size(), cudaMemcpyDeviceToHost));
 
     for (size_t j=0; j<rows-1; ++j) {
       fprintf(fid, "\n  ");
@@ -135,7 +133,7 @@ void DNN::save(string fn) const {
       fprintf(fid, "%g ", data[j * rows + rows - 1]);
     fprintf(fid, " ]\n");
 
-    delete [] data;
+    // delete [] data;
   }
 
   printf("nn_structure ");
@@ -160,13 +158,6 @@ void print(const thrust::host_vector<float>& hv) {
   for (size_t i=0; i<hv.size(); ++i)
     cout << hv[i] << " ";
   cout << " ] \33[0m" << endl << endl;
-}
-
-void print(const mat& m) {
-  thrust::device_ptr<float> dm(m.getData());
-  thrust::host_vector<float> hm(dm, dm + m.size());
-
-  ::print(hm);
 }
 
 void print(const thrust::device_vector<float>& dv) {
@@ -241,8 +232,8 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
 
       mat error = this->getError(train.prob, O.back(), offset, nData, errorMeasure);
 
-      this->backPropagate(train, O, error, offset, nData);
-      this->updateParameters();
+      this->backPropagate(train, O, error);
+      this->update(_config.learningRate);
     }
 
     this->feedForward(valid, O);
@@ -342,7 +333,7 @@ mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t ba
 void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, size_t batchSize) {
   assert(batchSize >= 0 && offset + batchSize <= data.X.getRows());
 
-  // All data in one-batch (Gradient Descent)
+  // All data in one-batch (Gradient Descent instead of "Stochastic" Gradient Descent)
   if (batchSize == 0)
     batchSize = data.X.getRows();
 
@@ -359,14 +350,14 @@ void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, s
 // ===== Back Propagation =====
 // ============================
 
-void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, mat& error, size_t offset, size_t batchSize) {
+void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, mat& error) {
   for (int i=_transforms.size() - 1; i >= 0; --i)
     _transforms[i]->backPropagate(O[i], O[i+1], error);
 }
 
-void DNN::updateParameters() { 
+void DNN::update(float learning_rate) { 
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->update(_config.learningRate);
+    _transforms[i]->update(learning_rate);
 }
 
 Config DNN::getConfig() const {
@@ -383,7 +374,7 @@ void swap(DNN& lhs, DNN& rhs) {
 // ===== Utility Functions =====
 // =============================
 
-mat l2error(mat& targets, mat& predicts) {
+/*mat l2error(mat& targets, mat& predicts) {
   mat err(targets - predicts);
 
   thrust::device_ptr<float> ptr(err.getData());
@@ -394,4 +385,4 @@ mat l2error(mat& targets, mat& predicts) {
   
   return err;
 }
-
+*/
