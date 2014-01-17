@@ -42,7 +42,24 @@ namespace func {
   struct square {
     __host__ __device__ T operator() (const T& x) const { return x * x; }
   };
+
+  template <typename T>
+  struct sqrt {
+    __host__ __device__ T operator() (const T& x) const { return sqrtf(x); }
+  };
+
+  template <typename T>
+  struct to_zero_one {
+    __host__ __device__ T operator() (const T& x) const { return x > 0.5 ? 1 : 0; }
+  };
   
+  template <typename T>
+  struct min_threshold {
+    const float _t;
+    min_threshold(float t) : _t(t) {}
+    __host__ __device__ T operator() (const T& x) const { return x <= _t ? _t : x; }
+  };
+
   template <typename T>
   struct sigmoid {
 #ifndef __CUDACC__
@@ -51,6 +68,16 @@ namespace func {
     __host__ __device__ T operator() (const T& x) { return 1.0 / ( 1.0 + expf(-x) ); }
 #endif
 
+  };
+
+  template <typename T>
+  struct dsigma {
+    __host__ __device__ T operator() (const T& x) { return x * (1.0 - x); }
+  };
+
+  template <typename T>
+  struct dcrossentropy {
+    __host__ __device__ T operator() (const T& x, const T& y) { return -x / y; }
   };
 
   template <typename T>

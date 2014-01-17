@@ -3,20 +3,30 @@ CXX=g++-4.6
 CFLAGS=
 NVCC=nvcc -arch=sm_21 -w
 
+BOTON_UTIL_ROOT=/usr/local/boton/
+CUMATRIX_ROOT=../libcumatrix
+MATH_EXT_ROOT=../math_ext/
+
 INCLUDE= -I include/ \
-	 -I /usr/local/boton/include/ \
+	 -I $(BOTON_UTIL_ROOT)/include/ \
+	 -I $(CUMATRIX_ROOT)/include \
+	 -I $(MATH_EXT_ROOT) \
  	 -isystem /usr/local/cuda/samples/common/inc/ \
 	 -isystem /usr/local/cuda/include
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
-SOURCES=dnn.cpp
+SOURCES=dnn.cu\
+	dnn-utility.cu\
+	utility.cpp\
+	rbm.cu\
+	feature-transform.cu\
+	dataset.cpp\
+	config.cpp
 
-EXECUTABLES=
-EXAMPLE_PROGRAM=example
- 
+EXECUTABLES=dnn-train dnn-predict dnn-init
 .PHONY: debug all o3 example ctags
-all: $(EXECUTABLES) $(EXAMPLE_PROGRAM) ctags
+all: $(EXECUTABLES) ctags
 
 o3: CFLAGS+=-O3
 o3: all
@@ -27,22 +37,21 @@ vpath %.h include/
 vpath %.cpp src/
 vpath %.cu src/
 
-OBJ=$(addprefix obj/,$(SOURCES:.cpp=.o))
+OBJ:=$(addprefix obj/, $(addsuffix .o,$(basename $(SOURCES))))
 
-LIBRARY= -lmatrix
+LIBRARY=-lmatrix -lpbar -lcumatrix
+CUDA_LIBRARY=-lcuda -lcudart -lcublas
+LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 
-LIBRARY_PATH=-L/usr/local/boton/lib/
-
-example: $(OBJ) example.cpp
-	$(CXX) $(CPPFLAGS) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY)
-
+$(EXECUTABLES): % : %.cpp $(OBJ)
+	$(CXX) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
 # +==============================+
 # +===== Other Phony Target =====+
 # +==============================+
 obj/%.o: %.cpp
 	$(CXX) $(CPPFLAGS) -o $@ -c $<
 
-obj/%.o: %.cu
+obj/%.o: %.cu include/%.h
 	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
 
 obj/%.d: %.cpp
@@ -54,6 +63,6 @@ obj/%.d: %.cpp
 
 .PHONY: ctags
 ctags:
-	@ctags -R *
+	@ctags -R --langmap=C:+.cu *
 clean:
-	rm -rf $(EXECUTABLES) $(EXAMPLE_PROGRAM) obj/*
+	rm -rf $(EXECUTABLES) obj/*

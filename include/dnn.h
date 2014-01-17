@@ -1,125 +1,75 @@
 #ifndef __DNN_H_
 #define __DNN_H_
 
-#include <arithmetic.h>
+#include <dnn-utility.h>
+#include <dataset.h>
+#include <feature-transform.h>
+#include <config.h>
+#include <utility.h>
 
-#ifndef __CUDACC__
-
-  #include <arithmetic.h>
-  #include <math_ext.h>
-  #include <matrix.h>
-  typedef Matrix2D<float> mat;
-  typedef std::vector<float> vec;
-  #define WHERE std
-
-#else
-
-  #include <device_matrix.h>
-  #include <device_math_ext.h>
-  #include <device_arithmetic.h>
-  
-  #include <thrust/transform_reduce.h>
-  #include <thrust/functional.h>
-  #include <thrust/host_vector.h>
-  #include <thrust/device_vector.h>
-  typedef device_matrix<float> mat;
-  typedef thrust::device_vector<float> vec;
-  #define WHERE thrust
-
-#endif
-
-#define dsigma(x) ((x) & ((float) 1.0 - (x)))
+// sigmoid mapping
+//    x     sigmoid(x) percentage
+// -4.5951    0.01	   1%
+// -3.8918    0.02         2%
+// -2.9444    0.05         5%
+// -2.1972    0.10        10%
+// -1.3863    0.20        20%
+//    0       0.50        50%
+//  4.5951    0.80        20%
+//  3.8918    0.90        10%
+//  2.9444    0.95         5%
+//  2.1972    0.98         2%
+//  1.3863    0.99         1%
 
 class DNN {
 public:
   DNN();
   DNN(string fn);
-  DNN(const std::vector<size_t>& dims);
+  DNN(const Config& config);
   DNN(const DNN& source);
+  ~DNN();
+
   DNN& operator = (DNN rhs);
 
-  void randInit();
-  void feedForward(const mat& x, std::vector<mat>* hidden_output);
+  void init(const std::vector<size_t>& dims);
+  void init(const std::vector<mat>& weights);
+  void feedForward(const DataSet& data, std::vector<mat>& O, size_t offset = 0, size_t batchSize = 0);
+  void backPropagate(const DataSet& data, std::vector<mat>& O, mat& error);
 
-  void backPropagate(vec& p, std::vector<vec>& hidden_output, std::vector<mat>& gradient);
-  void backPropagate(mat& p, std::vector<mat>& hidden_output, std::vector<mat>& gradient, const vec& coeff);
+  void update(float learning_rate);
+  mat getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure);
 
-  void updateParameters(std::vector<mat>& gradient, float learning_rate = 1e-3);
-
+  void setConfig(const Config& config);
   size_t getNLayer() const;
-  size_t getDepth() const;
   void getEmptyGradient(std::vector<mat>& g) const;
 
+  Config getConfig() const;
+  void adjustLearningRate(float trainAcc);
+
+  void _read(FILE* fid);
   void read(string fn);
   void save(string fn) const;
   void print() const;
-
-  std::vector<mat>& getWeights();
-  const std::vector<mat>& getWeights() const;
-  std::vector<size_t>& getDims();
-  const std::vector<size_t>& getDims() const;
+  
+  bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch);
+  void train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE err);
+  mat predict(const DataSet& test);
 
   friend void swap(DNN& lhs, DNN& rhs);
 
 private:
-  std::vector<size_t> _dims;
-  std::vector<mat> _weights;
+  std::vector<FeatureTransform*> _transforms;
+  Config _config;
 };
 
 void swap(DNN& lhs, DNN& rhs);
-
-#define HIDDEN_OUTPUT_ALIASING(O, x, y, z, w) \
-std::vector<vec>& x	= O.hox; \
-std::vector<vec>& y	= O.hoy; \
-vec& z		= O.hoz; \
-std::vector<vec>& w	= O.hod;
-
-#define GRADIENT_REF(g, g1, g2, g3, g4) \
-std::vector<mat>& g1	= g.grad1; \
-std::vector<mat>& g2 = g.grad2; \
-vec& g3		= g.grad3; \
-std::vector<mat>& g4 = g.grad4;
-
-#define GRADIENT_CONST_REF(g, g1, g2, g3, g4) \
-const std::vector<mat>& g1	= g.grad1; \
-const std::vector<mat>& g2 = g.grad2; \
-const vec& g3		= g.grad3; \
-const std::vector<mat>& g4 = g.grad4;
-
-class HIDDEN_OUTPUT {
-  public:
-    std::vector<vec> hox;
-    std::vector<vec> hoy;
-    vec hoz;
-    std::vector<vec> hod;
-};
-
-void swap(HIDDEN_OUTPUT& lhs, HIDDEN_OUTPUT& rhs);
-
-class GRADIENT {
-  public:
-    std::vector<mat> grad1;
-    std::vector<mat> grad2;
-    vec grad3;
-    std::vector<mat> grad4;
-};
-
-void swap(GRADIENT& lhs, GRADIENT& rhs);
-
-template <typename T>
-vector<T> add_bias(const vector<T>& v) {
-  vector<T> vb(v.size() + 1);
-  WHERE::copy(v.begin(), v.end(), vb.begin());
-  vb.back() = 1.0;
-  return vb;
-}
 
 template <typename T>
 void remove_bias(vector<T>& v) {
   v.pop_back();
 }
 
-template <typename T>
+/*template <typename T>
 Matrix2D<T> add_bias(const Matrix2D<T>& A) {
   Matrix2D<T> B(A.getRows(), A.getCols() + 1);
 
@@ -141,5 +91,11 @@ void remove_bias(Matrix2D<T>& A) {
 
   A = B;
 }
+
+mat l2error(mat& targets, mat& predicts);
+*/
+
+void print(const thrust::host_vector<float>& hv);
+void print(const thrust::device_vector<float>& dv);
 
 #endif  // __DNN_H_
