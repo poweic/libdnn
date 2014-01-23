@@ -254,7 +254,7 @@ void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ER
       break;
 
     printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
-      epoch, trainAcc, nTrain - Ein, nTrain, validAcc, nValid - Eout[epoch], nValid); 
+      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); 
 
     this->adjustLearningRate(trainAcc);
   }
