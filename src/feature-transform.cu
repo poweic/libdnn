@@ -64,7 +64,7 @@ void Sigmoid::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData
 }
 
 void Sigmoid::backPropagate(const mat& fin, const mat& fout, mat& error) {
-  mat delta = error & (1 - fout) & fout;
+  mat delta = error & (1.0f - fout) & fout;
 
   _dw = ~const_cast<mat&>(fin) * delta;
 
