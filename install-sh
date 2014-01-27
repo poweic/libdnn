@@ -1,0 +1,10 @@
+#!/bin/bash
+mkdir -p tools
+
+git clone https://github.com/botonchou/utility.git tools/utility
+cd tools/utility && make o3 && cd -
+
+git clone https://github.com/botonchou/libcumatrix.git tools/libcumatrix
+cd tools/libcumatrix && make o3 && cd -
+
+make o3

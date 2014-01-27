@@ -3,14 +3,12 @@ CXX=g++-4.6
 CFLAGS=
 NVCC=nvcc -arch=sm_21 -w
 
-BOTON_UTIL_ROOT=/usr/local/boton/
-CUMATRIX_ROOT=../libcumatrix
-MATH_EXT_ROOT=../math_ext/
+BOTON_UTIL_ROOT=tools/utility/
+CUMATRIX_ROOT=tools/libcumatrix/
 
 INCLUDE= -I include/ \
 	 -I $(BOTON_UTIL_ROOT)/include/ \
 	 -I $(CUMATRIX_ROOT)/include \
-	 -I $(MATH_EXT_ROOT) \
  	 -isystem /usr/local/cuda/samples/common/inc/ \
 	 -isystem /usr/local/cuda/include
 
@@ -25,7 +23,7 @@ SOURCES=dnn.cu\
 	config.cpp
 
 EXECUTABLES=dnn-train dnn-predict dnn-init
-.PHONY: debug all o3 example ctags
+.PHONY: debug all o3 ctags
 all: $(EXECUTABLES) ctags
 
 o3: CFLAGS+=-O3
@@ -39,7 +37,7 @@ vpath %.cu src/
 
 OBJ:=$(addprefix obj/, $(addsuffix .o,$(basename $(SOURCES))))
 
-LIBRARY=-lmatrix -lpbar -lcumatrix
+LIBRARY=-lpbar -lcumatrix
 CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 

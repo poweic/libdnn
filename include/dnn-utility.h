@@ -4,6 +4,7 @@
 #include <arithmetic.h>
 #include <math_ext.h>
 #include <utility.h>
+#include <map>
 
 #ifdef __CUDACC__
   #include <device_math.h>
