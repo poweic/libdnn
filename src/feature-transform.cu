@@ -1,6 +1,75 @@
 #include <feature-transform.h>
 
+
+// ==========================================================================================
+// ==========================================================================================
+
+// convert a linear index to a row index
+template <typename T>
+struct linear_index_to_row_index : public thrust::unary_function<T,T>
+{
+  T C; // number of columns
+
+  __host__ __device__
+    linear_index_to_row_index(T C) : C(C) {}
+
+  __host__ __device__
+    T operator()(T i)
+    {
+      return i / C;
+    }
+};
+
+// ==========================================================================================
+// ==========================================================================================
 void substractMaxPerRow(mat& x);
+mat getRowMax(mat& A);
+__global__ void substract_max_per_row(float* const A, float* const rmax, unsigned int rows, unsigned int cols);
+
+void substractMaxPerRow(mat& x) {
+  mat rmax = getRowMax(x);
+
+  const int N = 32;
+  dim3 grid;
+  grid.x = (unsigned int) ceil((float) x.getCols() / N);
+  grid.y = (unsigned int) ceil((float) x.getRows() / N);
+  dim3 threads(N, N);
+
+  substract_max_per_row<<<grid, threads>>>(x.getData(), rmax.getData(), x.getRows(), x.getCols());
+  CCE(cudaDeviceSynchronize());
+}
+
+__global__ void substract_max_per_row(float* const A, float* const rmax, unsigned int rows, unsigned int cols) {
+  // Matrix index
+  int x = blockIdx.x*blockDim.x + threadIdx.x;
+  int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+  if (x >= cols || y >= rows)
+    return;
+
+  A[x * rows + y] -= rmax[y];
+}
+
+mat getRowMax(mat& A) {
+  mat rmax(A.getRows(), 1);
+  mat At = ~A;
+
+  // allocate storage for per-row results and indices
+  thrust::device_vector< float > row_indices(A.getRows());
+  thrust::device_vector< float > row_results(A.getRows());
+
+  // compute row sums by summing values with equal row indices
+  thrust::reduce_by_key
+    (thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(A.getCols())),
+     thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(A.getCols())) + A.size(),
+     thrust::device_ptr<float>(At.getData()),
+     row_indices.begin(),
+     thrust::device_ptr<float>(rmax.getData()),
+     thrust::equal_to<float>(),
+     thrust::maximum<float>());
+
+  return rmax;
+}
 
 // ============================
 // ===== FeatureTransform =====
@@ -104,25 +173,27 @@ string Softmax::toString() const {
   return "softmax";
 }
 
-__global__ void substract_max_per_row(float* const A, unsigned int rows, unsigned int cols) {
+/*__global__ void substract_max_per_row(float* const A, unsigned int rows, unsigned int cols) {
   extern __shared__ float sdata[];
 
   // Matrix index
   int ty = threadIdx.y;
+  int tx = threadIdx.x;
   int x = threadIdx.x;
   int y = blockIdx.y*blockDim.y + threadIdx.y;
 
   if (x >= cols || y >= rows)
     return;
 
-  sdata[x * blockDim.y + ty] = A[x * rows + y];
+  unsigned int idx = x * blockDim.y + ty;
+  sdata[idx] = A[x * rows + y];
 
   for (unsigned int s = blockDim.x/2 ; s > 0; s >>= 1) {
     if (x >= s || x + s >= cols)
       continue;
 
-    if (sdata[(x + s) * blockDim.y + ty] > sdata[x * blockDim.y + ty])
-      sdata[x * blockDim.y + ty] = sdata[(x + s) * blockDim.y + ty];
+    if (sdata[(x + s) * blockDim.y + ty] > sdata[idx])
+      sdata[idx] = sdata[(x + s) * blockDim.y + ty];
 
     __syncthreads();
   }
@@ -146,7 +217,7 @@ void substractMaxPerRow(mat& x) {
 
   substract_max_per_row<<< grid, threads, smSize >>>(x.getData(), rows, cols);
   CCE(cudaDeviceSynchronize());
-}
+}*/
 
 void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
 

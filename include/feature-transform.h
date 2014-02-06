@@ -3,6 +3,8 @@
 
 #include <dnn-utility.h>
 
+void playground();
+
 class FeatureTransform {
 public:
   FeatureTransform(const FeatureTransform& source);
