@@ -6,6 +6,9 @@
 #include <rbm.h>
 using namespace std;
 
+void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
+bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
+
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
@@ -98,10 +101,104 @@ int main (int argc, char* argv[]) {
 
   ERROR_MEASURE err = CROSS_ENTROPY;
   // Start Training
-  dnn.train(train, valid, batchSize, err);
+  dnn_train(dnn, train, valid, batchSize, err);
 
   // Save the model
   dnn.save(model_fn);
 
   return 0;
 }
+
+void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
+
+  printf("Training...\n");
+  perf::Timer timer;
+  timer.start();
+
+  vector<mat> O(dnn.getNLayer());
+
+  size_t Ein;
+  size_t MAX_EPOCH = dnn.getConfig().maxEpoch, epoch;
+  std::vector<size_t> Eout;
+  Eout.reserve(MAX_EPOCH);
+
+  size_t nTrain = train.X.getRows(),
+	 nValid = valid.X.getRows();
+
+  size_t nBatch = nTrain / batchSize,
+         remained = nTrain - nBatch * batchSize;
+
+  if (remained > 0)
+    ++nBatch;
+
+  for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
+
+    if (dnn.getConfig().randperm)
+      const_cast<DataSet&>(train).shuffleFeature();
+
+    for (size_t b=0; b<nBatch; ++b) {
+
+      size_t offset = b*batchSize;
+      size_t nData = batchSize;
+
+      if (b == nBatch - 1)
+	nData = min(remained - 1, batchSize);
+
+      // Copy a batch of data from training data to O[0]
+      O[0].resize(nData, train.X.getCols());
+      memcpy2D(O[0], train.X, offset, 0, nData, train.X.getCols(), 0, 0);
+
+      dnn.feedForward(O[0], O);
+
+      mat error = dnn.getError(train.prob, O.back(), offset, nData, errorMeasure);
+
+      dnn.backPropagate(train, O, error);
+      dnn.update(dnn.getConfig().learningRate);
+    }
+
+    dnn.feedForward(valid.X, O);
+    Eout.push_back(zeroOneError(O.back(), valid.y, errorMeasure));
+  
+    dnn.feedForward(train.X, O);
+    Ein = zeroOneError(O.back(), train.y, errorMeasure);
+
+    float trainAcc = 1.0f - (float) Ein / nTrain;
+
+    if (trainAcc < 0.5) {
+      cout << "."; cout.flush();
+      continue;
+    }
+
+    float validAcc= 1.0f - (float) Eout[epoch] / nValid;
+    if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
+      break;
+
+    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
+      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); 
+
+    dnn.adjustLearningRate(trainAcc);
+  }
+
+  // Show Summary
+  printf("\n%ld epochs in total\n", epoch);
+  timer.elapsed();
+
+  dnn.feedForward(train.X, O);
+  Ein = zeroOneError(O.back(), train.y, errorMeasure);
+
+  printf("[   In-Sample   ] ");
+  showAccuracy(Ein, train.y.size());
+  printf("[ Out-of-Sample ] ");
+  showAccuracy(Eout.back(), valid.y.size());
+}
+
+bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch) {
+
+  for (size_t i=0; i<nNonIncEpoch; ++i) {
+    if (epoch - i > 0 && Eout[epoch] > Eout[epoch - i])
+      return false;
+  }
+
+  return true;
+}
+

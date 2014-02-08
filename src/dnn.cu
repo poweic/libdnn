@@ -165,16 +165,6 @@ void print(const thrust::device_vector<float>& dv) {
   ::print(hv);
 }
 
-bool DNN::isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch) {
-
-  for (size_t i=0; i<_config.nNonIncEpoch; ++i) {
-    if (epoch - i > 0 && Eout[epoch] > Eout[epoch - i])
-      return false;
-  }
-
-  return true;
-}
-
 void DNN::adjustLearningRate(float trainAcc) {
   static size_t phase = 0;
 
@@ -193,88 +183,10 @@ void DNN::adjustLearningRate(float trainAcc) {
   }
 }
 
-void DNN::train(const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
-
-  printf("Training...\n");
-  perf::Timer timer;
-  timer.start();
-
-  vector<mat> O(this->getNLayer());
-
-  size_t Ein;
-  size_t MAX_EPOCH = _config.maxEpoch, epoch;
-  std::vector<size_t> Eout;
-  Eout.reserve(MAX_EPOCH);
-
-  size_t nTrain = train.X.getRows(),
-	 nValid = valid.X.getRows();
-
-  size_t nBatch = nTrain / batchSize,
-         remained = nTrain - nBatch * batchSize;
-
-  if (remained > 0)
-    ++nBatch;
-
-  for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
-
-    if (_config.randperm)
-      const_cast<DataSet&>(train).shuffleFeature();
-
-    for (size_t b=0; b<nBatch; ++b) {
-
-      size_t offset = b*batchSize;
-      size_t nData = batchSize;
-
-      if (b == nBatch - 1)
-	nData = min(remained - 1, batchSize);
-
-      this->feedForward(train, O, offset, nData);
-
-      mat error = this->getError(train.prob, O.back(), offset, nData, errorMeasure);
-
-      this->backPropagate(train, O, error);
-      this->update(_config.learningRate);
-    }
-
-    this->feedForward(valid, O);
-    Eout.push_back(zeroOneError(O.back(), valid.y, errorMeasure));
-  
-    this->feedForward(train, O);
-    Ein = zeroOneError(O.back(), train.y, errorMeasure);
-
-    float trainAcc = 1.0f - (float) Ein / nTrain;
-
-    if (trainAcc < 0.5) {
-      cout << "."; cout.flush();
-      continue;
-    }
-
-    float validAcc= 1.0f - (float) Eout[epoch] / nValid;
-    if (validAcc > _config.minValidAccuracy && isEoutStopDecrease(Eout, epoch))
-      break;
-
-    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
-      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); 
-
-    this->adjustLearningRate(trainAcc);
-  }
-
-  // Show Summary
-  printf("\n%d epochs in total\n", epoch);
-  timer.elapsed();
-
-  this->feedForward(train, O);
-  Ein = zeroOneError(O.back(), train.y, errorMeasure);
-
-  printf("[   In-Sample   ] ");
-  showAccuracy(Ein, train.y.size());
-  printf("[ Out-of-Sample ] ");
-  showAccuracy(Eout.back(), valid.y.size());
-}
 
 mat DNN::predict(const DataSet& test) {
   vector<mat> O(this->getNLayer());
-  this->feedForward(test, O);
+  this->feedForward(test.X, O);
   return O.back();
 }
 
@@ -330,18 +242,20 @@ mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t ba
   return error;
 }
 
-void DNN::feedForward(const DataSet& data, std::vector<mat>& O, size_t offset, size_t batchSize) {
-  assert(batchSize >= 0 && offset + batchSize <= data.X.getRows());
+void DNN::feedForward(const mat& fin, std::vector<mat>& O) {
+  // assert(batchSize >= 0 && offset + batchSize <= data.X.getRows());
 
   // All data in one-batch (Gradient Descent instead of "Stochastic" Gradient Descent)
-  if (batchSize == 0)
+  /*if (batchSize == 0)
     batchSize = data.X.getRows();
 
   O[0].resize(batchSize, data.X.getCols());
-  memcpy2D(O[0], data.X, offset, 0, batchSize, data.X.getCols(), 0, 0);
+  memcpy2D(O[0], data.X, offset, 0, batchSize, data.X.getCols(), 0, 0);*/
+
+  O[0] = fin;
 
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->feedForward(O[i+1], O[i], offset, batchSize);
+    _transforms[i]->feedForward(O[i+1], O[i]);
 
   O.back().resize(O.back().getRows(), O.back().getCols() - 1);
 }

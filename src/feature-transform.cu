@@ -127,7 +127,7 @@ string Sigmoid::toString() const {
   return "sigmoid";
 }
 
-void Sigmoid::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+void Sigmoid::feedForward(mat& fout, const mat& fin) {
   fout = ext::sigmoid(const_cast<mat&>(fin) * _w);
   fillLastColumnWith(fout, (float) 1.0);
 }
@@ -219,7 +219,7 @@ void substractMaxPerRow(mat& x) {
   CCE(cudaDeviceSynchronize());
 }*/
 
-void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+void Softmax::feedForward(mat& fout, const mat& fin) {
 
   mat x = const_cast<mat&>(fin) * const_cast<mat&>(_w);
   x.resize(x.getRows(), x.getCols() - 1);
