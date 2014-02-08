@@ -132,7 +132,7 @@ void Sigmoid::feedForward(mat& fout, const mat& fin) {
   fillLastColumnWith(fout, (float) 1.0);
 }
 
-void Sigmoid::backPropagate(const mat& fin, const mat& fout, mat& error) {
+void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout) {
   mat delta = error & (1.0f - fout) & fout;
 
   _dw = ~const_cast<mat&>(fin) * delta;
@@ -243,7 +243,7 @@ mat rowSum(mat& m) {
   return m * (mat(m.getCols(), m.getCols()) += 1);
 }
 
-void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {
+void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout) {
 
   mat error_times_fout = error & fout;
   mat sum = rowSum(error_times_fout);

@@ -13,7 +13,7 @@ public:
   virtual FeatureTransform* clone() const = 0;
   virtual string toString() const = 0;
   virtual void feedForward(mat& fout, const mat& fin) = 0;
-  virtual void backPropagate(const mat& fin, const mat& fout, mat& error) = 0;
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout) = 0;
 
   mat& getW();
   mat& getDw();
@@ -41,7 +41,7 @@ public:
   virtual Sigmoid* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
-  virtual void backPropagate(const mat& fin, const mat& fout, mat& error);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout);
 
 private:
   virtual Sigmoid& operator = (Sigmoid rhs) {}
@@ -56,7 +56,7 @@ public:
   virtual Softmax* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
-  virtual void backPropagate(const mat& fin, const mat& fout, mat& error);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout);
 
 private:
   virtual Softmax& operator = (Softmax rhs) {}

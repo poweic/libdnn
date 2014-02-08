@@ -266,7 +266,7 @@ void DNN::feedForward(const mat& fin, std::vector<mat>& O) {
 
 void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, mat& error) {
   for (int i=_transforms.size() - 1; i >= 0; --i)
-    _transforms[i]->backPropagate(O[i], O[i+1], error);
+    _transforms[i]->backPropagate(error, O[i], O[i+1]);
 }
 
 void DNN::update(float learning_rate) { 
