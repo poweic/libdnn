@@ -128,6 +128,8 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   size_t nBatch = nTrain / batchSize,
          remained = nTrain - nBatch * batchSize;
 
+  mat fout;
+
   if (remained > 0)
     ++nBatch;
 
@@ -145,22 +147,22 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 	nData = min(remained - 1, batchSize);
 
       // Copy a batch of data from training data to O[0]
-      O[0].resize(nData, train.X.getCols());
-      memcpy2D(O[0], train.X, offset, 0, nData, train.X.getCols(), 0, 0);
+      mat fin(nData, train.X.getCols());
+      memcpy2D(fin, train.X, offset, 0, nData, train.X.getCols(), 0, 0);
 
-      dnn.feedForward(O[0], O);
+      dnn.feedForward(fout, fin);
 
-      mat error = dnn.getError(train.prob, O.back(), offset, nData, errorMeasure);
+      mat error = dnn.getError(train.prob, fout, offset, nData, errorMeasure);
 
-      dnn.backPropagate(train, O, error);
+      dnn.backPropagate(error, fin, fout);
       dnn.update(dnn.getConfig().learningRate);
     }
 
-    dnn.feedForward(valid.X, O);
-    Eout.push_back(zeroOneError(O.back(), valid.y, errorMeasure));
+    dnn.feedForward(fout, valid.X);
+    Eout.push_back(zeroOneError(fout, valid.y, errorMeasure));
   
-    dnn.feedForward(train.X, O);
-    Ein = zeroOneError(O.back(), train.y, errorMeasure);
+    dnn.feedForward(fout, train.X);
+    Ein = zeroOneError(fout, train.y, errorMeasure);
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
@@ -183,8 +185,8 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   printf("\n%ld epochs in total\n", epoch);
   timer.elapsed();
 
-  dnn.feedForward(train.X, O);
-  Ein = zeroOneError(O.back(), train.y, errorMeasure);
+  dnn.feedForward(fout, train.X);
+  Ein = zeroOneError(fout, train.y, errorMeasure);
 
   printf("[   In-Sample   ] ");
   showAccuracy(Ein, train.y.size());

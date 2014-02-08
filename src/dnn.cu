@@ -185,9 +185,9 @@ void DNN::adjustLearningRate(float trainAcc) {
 
 
 mat DNN::predict(const DataSet& test) {
-  vector<mat> O(this->getNLayer());
-  this->feedForward(test.X, O);
-  return O.back();
+  mat output;
+  this->feedForward(output, test.X);
+  return output;
 }
 
 mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure) {
@@ -242,31 +242,33 @@ mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t ba
   return error;
 }
 
-void DNN::feedForward(const mat& fin, std::vector<mat>& O) {
-  // assert(batchSize >= 0 && offset + batchSize <= data.X.getRows());
+void DNN::feedForward(mat& output, const mat& fin) {
 
-  // All data in one-batch (Gradient Descent instead of "Stochastic" Gradient Descent)
-  /*if (batchSize == 0)
-    batchSize = data.X.getRows();
+  // FIXME This should be an ASSERTION, not resizing.
+  if (_houts.size() != this->getNLayer() - 2)
+    _houts.resize(this->getNLayer() - 2);
 
-  O[0].resize(batchSize, data.X.getCols());
-  memcpy2D(O[0], data.X, offset, 0, batchSize, data.X.getCols(), 0, 0);*/
+  _transforms[0]->feedForward(_houts[0], fin);
 
-  O[0] = fin;
+  for (size_t i=1; i<_transforms.size()-1; ++i)
+    _transforms[i]->feedForward(_houts[i], _houts[i-1]);
 
-  for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->feedForward(O[i+1], O[i]);
+  _transforms.back()->feedForward(output, _houts.back());
 
-  O.back().resize(O.back().getRows(), O.back().getCols() - 1);
+  output.resize(output.getRows(), output.getCols() - 1);
 }
 
 // ============================
 // ===== Back Propagation =====
 // ============================
 
-void DNN::backPropagate(const DataSet& data, std::vector<mat>& O, mat& error) {
-  for (int i=_transforms.size() - 1; i >= 0; --i)
-    _transforms[i]->backPropagate(error, O[i], O[i+1]);
+void DNN::backPropagate(mat& error, const mat& fin, const mat& fout) {
+  _transforms.back()->backPropagate(error, _houts.back(), fout);
+
+  for (int i=_transforms.size() - 2; i >= 1; --i)
+    _transforms[i]->backPropagate(error, _houts[i-1], _houts[i]);
+
+  _transforms[0]->backPropagate(error, fin, _houts[0]);
 }
 
 void DNN::update(float learning_rate) { 
