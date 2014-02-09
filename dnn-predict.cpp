@@ -37,7 +37,7 @@ int main (int argc, char* argv[]) {
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
-  bool hasAnswer = isLabeled(test.getY());
+  bool hasAnswer = test.isLabeled();
 
   if (hasAnswer) {
     size_t nError = zeroOneError(prob, test.getY(), errorMeasure);

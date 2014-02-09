@@ -178,7 +178,7 @@ std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& struc
 
   // ===========================================================================
   // Initialize hidden structure
-  size_t input_dim = data.getX().getCols() - 1;
+  size_t input_dim = data.getInputDimension();
   std::vector<size_t> dims = splitAsInt(structure, '-');
   dims.insert(dims.begin(), input_dim);
   dims.push_back((size_t) output_dim);

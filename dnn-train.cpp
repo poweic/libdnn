@@ -70,7 +70,7 @@ int main (int argc, char* argv[]) {
   data.showSummary();
 
   DataSet train, valid;
-  splitIntoTrainingAndValidationSet(train, valid, data, ratio);
+  data.splitIntoTrainingAndValidationSet(train, valid, data, ratio);
 
   // Set configurations
   Config config;

@@ -1,12 +1,9 @@
 #include <dnn-utility.h>
 
-map<int, int> getLabelMapping(const mat& labels) {
-  thrust::device_ptr<float> dptr(labels.getData());
-  thrust::host_vector<float> y(dptr, dptr + labels.size());
-
+map<int, int> getLabelMapping(const hmat& labels) {
   map<int, int> classes;
-  for (size_t i=0; i<y.size(); ++i)
-    classes[(int) y[i]] = 1;
+  for (size_t i=0; i<labels.size(); ++i)
+    classes[(int) labels[i]] = 1;
 
   int counter = 0;
   map<int, int>::iterator itr = classes.begin();
@@ -41,27 +38,6 @@ namespace ext {
   }
 
 };
-
-mat label2PosteriorProb(const mat& labels) {
-  
-  map<int, int> classes = getLabelMapping(labels);
-  size_t nClasses = classes.size();
-  size_t nData = labels.getRows();
-
-  // Convert labels to posterior probabilities
-  float* h_prob = new float[nData * nClasses];
-  memset(h_prob, 0, sizeof(float) * nData * nClasses);
-
-  vector<float> hy = copyToHost(labels);
-  for (size_t i=0; i<nData; ++i)
-    h_prob[(size_t) (hy[i] - 1) * nData + i] = 1;
-
-  mat probs(h_prob, nData, nClasses);
-
-  delete [] h_prob;
-
-  return probs;
-}
 
 mat posteriorProb2Label(const mat& prob) {
 
@@ -147,8 +123,4 @@ mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData
       error.getData(), nData);
 
   return error;
-}
-
-bool isLabeled(const mat& labels) {
-  return getLabelMapping(labels).size() > 1;
 }

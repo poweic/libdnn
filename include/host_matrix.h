@@ -64,11 +64,25 @@ public:
   T& operator() (size_t i, size_t j) {
     return _data[j * _rows + i];
   }
+  const T& operator() (size_t i, size_t j) const {
+    return _data[j * _rows + i];
+  }
+
+  T& operator[] (size_t idx) {
+    return _data[idx];
+  }
+  const T& operator[] (size_t idx) const {
+    return _data[idx];
+  }
+
+  void fillwith(T value) {
+    std::fill(_data, _data + size(), value);
+  }
 
   void print() const {
     for (size_t i=0; i<_rows; ++i) {
       for (size_t j=0; j<_cols; ++j)
-	printf("%3.0f ", _data[j * _rows + i]);
+	printf("%.4e ", _data[j * _rows + i]);
       printf("\n");
     }
 

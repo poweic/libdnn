@@ -18,10 +18,11 @@
 #include <thrust/device_vector.h>
 #include <thrust/inner_product.h>
 
-map<int, int> getLabelMapping(const mat& labels);
-bool isLabeled(const mat& labels);
+#include <host_matrix.h>
+typedef host_matrix<float> hmat;
 
-mat label2PosteriorProb(const mat& labels);
+map<int, int> getLabelMapping(const hmat& labels);
+
 mat posteriorProb2Label(const mat& prob);
 
 size_t zeroOneError(const mat& predict, const mat& label, ERROR_MEASURE errorMeasure);
