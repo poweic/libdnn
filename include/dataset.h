@@ -28,8 +28,11 @@ public:
   void shuffleFeature();
   bool isLabeled() const;
 
+  size_t size() const;
+
   void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
 
+  mat getX(size_t offset, size_t nData) const;
   mat getX() const;
   mat getY() const;
   mat getProb() const;

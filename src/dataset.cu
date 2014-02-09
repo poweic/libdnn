@@ -250,6 +250,21 @@ bool DataSet::isLabeled() const {
   return getLabelMapping(_hy).size() > 1;
 }
 
+size_t DataSet::size() const {
+  return _hy.size();
+}
+
+mat DataSet::getX(size_t offset, size_t nData) const {
+  size_t cols = _hx.getCols();
+  mat fin(nData, cols);
+
+  // FIXME train.getX() copy the whole data from host to device
+  // But fin use only a tiny part of it
+  memcpy2D(fin, this->getX(), offset, 0, nData, cols, 0, 0);
+
+  return fin;
+}
+
 mat DataSet::getX() const {
   return mat(_hx.getData(), _hx.getRows(), _hx.getCols());
 }

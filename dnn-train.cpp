@@ -116,15 +116,6 @@ int main (int argc, char* argv[]) {
   return 0;
 }
 
-void playground() {
-
-  Batches batches(401, 4000);
-
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    printf("(offset, nData) = (%lu, %lu) \n", itr->offset, itr->nData);
-  }
-}
-
 void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   printf("Training...\n");
@@ -138,8 +129,8 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   std::vector<size_t> Eout;
   Eout.reserve(MAX_EPOCH);
 
-  size_t nTrain = train.getX().getRows(),
-	 nValid = valid.getX().getRows();
+  size_t nTrain = train.size(),
+	 nValid = valid.size();
 
   mat fout;
 
@@ -151,15 +142,13 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
     Batches batches(batchSize, nTrain);
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
-      // Copy a batch of data from training data to O[0]
-      mat fin(itr->nData, train.getX().getCols());
-      memcpy2D(fin, train.getX(), itr->offset, 0, itr->nData, train.getX().getCols(), 0, 0);
-
+      // Copy a batch of data from host to device
+      mat fin = train.getX(itr->offset, itr->nData);
       dnn.feedForward(fout, fin);
 
       mat error = dnn.getError(train.getProb(), fout, itr->offset, itr->nData, errorMeasure);
-
       dnn.backPropagate(error, fin, fout);
+
       dnn.update(dnn.getConfig().learningRate);
     }
 
@@ -194,9 +183,9 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   Ein = zeroOneError(fout, train.getY(), errorMeasure);
 
   printf("[   In-Sample   ] ");
-  showAccuracy(Ein, train.getY().size());
+  showAccuracy(Ein, train.size());
   printf("[ Out-of-Sample ] ");
-  showAccuracy(Eout.back(), valid.getY().size());
+  showAccuracy(Eout.back(), valid.size());
 }
 
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch) {
