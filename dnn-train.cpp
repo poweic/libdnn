@@ -4,10 +4,12 @@
 #include <dnn-utility.h>
 #include <cmdparser.h>
 #include <rbm.h>
+#include <batch.h>
 using namespace std;
 
 void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
+void playground();
 
 int main (int argc, char* argv[]) {
 
@@ -114,6 +116,15 @@ int main (int argc, char* argv[]) {
   return 0;
 }
 
+void playground() {
+
+  Batches batches(401, 4000);
+
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    printf("(offset, nData) = (%lu, %lu) \n", itr->offset, itr->nData);
+  }
+}
+
 void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   printf("Training...\n");
@@ -130,34 +141,23 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   size_t nTrain = train.getX().getRows(),
 	 nValid = valid.getX().getRows();
 
-  size_t nBatch = nTrain / batchSize,
-         remained = nTrain - nBatch * batchSize;
-
   mat fout;
-
-  if (remained > 0)
-    ++nBatch;
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
 
     if (dnn.getConfig().randperm)
       const_cast<DataSet&>(train).shuffleFeature();
 
-    for (size_t b=0; b<nBatch; ++b) {
-
-      size_t offset = b*batchSize;
-      size_t nData = batchSize;
-
-      if (b == nBatch - 1)
-	nData = min(remained - 1, batchSize);
+    Batches batches(batchSize, nTrain);
+    for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
       // Copy a batch of data from training data to O[0]
-      mat fin(nData, train.getX().getCols());
-      memcpy2D(fin, train.getX(), offset, 0, nData, train.getX().getCols(), 0, 0);
+      mat fin(itr->nData, train.getX().getCols());
+      memcpy2D(fin, train.getX(), itr->offset, 0, itr->nData, train.getX().getCols(), 0, 0);
 
       dnn.feedForward(fout, fin);
 
-      mat error = dnn.getError(train.getProb(), fout, offset, nData, errorMeasure);
+      mat error = dnn.getError(train.getProb(), fout, itr->offset, itr->nData, errorMeasure);
 
       dnn.backPropagate(error, fin, fout);
       dnn.update(dnn.getConfig().learningRate);
