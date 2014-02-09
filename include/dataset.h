@@ -25,7 +25,15 @@ public:
   void shuffleFeature();
   void shuffleFeature(float* const data, float* const labels, int rows, int cols);
 
-public:
+  mat& getX();
+  const mat& getX() const;
+  mat& getY();
+  const mat& getY() const;
+  mat& getProb();
+  const mat& getProb() const;
+
+
+private:
   mat X, y, prob;
 };
 

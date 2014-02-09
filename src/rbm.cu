@@ -7,7 +7,7 @@ __global__ void setupCuRandState( curandState * state, size_t rows, size_t cols,
 std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres) {
   std::vector<mat> weights(dims.size() - 1);
 
-  mat X = data.X;
+  mat X = data.getX();
   for (size_t i=0; i<weights.size(); ++i) {
     weights[i] = RBMinit(X, dims[i + 1], slopeThres);
     X = ext::sigmoid(X * weights[i]);
@@ -178,7 +178,7 @@ std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& struc
 
   // ===========================================================================
   // Initialize hidden structure
-  size_t input_dim = data.X.getCols() - 1;
+  size_t input_dim = data.getX().getCols() - 1;
   std::vector<size_t> dims = splitAsInt(structure, '-');
   dims.insert(dims.begin(), input_dim);
   dims.push_back((size_t) output_dim);

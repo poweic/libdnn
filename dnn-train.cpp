@@ -127,8 +127,8 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   std::vector<size_t> Eout;
   Eout.reserve(MAX_EPOCH);
 
-  size_t nTrain = train.X.getRows(),
-	 nValid = valid.X.getRows();
+  size_t nTrain = train.getX().getRows(),
+	 nValid = valid.getX().getRows();
 
   size_t nBatch = nTrain / batchSize,
          remained = nTrain - nBatch * batchSize;
@@ -152,22 +152,22 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 	nData = min(remained - 1, batchSize);
 
       // Copy a batch of data from training data to O[0]
-      mat fin(nData, train.X.getCols());
-      memcpy2D(fin, train.X, offset, 0, nData, train.X.getCols(), 0, 0);
+      mat fin(nData, train.getX().getCols());
+      memcpy2D(fin, train.getX(), offset, 0, nData, train.getX().getCols(), 0, 0);
 
       dnn.feedForward(fout, fin);
 
-      mat error = dnn.getError(train.prob, fout, offset, nData, errorMeasure);
+      mat error = dnn.getError(train.getProb(), fout, offset, nData, errorMeasure);
 
       dnn.backPropagate(error, fin, fout);
       dnn.update(dnn.getConfig().learningRate);
     }
 
-    dnn.feedForward(fout, valid.X);
-    Eout.push_back(zeroOneError(fout, valid.y, errorMeasure));
+    dnn.feedForward(fout, valid.getX());
+    Eout.push_back(zeroOneError(fout, valid.getY(), errorMeasure));
   
-    dnn.feedForward(fout, train.X);
-    Ein = zeroOneError(fout, train.y, errorMeasure);
+    dnn.feedForward(fout, train.getX());
+    Ein = zeroOneError(fout, train.getY(), errorMeasure);
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
@@ -190,13 +190,13 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   printf("\n%ld epochs in total\n", epoch);
   timer.elapsed();
 
-  dnn.feedForward(fout, train.X);
-  Ein = zeroOneError(fout, train.y, errorMeasure);
+  dnn.feedForward(fout, train.getX());
+  Ein = zeroOneError(fout, train.getY(), errorMeasure);
 
   printf("[   In-Sample   ] ");
-  showAccuracy(Ein, train.y.size());
+  showAccuracy(Ein, train.getY().size());
   printf("[ Out-of-Sample ] ");
-  showAccuracy(Eout.back(), valid.y.size());
+  showAccuracy(Eout.back(), valid.getY().size());
 }
 
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch) {

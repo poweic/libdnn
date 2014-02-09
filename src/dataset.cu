@@ -268,21 +268,45 @@ void DataSet::shuffleFeature(float* const data, float* const labels, int rows, i
   delete [] tmp_labels;
 }
 
+mat& DataSet::getX() {
+  return X;
+}
+
+const mat& DataSet::getX() const {
+  return X;
+}
+
+mat& DataSet::getY() {
+  return y;
+}
+
+const mat& DataSet::getY() const {
+  return y;
+}
+
+mat& DataSet::getProb() {
+  return prob;
+}
+
+const mat& DataSet::getProb() const {
+  return prob;
+}
+
 void splitIntoTrainingAndValidationSet(
     DataSet& train, DataSet& valid,
     DataSet& data, int ratio) {
 
-  size_t rows = data.X.getRows(),
-	 inputDim = data.X.getCols(),
-	 outputDim = data.prob.getCols();
+  size_t rows = data.getX().getRows(),
+	 inputDim = data.getX().getCols(),
+	 outputDim = data.getProb().getCols();
   
   float *h_X = new float[rows*inputDim],
 	*h_y = new float[rows],
         *h_prob = new float[rows*outputDim];
 
-  CCE(cudaMemcpy(h_X, data.X.getData(), sizeof(float) * data.X.size(), cudaMemcpyDeviceToHost));
-  CCE(cudaMemcpy(h_y, data.y.getData(), sizeof(float) * data.y.size(), cudaMemcpyDeviceToHost));
-  CCE(cudaMemcpy(h_prob, data.prob.getData(), sizeof(float) * data.prob.size(), cudaMemcpyDeviceToHost));
+  CCE(cudaMemcpy(h_X, data.getX().getData(), sizeof(float) * data.getX().size(), cudaMemcpyDeviceToHost));
+  CCE(cudaMemcpy(h_y, data.getY().getData(), sizeof(float) * data.getY().size(), cudaMemcpyDeviceToHost));
+  CCE(cudaMemcpy(h_prob, data.getProb().getData(), sizeof(float) * data.getProb().size(), cudaMemcpyDeviceToHost));
 
   float* h_trainX, *h_trainY, *h_trainProb, *h_validX, *h_validY, *h_validProb;
   size_t nTrain, nValid;
@@ -293,13 +317,13 @@ void splitIntoTrainingAndValidationSet(
       h_X, h_prob, h_y,
       rows, inputDim, outputDim);
 
-  train.X    = mat(h_trainX   , nTrain, inputDim );
-  train.prob = mat(h_trainProb, nTrain, outputDim);
-  train.y    = mat(h_trainY   , nTrain, 1        );
+  train.getX()    = mat(h_trainX   , nTrain, inputDim );
+  train.getProb() = mat(h_trainProb, nTrain, outputDim);
+  train.getY()    = mat(h_trainY   , nTrain, 1        );
 
-  valid.X    = mat(h_validX   , nValid, inputDim );
-  valid.prob = mat(h_validProb, nValid, outputDim);
-  valid.y    = mat(h_validY   , nValid, 1	 );
+  valid.getX()    = mat(h_validX   , nValid, inputDim );
+  valid.getProb() = mat(h_validProb, nValid, outputDim);
+  valid.getY()    = mat(h_validY   , nValid, 1	      );
 
   delete [] h_X;
   delete [] h_prob;

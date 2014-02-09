@@ -186,7 +186,7 @@ void DNN::adjustLearningRate(float trainAcc) {
 
 mat DNN::predict(const DataSet& test) {
   mat output;
-  this->feedForward(output, test.X);
+  this->feedForward(output, test.getX());
   return output;
 }
 
