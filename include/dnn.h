@@ -51,8 +51,6 @@ public:
   void read(string fn);
   void save(string fn) const;
   void print() const;
-  
-  mat predict(const DataSet& test);
 
   friend void swap(DNN& lhs, DNN& rhs);
 

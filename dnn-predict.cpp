@@ -32,7 +32,8 @@ int main (int argc, char* argv[]) {
   test.showSummary();
 
   DNN dnn(model_fn);
-  mat prob = dnn.predict(test);
+  mat prob;
+  dnn.feedForward(prob, test.getX());
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 

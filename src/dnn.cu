@@ -183,13 +183,6 @@ void DNN::adjustLearningRate(float trainAcc) {
   }
 }
 
-
-mat DNN::predict(const DataSet& test) {
-  mat output;
-  this->feedForward(output, test.getX());
-  return output;
-}
-
 mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   mat error;
