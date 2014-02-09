@@ -8,19 +8,19 @@ DataSet::DataSet(const string &fn, bool rescale) {
 
   read(fn, rescale);
 
-  this->y = getStandardLabels();
-  this->prob = label2PosteriorProb(this->y);
+  _y = getStandardLabels();
+  _prob = label2PosteriorProb(_y);
 }
 
 mat DataSet::getStandardLabels() {
-  assert(y.getCols() == 1);
+  assert(_y.getCols() == 1);
 
-  size_t N = y.getRows();
+  size_t N = _y.getRows();
   float* hy = new float[N];
-  CCE(cudaMemcpy(hy, y.getData(), sizeof(float) * N, cudaMemcpyDeviceToHost));
+  CCE(cudaMemcpy(hy, _y.getData(), sizeof(float) * N, cudaMemcpyDeviceToHost));
 
   // Replace labels to 1, 2, 3, N, using mapping
-  map<int, int> classes = getLabelMapping(y);
+  map<int, int> classes = getLabelMapping(_y);
   for (size_t i=0; i<N; ++i)
     hy[i] = classes[hy[i]];
 
@@ -32,11 +32,11 @@ mat DataSet::getStandardLabels() {
 
 size_t DataSet::getInputDimension() const {
   // FIXME the input dimension shouldn't be so unclear
-  return this->X.getCols() - 1;
+  return _X.getCols() - 1;
 }
 
 size_t DataSet::getOutputDimension() const {
-  return this->prob.getCols();
+  return _prob.getCols();
 }
 
 void DataSet::rescaleFeature(float* data, size_t rows, size_t cols, float lower, float upper) {
@@ -87,12 +87,12 @@ void DataSet::read(const string &fn, bool rescale) {
     rescaleFeature(data, rows, cols);
   }
 
-  X = mat(data, rows, cols);
-  X.reserve(rows * (cols + 1));
-  X.resize(rows, cols + 1);
-  fillLastColumnWith(X, (float) 1.0);
+  _X = mat(data, rows, cols);
+  _X.reserve(rows * (cols + 1));
+  _X.resize(rows, cols + 1);
+  fillLastColumnWith(_X, (float) 1.0);
 
-  y = mat(labels, rows, 1);
+  _y = mat(labels, rows, 1);
   // --------------------------------------
 
   delete [] data;
@@ -141,9 +141,9 @@ void DataSet::readDenseFeature(ifstream& fin, float* data, float* labels, size_t
 }
 
 void DataSet::showSummary() const {
-  size_t input_dim  = this->X.getCols();
-  size_t nData	    = this->X.getRows();
-  size_t nClasses   = this->prob.getCols();
+  size_t input_dim  = _X.getCols();
+  size_t nData	    = _X.getRows();
+  size_t nClasses   = _prob.getCols();
 
   printf("+--------------------------------+-----------+\n");
   printf("| Number of classes              | %9lu |\n", nClasses);
@@ -154,11 +154,11 @@ void DataSet::showSummary() const {
 }
 
 size_t DataSet::getClassNumber() const {
-  thrust::device_ptr<float> dptr(this->y.getData());
-  thrust::host_vector<float> y(dptr, dptr + this->y.size());
+  thrust::device_ptr<float> dptr(_y.getData());
+  thrust::host_vector<float> y(dptr, dptr + _y.size());
 
   map<float, bool> classes;
-  for (size_t i=0; i<y.size(); ++i)
+  for (size_t i=0; i<_y.size(); ++i)
     classes[y[i]] = true;
 
   return classes.size();
@@ -166,18 +166,18 @@ size_t DataSet::getClassNumber() const {
 
 void DataSet::shuffleFeature() {
 
-  float *h_X = new float[this->X.size()],
-	*h_y = new float[this->y.size()];
+  float *h_X = new float[_X.size()],
+	*h_y = new float[_y.size()];
 
-  CCE(cudaMemcpy(h_X, this->X.getData(), sizeof(float) * this->X.size(), cudaMemcpyDeviceToHost));
-  CCE(cudaMemcpy(h_y, this->y.getData(), sizeof(float) * this->y.size(), cudaMemcpyDeviceToHost));
+  CCE(cudaMemcpy(h_X, _X.getData(), sizeof(float) * _X.size(), cudaMemcpyDeviceToHost));
+  CCE(cudaMemcpy(h_y, _y.getData(), sizeof(float) * _y.size(), cudaMemcpyDeviceToHost));
 
-  shuffleFeature(h_X, h_y, this->X.getRows(), this->X.getCols());
+  shuffleFeature(h_X, h_y, _X.getRows(), _X.getCols());
 
-  CCE(cudaMemcpy(this->X.getData(), h_X, sizeof(float) * this->X.size(), cudaMemcpyHostToDevice));
-  CCE(cudaMemcpy(this->y.getData(), h_y, sizeof(float) * this->y.size(), cudaMemcpyHostToDevice));
+  CCE(cudaMemcpy(_X.getData(), h_X, sizeof(float) * _X.size(), cudaMemcpyHostToDevice));
+  CCE(cudaMemcpy(_y.getData(), h_y, sizeof(float) * _y.size(), cudaMemcpyHostToDevice));
 
-  this->prob = label2PosteriorProb(this->y);
+  _prob = label2PosteriorProb(_y);
 
   delete [] h_X;
   delete [] h_y;
@@ -269,27 +269,27 @@ void DataSet::shuffleFeature(float* const data, float* const labels, int rows, i
 }
 
 mat& DataSet::getX() {
-  return X;
+  return _X;
 }
 
 const mat& DataSet::getX() const {
-  return X;
+  return _X;
 }
 
 mat& DataSet::getY() {
-  return y;
+  return _y;
 }
 
 const mat& DataSet::getY() const {
-  return y;
+  return _y;
 }
 
 mat& DataSet::getProb() {
-  return prob;
+  return _prob;
 }
 
 const mat& DataSet::getProb() const {
-  return prob;
+  return _prob;
 }
 
 void splitIntoTrainingAndValidationSet(

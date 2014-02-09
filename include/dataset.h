@@ -2,7 +2,9 @@
 #define __DATASET_H_
 
 #include <device_matrix.h>
+#include <host_matrix.h>
 typedef device_matrix<float> mat;
+typedef host_matrix<float> hmat;
 
 class DataSet {
 public:
@@ -32,9 +34,9 @@ public:
   mat& getProb();
   const mat& getProb() const;
 
-
 private:
-  mat X, y, prob;
+  // hmat _hx, _hy, _hprob;
+  mat _X, _y, _prob;
 };
 
 bool isFileSparse(string train_fn);
