@@ -127,12 +127,12 @@ string Sigmoid::toString() const {
   return "sigmoid";
 }
 
-void Sigmoid::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+void Sigmoid::feedForward(mat& fout, const mat& fin) {
   fout = ext::sigmoid(const_cast<mat&>(fin) * _w);
   fillLastColumnWith(fout, (float) 1.0);
 }
 
-void Sigmoid::backPropagate(const mat& fin, const mat& fout, mat& error) {
+void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout) {
   mat delta = error & (1.0f - fout) & fout;
 
   _dw = ~const_cast<mat&>(fin) * delta;
@@ -219,7 +219,7 @@ void substractMaxPerRow(mat& x) {
   CCE(cudaDeviceSynchronize());
 }*/
 
-void Softmax::feedForward(mat& fout, const mat& fin, size_t offset, size_t nData) {
+void Softmax::feedForward(mat& fout, const mat& fin) {
 
   mat x = const_cast<mat&>(fin) * const_cast<mat&>(_w);
   x.resize(x.getRows(), x.getCols() - 1);
@@ -243,7 +243,7 @@ mat rowSum(mat& m) {
   return m * (mat(m.getCols(), m.getCols()) += 1);
 }
 
-void Softmax::backPropagate(const mat& fin, const mat& fout, mat& error) {
+void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout) {
 
   mat error_times_fout = error & fout;
   mat sum = rowSum(error_times_fout);

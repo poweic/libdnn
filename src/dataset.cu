@@ -8,57 +8,52 @@ DataSet::DataSet(const string &fn, bool rescale) {
 
   read(fn, rescale);
 
-  this->y = getStandardLabels();
-  this->prob = label2PosteriorProb(this->y);
+  convertToStandardLabels();
+  label2PosteriorProb();
 }
 
-mat DataSet::getStandardLabels() {
-  assert(y.getCols() == 1);
-
-  size_t N = y.getRows();
-  float* hy = new float[N];
-  CCE(cudaMemcpy(hy, y.getData(), sizeof(float) * N, cudaMemcpyDeviceToHost));
+void DataSet::convertToStandardLabels() {
+  assert(_hy.getCols() == 1);
 
   // Replace labels to 1, 2, 3, N, using mapping
-  map<int, int> classes = getLabelMapping(y);
-  for (size_t i=0; i<N; ++i)
-    hy[i] = classes[hy[i]];
-
-  mat sLabels(hy, N, 1);
-  delete [] hy;
-
-  return sLabels;
+  map<int, int> classes = getLabelMapping(_hy);
+  for (size_t i=0; i<_hy.getRows(); ++i)
+    _hy.getData()[i] = classes[_hy.getData()[i]];
 }
 
 size_t DataSet::getInputDimension() const {
   // FIXME the input dimension shouldn't be so unclear
-  return this->X.getCols() - 1;
+  return _hx.getCols() - 1;
 }
 
 size_t DataSet::getOutputDimension() const {
-  return this->prob.getCols();
+  return _hprob.getCols();
 }
 
-void DataSet::rescaleFeature(float* data, size_t rows, size_t cols, float lower, float upper) {
+void DataSet::rescaleFeature(float lower, float upper) {
+
+  size_t rows = _hx.getRows(),
+	 cols = _hx.getCols();
+
   for (size_t i=0; i<rows; ++i) {
-    float min = data[i],
-	  max = data[i];
+    float min = _hx.getData()[i],
+	  max = _hx.getData()[i];
 
     for (size_t j=0; j<cols; ++j) {
-      float x = data[j*rows + i];
+      float x = _hx(i, j);
       if (x > max) max = x;
       if (x < min) min = x;
     }
 
     if (max == min) {
       for (size_t j=0; j<cols; ++j)
-	data[j*rows + i] = upper;
+	_hx(i, j) = upper;
       continue;
     }
 
     float ratio = (upper - lower) / (max - min);
     for (size_t j=0; j<cols; ++j)
-      data[j*rows + i] = (data[j*rows + i] - min) * ratio + lower;
+      _hx(i, j) = (_hx(i, j) - min) * ratio + lower;
   }
 }
 
@@ -69,37 +64,36 @@ void DataSet::read(const string &fn, bool rescale) {
 
   size_t cols = isSparse ? findMaxDimension(fin) : findDimension(fin);
   size_t rows = getLineNumber(fin);
-  float* data = new float[rows * cols];
-  float* labels = new float[rows];
 
-  memset(data, 0, sizeof(float) * rows * cols);
+  _hx.resize(rows, cols);
+  _hy.resize(rows, 1);
 
   if (isSparse)
-    readSparseFeature(fin, data, labels, rows, cols);
+    readSparseFeature(fin);
   else
-    readDenseFeature(fin, data, labels, rows, cols);
+    readDenseFeature(fin);
 
   fin.close();
 
   // --------------------------------------
   if (rescale) {
     printf("\33[33m[Info]\33[0m rescale each feature to [0, 1]\n");
-    rescaleFeature(data, rows, cols);
+    rescaleFeature();
   }
 
-  X = mat(data, rows, cols);
-  X.reserve(rows * (cols + 1));
-  X.resize(rows, cols + 1);
-  fillLastColumnWith(X, (float) 1.0);
+  _hx.reserve(rows * (cols + 1));
+  _hx.resize(rows, cols + 1);
 
-  y = mat(labels, rows, 1);
+  float* lastColumn = _hx.getData() + rows * cols;
+  std::fill(lastColumn, lastColumn + rows, 1.0f);
+
   // --------------------------------------
-
-  delete [] data;
-  delete [] labels;
 }
 
-void DataSet::readSparseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols) {
+void DataSet::readSparseFeature(ifstream& fin) {
+
+  size_t rows = _hx.getRows(),
+	 cols = _hx.getCols();
 
   string line, token;
   size_t i = 0;
@@ -107,7 +101,7 @@ void DataSet::readSparseFeature(ifstream& fin, float* data, float* labels, size_
     stringstream ss(line);
   
     ss >> token;
-    labels[i] = str2float(token);
+    _hy.getData()[i] = str2float(token);
 
     while (ss >> token) {
       size_t pos = token.find(':');
@@ -117,13 +111,16 @@ void DataSet::readSparseFeature(ifstream& fin, float* data, float* labels, size_
       size_t j = str2float(token.substr(0, pos)) - 1;
       float value = str2float(token.substr(pos + 1));
       
-      data[j * rows + i] = value;
+      _hx.getData()[j * rows + i] = value;
     }
     ++i;
   }
 }
 
-void DataSet::readDenseFeature(ifstream& fin, float* data, float* labels, size_t rows, size_t cols) {
+void DataSet::readDenseFeature(ifstream& fin) {
+  
+  size_t rows = _hx.getRows(),
+	 cols = _hx.getCols();
 
   string line, token;
   size_t i = 0;
@@ -131,19 +128,19 @@ void DataSet::readDenseFeature(ifstream& fin, float* data, float* labels, size_t
     stringstream ss(line);
   
     ss >> token;
-    labels[i] = str2float(token);
+    _hy.getData()[i] = str2float(token);
 
     size_t j = 0;
     while (ss >> token)
-      data[(j++) * rows + i] = str2float(token);
+      _hx.getData()[(j++) * rows + i] = str2float(token);
     ++i;
   }
 }
 
 void DataSet::showSummary() const {
-  size_t input_dim  = this->X.getCols();
-  size_t nData	    = this->X.getRows();
-  size_t nClasses   = this->prob.getCols();
+  size_t input_dim  = _hx.getCols();
+  size_t nData	    = _hx.getRows();
+  size_t nClasses   = _hprob.getCols();
 
   printf("+--------------------------------+-----------+\n");
   printf("| Number of classes              | %9lu |\n", nClasses);
@@ -154,33 +151,20 @@ void DataSet::showSummary() const {
 }
 
 size_t DataSet::getClassNumber() const {
-  thrust::device_ptr<float> dptr(this->y.getData());
-  thrust::host_vector<float> y(dptr, dptr + this->y.size());
-
-  map<float, bool> classes;
-  for (size_t i=0; i<y.size(); ++i)
-    classes[y[i]] = true;
-
-  return classes.size();
+  return getLabelMapping(_hy).size();
 }
 
-void DataSet::shuffleFeature() {
+void DataSet::label2PosteriorProb() {
+  
+  map<int, int> classes = getLabelMapping(_hy);
+  size_t nClasses = classes.size();
 
-  float *h_X = new float[this->X.size()],
-	*h_y = new float[this->y.size()];
+  // Convert labels to posterior probabilities
+  _hprob.resize(_hy.getRows(), nClasses);
+  _hprob.fillwith(0);
 
-  CCE(cudaMemcpy(h_X, this->X.getData(), sizeof(float) * this->X.size(), cudaMemcpyDeviceToHost));
-  CCE(cudaMemcpy(h_y, this->y.getData(), sizeof(float) * this->y.size(), cudaMemcpyDeviceToHost));
-
-  shuffleFeature(h_X, h_y, this->X.getRows(), this->X.getCols());
-
-  CCE(cudaMemcpy(this->X.getData(), h_X, sizeof(float) * this->X.size(), cudaMemcpyHostToDevice));
-  CCE(cudaMemcpy(this->y.getData(), h_y, sizeof(float) * this->y.size(), cudaMemcpyHostToDevice));
-
-  this->prob = label2PosteriorProb(this->y);
-
-  delete [] h_X;
-  delete [] h_y;
+  for (size_t i=0; i<_hprob.getRows(); ++i)
+    _hprob(i, (_hy[i] - 1)) = 1;
 }
 
 bool isFileSparse(string train_fn) {
@@ -244,109 +228,79 @@ size_t findDimension(ifstream& fin) {
   return dim;
 }
 
-void DataSet::shuffleFeature(float* const data, float* const labels, int rows, int cols) {
+void DataSet::shuffleFeature() {
+
+  size_t rows = _hx.getRows(),
+	 cols = _hx.getCols();
 
   std::vector<size_t> perm = randperm(rows);
 
-  float* tmp_data = new float[rows*cols];
-  float* tmp_labels = new float[rows];
-
-  memcpy(tmp_data, data, sizeof(float) * rows * cols);
-  memcpy(tmp_labels, labels, sizeof(float) * rows);
+  hmat x(_hx), y(_hy);
 
   for (size_t i=0; i<rows; ++i) {
-    size_t from = i;
-    size_t to = perm[i];
-
     for (size_t j=0; j<cols; ++j)
-      data[j * rows + to] = tmp_data[j * rows + from];
-
-    labels[to] = tmp_labels[from];
+      _hx(perm[i], j) = x (i, j);
+    _hy[perm[i]] = y[i];
   }
 
-  delete [] tmp_data;
-  delete [] tmp_labels;
+  label2PosteriorProb();
 }
 
-void splitIntoTrainingAndValidationSet(
-    DataSet& train, DataSet& valid,
-    DataSet& data, int ratio) {
+bool DataSet::isLabeled() const {
+  return getLabelMapping(_hy).size() > 1;
+}
 
-  size_t rows = data.X.getRows(),
-	 inputDim = data.X.getCols(),
-	 outputDim = data.prob.getCols();
+mat DataSet::getX() const {
+  return mat(_hx.getData(), _hx.getRows(), _hx.getCols());
+}
+
+mat DataSet::getY() const {
+  return mat(_hy.getData(), _hy.getRows(), _hy.getCols());
+}
+
+mat DataSet::getProb() const {
+  return mat(_hprob.getData(), _hprob.getRows(), _hprob.getCols());
+}
+
+void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio) {
+
+  size_t rows = _hx.getRows(),
+	 inputDim = _hx.getCols(),
+	 outputDim = _hprob.getCols();
   
-  float *h_X = new float[rows*inputDim],
-	*h_y = new float[rows],
-        *h_prob = new float[rows*outputDim];
+  size_t nValid = rows / ratio,
+	 nTrain = rows - nValid;
 
-  CCE(cudaMemcpy(h_X, data.X.getData(), sizeof(float) * data.X.size(), cudaMemcpyDeviceToHost));
-  CCE(cudaMemcpy(h_y, data.y.getData(), sizeof(float) * data.y.size(), cudaMemcpyDeviceToHost));
-  CCE(cudaMemcpy(h_prob, data.prob.getData(), sizeof(float) * data.prob.size(), cudaMemcpyDeviceToHost));
-
-  float* h_trainX, *h_trainY, *h_trainProb, *h_validX, *h_validY, *h_validProb;
-  size_t nTrain, nValid;
-  splitIntoTrainingAndValidationSet(
-      h_trainX, h_trainProb, h_trainY, nTrain,
-      h_validX, h_validProb, h_validY, nValid,
-      ratio,
-      h_X, h_prob, h_y,
-      rows, inputDim, outputDim);
-
-  train.X    = mat(h_trainX   , nTrain, inputDim );
-  train.prob = mat(h_trainProb, nTrain, outputDim);
-  train.y    = mat(h_trainY   , nTrain, 1        );
-
-  valid.X    = mat(h_validX   , nValid, inputDim );
-  valid.prob = mat(h_validProb, nValid, outputDim);
-  valid.y    = mat(h_validY   , nValid, 1	 );
-
-  delete [] h_X;
-  delete [] h_prob;
-  delete [] h_y;
-
-  delete [] h_trainX;
-  delete [] h_trainY;
-  delete [] h_trainProb;
-
-  delete [] h_validX;
-  delete [] h_validY;
-  delete [] h_validProb;
-}
-
-void splitIntoTrainingAndValidationSet(
-    float* &trainX, float* &trainProb, float* &trainY, size_t& nTrain,
-    float* &validX, float* &validProb, float* &validY, size_t& nValid,
-    int ratio, /* ratio of training / validation */
-    const float* const data, const float* const prob, const float* const labels,
-    int rows, int inputDim, int outputDim) {
-
-  nValid = rows / ratio;
-  nTrain = rows - nValid;
   printf("| nTrain                         | %9lu |\n", nTrain);
   printf("| nValid                         | %9lu |\n", nValid);
 
-  trainX    = new float[nTrain * inputDim];
-  trainProb = new float[nTrain * outputDim];
-  trainY    = new float[nTrain];
-
-  validX    = new float[nValid * inputDim];
-  validProb = new float[nValid * outputDim];
-  validY    = new float[nValid];
+  // Copy data to training set
+  train._hx.resize(nTrain, inputDim);
+  train._hy.resize(nTrain, 1);
+  train._hprob.resize(nTrain, outputDim);
 
   for (size_t i=0; i<nTrain; ++i) {
     for (size_t j=0; j<inputDim; ++j)
-      trainX[j * nTrain + i] = data[j * rows + i];
+      train._hx(i, j) = _hx(i, j);
+
     for (size_t j=0; j<outputDim; ++j)
-      trainProb[j * nTrain + i] = prob[j * rows + i];
-    trainY[i] = labels[i];
+      train._hprob(i, j) = _hprob(i, j);
+
+    train._hy[i] = _hy[i];
   }
+
+  // Copy data to validation set
+  valid._hx.resize(nValid, inputDim);
+  valid._hy.resize(nValid, 1);
+  valid._hprob.resize(nValid, outputDim);
 
   for (size_t i=0; i<nValid; ++i) {
     for (size_t j=0; j<inputDim; ++j)
-      validX[j * nValid + i] = data[j * rows + i + nTrain];
+      valid._hx(i, j) = _hx[j * rows + i + nTrain];
+
     for (size_t j=0; j<outputDim; ++j)
-      validProb[j * nValid + i] = prob[j * rows + i + nTrain];
-    validY[i] = labels[i + nTrain];
+      valid._hprob(i, j) = _hprob[j * rows + i + nTrain];
+
+    valid._hy[i] = _hy[i + nTrain];
   }
 }

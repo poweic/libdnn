@@ -6,6 +6,9 @@
 #include <rbm.h>
 using namespace std;
 
+void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
+bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
+
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
@@ -67,7 +70,7 @@ int main (int argc, char* argv[]) {
   data.showSummary();
 
   DataSet train, valid;
-  splitIntoTrainingAndValidationSet(train, valid, data, ratio);
+  data.splitIntoTrainAndValidSet(train, valid, ratio);
 
   // Set configurations
   Config config;
@@ -80,17 +83,22 @@ int main (int argc, char* argv[]) {
 
   DNN dnn;
   // Initialize Deep Neural Network
-  if (preTraining == 2) {
-    assert(!pre_model_fn.empty());
-    printf("Loading pre-trained model from file: \"%s\"\n", pre_model_fn.c_str());
-    dnn = DNN(pre_model_fn);
-  }
-  else {
-    if (preTraining == 0)
+  switch (preTraining) {
+    case 0:
       dnn.init(config.dims);
-    else if (preTraining == 1)
+      break;
+
+    case 1:
       dnn.init(rbminit(data, getDimensionsForRBM(data, structure), slopeThres));
-    else
+      break;
+
+    case 2:
+      assert(!pre_model_fn.empty());
+      printf("Loading pre-trained model from file: \"%s\"\n", pre_model_fn.c_str());
+      dnn = DNN(pre_model_fn);
+      break;
+
+    default:
       return -1;
   }
 
@@ -98,10 +106,106 @@ int main (int argc, char* argv[]) {
 
   ERROR_MEASURE err = CROSS_ENTROPY;
   // Start Training
-  dnn.train(train, valid, batchSize, err);
+  dnn_train(dnn, train, valid, batchSize, err);
 
   // Save the model
   dnn.save(model_fn);
 
   return 0;
 }
+
+void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
+
+  printf("Training...\n");
+  perf::Timer timer;
+  timer.start();
+
+  vector<mat> O(dnn.getNLayer());
+
+  size_t Ein;
+  size_t MAX_EPOCH = dnn.getConfig().maxEpoch, epoch;
+  std::vector<size_t> Eout;
+  Eout.reserve(MAX_EPOCH);
+
+  size_t nTrain = train.getX().getRows(),
+	 nValid = valid.getX().getRows();
+
+  size_t nBatch = nTrain / batchSize,
+         remained = nTrain - nBatch * batchSize;
+
+  mat fout;
+
+  if (remained > 0)
+    ++nBatch;
+
+  for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
+
+    if (dnn.getConfig().randperm)
+      const_cast<DataSet&>(train).shuffleFeature();
+
+    for (size_t b=0; b<nBatch; ++b) {
+
+      size_t offset = b*batchSize;
+      size_t nData = batchSize;
+
+      if (b == nBatch - 1)
+	nData = min(remained - 1, batchSize);
+
+      // Copy a batch of data from training data to O[0]
+      mat fin(nData, train.getX().getCols());
+      memcpy2D(fin, train.getX(), offset, 0, nData, train.getX().getCols(), 0, 0);
+
+      dnn.feedForward(fout, fin);
+
+      mat error = dnn.getError(train.getProb(), fout, offset, nData, errorMeasure);
+
+      dnn.backPropagate(error, fin, fout);
+      dnn.update(dnn.getConfig().learningRate);
+    }
+
+    dnn.feedForward(fout, valid.getX());
+    Eout.push_back(zeroOneError(fout, valid.getY(), errorMeasure));
+  
+    dnn.feedForward(fout, train.getX());
+    Ein = zeroOneError(fout, train.getY(), errorMeasure);
+
+    float trainAcc = 1.0f - (float) Ein / nTrain;
+
+    if (trainAcc < 0.5) {
+      cout << "."; cout.flush();
+      continue;
+    }
+
+    float validAcc= 1.0f - (float) Eout[epoch] / nValid;
+    if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
+      break;
+
+    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
+      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); 
+
+    dnn.adjustLearningRate(trainAcc);
+  }
+
+  // Show Summary
+  printf("\n%ld epochs in total\n", epoch);
+  timer.elapsed();
+
+  dnn.feedForward(fout, train.getX());
+  Ein = zeroOneError(fout, train.getY(), errorMeasure);
+
+  printf("[   In-Sample   ] ");
+  showAccuracy(Ein, train.getY().size());
+  printf("[ Out-of-Sample ] ");
+  showAccuracy(Eout.back(), valid.getY().size());
+}
+
+bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch) {
+
+  for (size_t i=0; i<nNonIncEpoch; ++i) {
+    if (epoch - i > 0 && Eout[epoch] > Eout[epoch - i])
+      return false;
+  }
+
+  return true;
+}
+
