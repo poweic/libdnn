@@ -28,16 +28,7 @@ public:
   void shuffleFeature();
   bool isLabeled() const;
 
-  void splitIntoTrainingAndValidationSet(
-      DataSet& train, DataSet& valid,
-      DataSet& data, int ratio);
-
-  void splitIntoTrainingAndValidationSet(
-      float* trainX, float* trainProb, float* trainY, size_t nTrain,
-      float* validX, float* validProb, float* validY, size_t nValid,
-      int ratio, /* ratio of training / validation */
-      const float* const data, const float* const prob, const float* const labels,
-      int rows, int inputDim, int outputDim);
+  void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
 
   mat getX() const;
   mat getY() const;
@@ -45,7 +36,6 @@ public:
 
 private:
   hmat _hx, _hy, _hprob;
-  // mat _X, _y, _prob;
 };
 
 bool isFileSparse(string train_fn);
@@ -53,6 +43,5 @@ bool isFileSparse(string train_fn);
 size_t getLineNumber(ifstream& fin);
 size_t findMaxDimension(ifstream& fin);
 size_t findDimension(ifstream& fin);
-
 
 #endif

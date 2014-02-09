@@ -68,8 +68,6 @@ void DataSet::read(const string &fn, bool rescale) {
   _hx.resize(rows, cols);
   _hy.resize(rows, 1);
 
-  // memset(data, 0, sizeof(float) * rows * cols);
-
   if (isSparse)
     readSparseFeature(fin);
   else
@@ -82,12 +80,6 @@ void DataSet::read(const string &fn, bool rescale) {
     printf("\33[33m[Info]\33[0m rescale each feature to [0, 1]\n");
     rescaleFeature();
   }
-
-  /*_X = mat(_hx.getData(), rows, cols);
-  _X.reserve(rows * (cols + 1));
-  _X.resize(rows, cols + 1);
-  fillLastColumnWith(_X, (float) 1.0);
-  _y = mat(_hy.getData(), rows, 1);*/
 
   _hx.reserve(rows * (cols + 1));
   _hx.resize(rows, cols + 1);
@@ -270,99 +262,45 @@ mat DataSet::getProb() const {
   return mat(_hprob.getData(), _hprob.getRows(), _hprob.getCols());
 }
 
-void DataSet::splitIntoTrainingAndValidationSet(
-    DataSet& train, DataSet& valid,
-    DataSet& data, int ratio) {
+void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio) {
 
-  size_t rows = data.getX().getRows(),
-	 inputDim = data.getX().getCols(),
-	 outputDim = data.getProb().getCols();
+  size_t rows = _hx.getRows(),
+	 inputDim = _hx.getCols(),
+	 outputDim = _hprob.getCols();
   
-  /*float *h_X = new float[rows*inputDim],
-	*h_y = new float[rows],
-        *h_prob = new float[rows*outputDim];
-
-  CCE(cudaMemcpy(h_X, data.getX().getData(), sizeof(float) * data.getX().size(), cudaMemcpyDeviceToHost));
-  CCE(cudaMemcpy(h_y, data.getY().getData(), sizeof(float) * data.getY().size(), cudaMemcpyDeviceToHost));
-  CCE(cudaMemcpy(h_prob, data.getProb().getData(), sizeof(float) * data.getProb().size(), cudaMemcpyDeviceToHost));*/
-
-  //float* h_trainX, *h_trainY, *h_trainProb, *h_validX, *h_validY, *h_validProb;
-
   size_t nValid = rows / ratio,
 	 nTrain = rows - nValid;
 
   printf("| nTrain                         | %9lu |\n", nTrain);
   printf("| nValid                         | %9lu |\n", nValid);
 
+  // Copy data to training set
   train._hx.resize(nTrain, inputDim);
   train._hy.resize(nTrain, 1);
   train._hprob.resize(nTrain, outputDim);
 
+  for (size_t i=0; i<nTrain; ++i) {
+    for (size_t j=0; j<inputDim; ++j)
+      train._hx(i, j) = _hx(i, j);
+
+    for (size_t j=0; j<outputDim; ++j)
+      train._hprob(i, j) = _hprob(i, j);
+
+    train._hy[i] = _hy[i];
+  }
+
+  // Copy data to validation set
   valid._hx.resize(nValid, inputDim);
   valid._hy.resize(nValid, 1);
   valid._hprob.resize(nValid, outputDim);
 
-  this->splitIntoTrainingAndValidationSet(
-      train._hx.getData(), train._hprob.getData(), train._hy.getData(), nTrain,
-      valid._hx.getData(), valid._hprob.getData(), valid._hy.getData(), nValid,
-      ratio,
-      _hx.getData(), _hprob.getData(), _hy.getData(),
-      rows, inputDim, outputDim);
-
-  /*train.getX()    = mat(h_trainX   , nTrain, inputDim );
-  train.getProb() = mat(h_trainProb, nTrain, outputDim);
-  train.getY()    = mat(h_trainY   , nTrain, 1        );
-
-  valid.getX()    = mat(h_validX   , nValid, inputDim );
-  valid.getProb() = mat(h_validProb, nValid, outputDim);
-  valid.getY()    = mat(h_validY   , nValid, 1	      );*/
-
-  /*delete [] h_X;
-  delete [] h_prob;
-  delete [] h_y;*/
-
-  /*delete [] h_trainX;
-  delete [] h_trainY;
-  delete [] h_trainProb;
-
-  delete [] h_validX;
-  delete [] h_validY;
-  delete [] h_validProb;*/
-}
-
-void DataSet::splitIntoTrainingAndValidationSet(
-    float* trainX, float* trainProb, float* trainY, size_t nTrain,
-    float* validX, float* validProb, float* validY, size_t nValid,
-    int ratio, /* ratio of training / validation */
-    const float* const data, const float* const prob, const float* const labels,
-    int rows, int inputDim, int outputDim) {
-
-  /*nValid = rows / ratio;
-  nTrain = rows - nValid;
-  printf("| nTrain                         | %9lu |\n", nTrain);
-  printf("| nValid                         | %9lu |\n", nValid);*/
-
-  /*trainX    = new float[nTrain * inputDim];
-  trainProb = new float[nTrain * outputDim];
-  trainY    = new float[nTrain];
-
-  validX    = new float[nValid * inputDim];
-  validProb = new float[nValid * outputDim];
-  validY    = new float[nValid];*/
-
-  for (size_t i=0; i<nTrain; ++i) {
-    for (size_t j=0; j<inputDim; ++j)
-      trainX[j * nTrain + i] = data[j * rows + i];
-    for (size_t j=0; j<outputDim; ++j)
-      trainProb[j * nTrain + i] = prob[j * rows + i];
-    trainY[i] = labels[i];
-  }
-
   for (size_t i=0; i<nValid; ++i) {
     for (size_t j=0; j<inputDim; ++j)
-      validX[j * nValid + i] = data[j * rows + i + nTrain];
+      valid._hx(i, j) = _hx[j * rows + i + nTrain];
+
     for (size_t j=0; j<outputDim; ++j)
-      validProb[j * nValid + i] = prob[j * rows + i + nTrain];
-    validY[i] = labels[i + nTrain];
+      valid._hprob(i, j) = _hprob[j * rows + i + nTrain];
+
+    valid._hy[i] = _hy[i + nTrain];
   }
 }
