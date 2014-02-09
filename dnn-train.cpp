@@ -83,17 +83,22 @@ int main (int argc, char* argv[]) {
 
   DNN dnn;
   // Initialize Deep Neural Network
-  if (preTraining == 2) {
-    assert(!pre_model_fn.empty());
-    printf("Loading pre-trained model from file: \"%s\"\n", pre_model_fn.c_str());
-    dnn = DNN(pre_model_fn);
-  }
-  else {
-    if (preTraining == 0)
+  switch (preTraining) {
+    case 0:
       dnn.init(config.dims);
-    else if (preTraining == 1)
+      break;
+
+    case 1:
       dnn.init(rbminit(data, getDimensionsForRBM(data, structure), slopeThres));
-    else
+      break;
+
+    case 2:
+      assert(!pre_model_fn.empty());
+      printf("Loading pre-trained model from file: \"%s\"\n", pre_model_fn.c_str());
+      dnn = DNN(pre_model_fn);
+      break;
+
+    default:
       return -1;
   }
 
