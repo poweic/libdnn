@@ -23,10 +23,11 @@ typedef host_matrix<float> hmat;
 
 map<int, int> getLabelMapping(const hmat& labels);
 
+mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure);
 mat posteriorProb2Label(const mat& prob);
 
 size_t zeroOneError(const mat& predict, const mat& label, ERROR_MEASURE errorMeasure);
-mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t nData = 0);
+// mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t nData = 0);
 
 vector<float> copyToHost(const mat& m);
 size_t countDifference(const mat& m1, const mat& m2);

@@ -146,7 +146,11 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
       mat fin = train.getX(itr->offset, itr->nData);
       dnn.feedForward(fout, fin);
 
-      mat error = dnn.getError(train.getProb(), fout, itr->offset, itr->nData, errorMeasure);
+      mat error = getError(
+	  train.getProb(itr->offset, itr->nData),
+	  fout,
+	  errorMeasure);
+
       dnn.backPropagate(error, fin, fout);
 
       dnn.update(dnn.getConfig().learningRate);

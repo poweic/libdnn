@@ -39,6 +39,47 @@ namespace ext {
 
 };
 
+mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
+
+  mat error;
+
+  mat& O = const_cast<mat&>(output);
+
+  switch (errorMeasure) {
+    case L2ERROR: 
+      error = output - target;
+      error.reserve(error.getRows() * (error.getCols() + 1));
+      error.resize(error.getRows(), error.getCols() + 1);
+
+      break;
+    case CROSS_ENTROPY: {
+
+	size_t output_dim = target.getCols();
+
+	error.resize(target.getRows(), target.getCols() + 1);
+
+	thrust::device_ptr<float> pPtr(target.getData());
+	thrust::device_ptr<float> oPtr(O.getData());
+
+	thrust::device_ptr<float> ePtr(error.getData());
+
+	thrust::device_vector<float> TMP(O.size());
+	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(1e-10));
+
+	thrust::transform(pPtr, pPtr + target.size(), TMP.begin(), ePtr, func::dcrossentropy<float>());
+
+	break;
+      }
+
+    default:
+      break;
+  }
+
+  O.resize(O.getRows(), O.getCols() + 1);
+
+  return error;
+}
+
 mat posteriorProb2Label(const mat& prob) {
 
   assert(prob.getCols() > 1);
@@ -111,7 +152,7 @@ size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasur
   return nError;
 }
 
-mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData) {
+/*mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData) {
 
   mat error(nData, trainY.getCols());
 
@@ -123,4 +164,4 @@ mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData
       error.getData(), nData);
 
   return error;
-}
+}*/
