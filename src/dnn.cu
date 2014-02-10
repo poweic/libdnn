@@ -107,46 +107,20 @@ void DNN::read(string fn) {
 void DNN::save(string fn) const {
   FILE* fid = fopen(fn.c_str(), "w");
 
-  for (size_t i=0; i<_transforms.size(); ++i) {
-    const mat& w = _transforms[i]->getW();
-
-    size_t rows = w.getRows();
-    size_t cols = w.getCols() - 1;
-
-    fprintf(fid, "<%s> %lu %lu \n", _transforms[i]->toString().c_str(), rows - 1, cols);
-    fprintf(fid, " [");
-
-    // ==============================
-    std::vector<float> data = copyToHost(w);
-    // float* data = new float[w.size()];
-    // CCE(cudaMemcpy(data, w.getData(), sizeof(float) * w.size(), cudaMemcpyDeviceToHost));
-
-    for (size_t j=0; j<rows-1; ++j) {
-      fprintf(fid, "\n  ");
-      for (size_t k=0; k<cols; ++k)
-	fprintf(fid, "%g ", data[k * rows + j]);
-    }
-    fprintf(fid, "]\n");
-
-    fprintf(fid, "<bias> \n [");
-    for (size_t j=0; j<cols; ++j)
-      fprintf(fid, "%g ", data[j * rows + rows - 1]);
-    fprintf(fid, " ]\n");
-
-    // delete [] data;
-  }
-
-  printf("nn_structure ");
   for (size_t i=0; i<_transforms.size(); ++i)
-    printf("%lu ", _transforms[i]->getW().getRows());
-  printf("%lu\n", _transforms.back()->getW().getCols());
+    fprintf(fid, "%s", _transforms[i]->toString().c_str());
+
+  cout << "nn_structure ";
+  for (size_t i=0; i<_transforms.size(); ++i)
+    cout << _transforms[i]->getInputDimension() << " ";
+  cout << _transforms.back()->getOutputDimension() << endl;
   
   fclose(fid);
 }
 
 void DNN::print() const {
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->getW().print();
+    _transforms[i]->print();
 }
 
 // ========================
@@ -203,19 +177,19 @@ void DNN::feedForward(mat& output, const mat& fin) {
 // ===== Back Propagation =====
 // ============================
 
-void DNN::backPropagate(mat& error, const mat& fin, const mat& fout) {
-  _transforms.back()->backPropagate(error, _houts.back(), fout);
+void DNN::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  _transforms.back()->backPropagate(error, _houts.back(), fout, learning_rate);
 
   for (int i=_transforms.size() - 2; i >= 1; --i)
-    _transforms[i]->backPropagate(error, _houts[i-1], _houts[i]);
+    _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
 
-  _transforms[0]->backPropagate(error, fin, _houts[0]);
+  _transforms[0]->backPropagate(error, fin, _houts[0], learning_rate);
 }
 
-void DNN::update(float learning_rate) { 
+/*void DNN::update(float learning_rate) { 
   for (size_t i=0; i<_transforms.size(); ++i)
     _transforms[i]->update(learning_rate);
-}
+}*/
 
 Config DNN::getConfig() const {
   return _config;

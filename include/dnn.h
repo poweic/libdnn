@@ -36,9 +36,9 @@ public:
   void init(const std::vector<mat>& weights);
 
   void feedForward(mat& output, const mat& fin);
-  void backPropagate(mat& error, const mat& fin, const mat& fout);
+  void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
-  void update(float learning_rate);
+  // void update(float learning_rate);
 
   void setConfig(const Config& config);
   size_t getNLayer() const;

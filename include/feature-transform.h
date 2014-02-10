@@ -3,7 +3,7 @@
 
 #include <dnn-utility.h>
 
-void playground();
+string toString(std::vector<float> data, size_t rows, size_t cols);
 
 class FeatureTransform {
 public:
@@ -13,20 +13,21 @@ public:
   virtual FeatureTransform* clone() const = 0;
   virtual string toString() const = 0;
   virtual void feedForward(mat& fout, const mat& fin) = 0;
-  virtual void backPropagate(mat& error, const mat& fin, const mat& fout) = 0;
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) = 0;
 
-  mat& getW();
-  mat& getDw();
-  const mat& getW() const;
-  const mat& getDw() const;
-
-  void update(float learning_rate);
+  size_t getInputDimension() const;
+  size_t getOutputDimension() const;
+  void print() const;
 
 protected:
   FeatureTransform(const mat& w);
 
   mat _w;
-  mat _dw;
+  // mat _dw;
+/*void FeatureTransform::update(float learning_rate) {
+  _dw *= learning_rate;
+  _w -= _dw;
+}*/
 
 private:
   virtual FeatureTransform& operator = (const FeatureTransform& rhs) {}
@@ -41,7 +42,7 @@ public:
   virtual Sigmoid* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
-  virtual void backPropagate(mat& error, const mat& fin, const mat& fout);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
 private:
   virtual Sigmoid& operator = (Sigmoid rhs) {}
@@ -56,7 +57,7 @@ public:
   virtual Softmax* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
-  virtual void backPropagate(mat& error, const mat& fin, const mat& fout);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
 private:
   virtual Softmax& operator = (Softmax rhs) {}
