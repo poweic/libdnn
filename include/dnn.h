@@ -20,6 +20,7 @@
 //  2.9444    0.95         5%
 //  2.1972    0.98         2%
 //  1.3863    0.99         1%
+//
 
 class DNN {
 public:
@@ -38,7 +39,6 @@ public:
   void backPropagate(mat& error, const mat& fin, const mat& fout);
 
   void update(float learning_rate);
-  mat getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure);
 
   void setConfig(const Config& config);
   size_t getNLayer() const;

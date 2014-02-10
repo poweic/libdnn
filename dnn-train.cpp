@@ -4,10 +4,12 @@
 #include <dnn-utility.h>
 #include <cmdparser.h>
 #include <rbm.h>
+#include <batch.h>
 using namespace std;
 
 void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
+void playground();
 
 int main (int argc, char* argv[]) {
 
@@ -127,39 +129,30 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   std::vector<size_t> Eout;
   Eout.reserve(MAX_EPOCH);
 
-  size_t nTrain = train.getX().getRows(),
-	 nValid = valid.getX().getRows();
-
-  size_t nBatch = nTrain / batchSize,
-         remained = nTrain - nBatch * batchSize;
+  size_t nTrain = train.size(),
+	 nValid = valid.size();
 
   mat fout;
-
-  if (remained > 0)
-    ++nBatch;
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
 
     if (dnn.getConfig().randperm)
       const_cast<DataSet&>(train).shuffleFeature();
 
-    for (size_t b=0; b<nBatch; ++b) {
+    Batches batches(batchSize, nTrain);
+    for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
-      size_t offset = b*batchSize;
-      size_t nData = batchSize;
-
-      if (b == nBatch - 1)
-	nData = min(remained - 1, batchSize);
-
-      // Copy a batch of data from training data to O[0]
-      mat fin(nData, train.getX().getCols());
-      memcpy2D(fin, train.getX(), offset, 0, nData, train.getX().getCols(), 0, 0);
-
+      // Copy a batch of data from host to device
+      mat fin = train.getX(itr->offset, itr->nData);
       dnn.feedForward(fout, fin);
 
-      mat error = dnn.getError(train.getProb(), fout, offset, nData, errorMeasure);
+      mat error = getError(
+	  train.getProb(itr->offset, itr->nData),
+	  fout,
+	  errorMeasure);
 
       dnn.backPropagate(error, fin, fout);
+
       dnn.update(dnn.getConfig().learningRate);
     }
 
@@ -194,9 +187,9 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   Ein = zeroOneError(fout, train.getY(), errorMeasure);
 
   printf("[   In-Sample   ] ");
-  showAccuracy(Ein, train.getY().size());
+  showAccuracy(Ein, train.size());
   printf("[ Out-of-Sample ] ");
-  showAccuracy(Eout.back(), valid.getY().size());
+  showAccuracy(Eout.back(), valid.size());
 }
 
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch) {

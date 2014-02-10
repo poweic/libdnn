@@ -250,6 +250,21 @@ bool DataSet::isLabeled() const {
   return getLabelMapping(_hy).size() > 1;
 }
 
+size_t DataSet::size() const {
+  return _hy.size();
+}
+
+mat DataSet::getX(size_t offset, size_t nData) const {
+  size_t cols = _hx.getCols();
+  mat x(nData, cols);
+
+  // FIXME train.getX() copy the whole data from host to device
+  // But x use only a tiny part of it
+  memcpy2D(x, this->getX(), offset, 0, nData, cols, 0, 0);
+
+  return x;
+}
+
 mat DataSet::getX() const {
   return mat(_hx.getData(), _hx.getRows(), _hx.getCols());
 }
@@ -258,8 +273,23 @@ mat DataSet::getY() const {
   return mat(_hy.getData(), _hy.getRows(), _hy.getCols());
 }
 
+mat DataSet::getY(size_t offset, size_t nData) const {
+  // TODO
+}
+
 mat DataSet::getProb() const {
   return mat(_hprob.getData(), _hprob.getRows(), _hprob.getCols());
+}
+
+mat DataSet::getProb(size_t offset, size_t nData) const {
+
+  size_t cols = _hprob.getCols();
+  mat p(nData, cols);
+
+  // FIXME the same problem as above
+  memcpy2D(p, this->getProb(), offset, 0, nData, cols, 0, 0);
+
+  return p;
 }
 
 void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio) {

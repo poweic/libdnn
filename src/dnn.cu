@@ -183,58 +183,6 @@ void DNN::adjustLearningRate(float trainAcc) {
   }
 }
 
-mat DNN::getError(const mat& target, const mat& output, size_t offset, size_t batchSize, ERROR_MEASURE errorMeasure) {
-
-  mat error;
-
-  mat& O = const_cast<mat&>(output);
-
-  switch (errorMeasure) {
-    case L2ERROR: 
-      // mat error = O.back() - train.y;
-      error = calcError(O, target, offset, batchSize);
-      error.reserve(error.getRows() * (error.getCols() + 1));
-      error.resize(error.getRows(), error.getCols() + 1);
-
-      break;
-    case CROSS_ENTROPY: {
-
-	size_t output_dim = target.getCols();
-
-	error.resize(batchSize, output_dim + 1);
-
-	mat batchTarget(batchSize, output_dim);
-	memcpy2D(batchTarget, target, offset, 0, batchSize, output_dim, 0, 0);
-
-	thrust::device_ptr<float> pPtr(batchTarget.getData());
-	thrust::device_ptr<float> oPtr(O.getData());
-
-	thrust::device_ptr<float> ePtr(error.getData());
-
-	thrust::device_vector<float> TMP(O.size());
-	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(1e-10));
-
-	// matlog(O);
-	// matlog(batchTarget);
-
-	thrust::transform(pPtr, pPtr + batchTarget.size(), TMP.begin(), ePtr, func::dcrossentropy<float>());
-
-	// printf("error = batchTarget ./ O \n");
-	// matlog(error);
-	// PAUSE;
-
-	break;
-      }
-
-    default:
-      break;
-  }
-
-  O.resize(O.getRows(), O.getCols() + 1);
-
-  return error;
-}
-
 void DNN::feedForward(mat& output, const mat& fin) {
 
   // FIXME This should be an ASSERTION, not resizing.
