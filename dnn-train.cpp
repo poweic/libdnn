@@ -151,9 +151,9 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 	  fout,
 	  errorMeasure);
 
-      dnn.backPropagate(error, fin, fout);
+      dnn.backPropagate(error, fin, fout, dnn.getConfig().learningRate);
 
-      dnn.update(dnn.getConfig().learningRate);
+      // dnn.update(dnn.getConfig().learningRate);
     }
 
     dnn.feedForward(fout, valid.getX());

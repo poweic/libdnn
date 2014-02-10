@@ -177,19 +177,19 @@ void DNN::feedForward(mat& output, const mat& fin) {
 // ===== Back Propagation =====
 // ============================
 
-void DNN::backPropagate(mat& error, const mat& fin, const mat& fout) {
-  _transforms.back()->backPropagate(error, _houts.back(), fout);
+void DNN::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  _transforms.back()->backPropagate(error, _houts.back(), fout, learning_rate);
 
   for (int i=_transforms.size() - 2; i >= 1; --i)
-    _transforms[i]->backPropagate(error, _houts[i-1], _houts[i]);
+    _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
 
-  _transforms[0]->backPropagate(error, fin, _houts[0]);
+  _transforms[0]->backPropagate(error, fin, _houts[0], learning_rate);
 }
 
-void DNN::update(float learning_rate) { 
+/*void DNN::update(float learning_rate) { 
   for (size_t i=0; i<_transforms.size(); ++i)
     _transforms[i]->update(learning_rate);
-}
+}*/
 
 Config DNN::getConfig() const {
   return _config;
