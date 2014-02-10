@@ -18,14 +18,16 @@
 #include <thrust/device_vector.h>
 #include <thrust/inner_product.h>
 
-map<int, int> getLabelMapping(const mat& labels);
-bool isLabeled(const mat& labels);
+#include <host_matrix.h>
+typedef host_matrix<float> hmat;
 
-mat label2PosteriorProb(const mat& labels);
+map<int, int> getLabelMapping(const hmat& labels);
+
+mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure);
 mat posteriorProb2Label(const mat& prob);
 
 size_t zeroOneError(const mat& predict, const mat& label, ERROR_MEASURE errorMeasure);
-mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t nData = 0);
+// mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t nData = 0);
 
 vector<float> copyToHost(const mat& m);
 size_t countDifference(const mat& m1, const mat& m2);

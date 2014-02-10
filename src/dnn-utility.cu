@@ -1,12 +1,9 @@
 #include <dnn-utility.h>
 
-map<int, int> getLabelMapping(const mat& labels) {
-  thrust::device_ptr<float> dptr(labels.getData());
-  thrust::host_vector<float> y(dptr, dptr + labels.size());
-
+map<int, int> getLabelMapping(const hmat& labels) {
   map<int, int> classes;
-  for (size_t i=0; i<y.size(); ++i)
-    classes[(int) y[i]] = 1;
+  for (size_t i=0; i<labels.size(); ++i)
+    classes[(int) labels[i]] = 1;
 
   int counter = 0;
   map<int, int>::iterator itr = classes.begin();
@@ -42,25 +39,45 @@ namespace ext {
 
 };
 
-mat label2PosteriorProb(const mat& labels) {
-  
-  map<int, int> classes = getLabelMapping(labels);
-  size_t nClasses = classes.size();
-  size_t nData = labels.getRows();
+mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
 
-  // Convert labels to posterior probabilities
-  float* h_prob = new float[nData * nClasses];
-  memset(h_prob, 0, sizeof(float) * nData * nClasses);
+  mat error;
 
-  vector<float> hy = copyToHost(labels);
-  for (size_t i=0; i<nData; ++i)
-    h_prob[(size_t) (hy[i] - 1) * nData + i] = 1;
+  mat& O = const_cast<mat&>(output);
 
-  mat probs(h_prob, nData, nClasses);
+  switch (errorMeasure) {
+    case L2ERROR: 
+      error = output - target;
+      error.reserve(error.getRows() * (error.getCols() + 1));
+      error.resize(error.getRows(), error.getCols() + 1);
 
-  delete [] h_prob;
+      break;
+    case CROSS_ENTROPY: {
 
-  return probs;
+	size_t output_dim = target.getCols();
+
+	error.resize(target.getRows(), target.getCols() + 1);
+
+	thrust::device_ptr<float> pPtr(target.getData());
+	thrust::device_ptr<float> oPtr(O.getData());
+
+	thrust::device_ptr<float> ePtr(error.getData());
+
+	thrust::device_vector<float> TMP(O.size());
+	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(1e-10));
+
+	thrust::transform(pPtr, pPtr + target.size(), TMP.begin(), ePtr, func::dcrossentropy<float>());
+
+	break;
+      }
+
+    default:
+      break;
+  }
+
+  O.resize(O.getRows(), O.getCols() + 1);
+
+  return error;
 }
 
 mat posteriorProb2Label(const mat& prob) {
@@ -135,7 +152,7 @@ size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasur
   return nError;
 }
 
-mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData) {
+/*mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData) {
 
   mat error(nData, trainY.getCols());
 
@@ -147,8 +164,4 @@ mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData
       error.getData(), nData);
 
   return error;
-}
-
-bool isLabeled(const mat& labels) {
-  return getLabelMapping(labels).size() > 1;
-}
+}*/

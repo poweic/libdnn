@@ -32,15 +32,16 @@ int main (int argc, char* argv[]) {
   test.showSummary();
 
   DNN dnn(model_fn);
-  mat prob = dnn.predict(test);
+  mat prob;
+  dnn.feedForward(prob, test.getX());
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
-  bool hasAnswer = isLabeled(test.y);
+  bool hasAnswer = test.isLabeled();
 
   if (hasAnswer) {
-    size_t nError = zeroOneError(prob, test.y, errorMeasure);
-    showAccuracy(nError, test.y.size());
+    size_t nError = zeroOneError(prob, test.getY(), errorMeasure);
+    showAccuracy(nError, test.getY().size());
   }
 
   if (hasAnswer && output_fn.empty())
