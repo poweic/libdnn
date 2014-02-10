@@ -15,10 +15,9 @@ public:
   virtual void feedForward(mat& fout, const mat& fin) = 0;
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout) = 0;
 
-  mat& getW();
-  mat& getDw();
-  const mat& getW() const;
-  const mat& getDw() const;
+  size_t getInputDimension() const;
+  size_t getOutputDimension() const;
+  void print() const;
 
   void update(float learning_rate);
 

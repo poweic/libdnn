@@ -110,17 +110,17 @@ void DNN::save(string fn) const {
   for (size_t i=0; i<_transforms.size(); ++i)
     fprintf(fid, "%s", _transforms[i]->toString().c_str());
 
-  printf("nn_structure ");
+  cout << "nn_structure ";
   for (size_t i=0; i<_transforms.size(); ++i)
-    printf("%lu ", _transforms[i]->getW().getRows());
-  printf("%lu\n", _transforms.back()->getW().getCols());
+    cout << _transforms[i]->getInputDimension() << " ";
+  cout << _transforms.back()->getOutputDimension() << endl;
   
   fclose(fid);
 }
 
 void DNN::print() const {
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->getW().print();
+    _transforms[i]->print();
 }
 
 // ========================

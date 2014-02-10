@@ -98,20 +98,16 @@ FeatureTransform::FeatureTransform(size_t rows, size_t cols, float variance): _w
   ext::randn(_w, 0.0f, variance);
 }
 
-mat& FeatureTransform::getW() {
-  return _w;
+size_t FeatureTransform::getInputDimension() const {
+  return _w.getRows();
 }
 
-const mat& FeatureTransform::getW() const {
-  return _w;
+size_t FeatureTransform::getOutputDimension() const {
+  return _w.getCols();
 }
 
-mat& FeatureTransform::getDw() {
-  return _dw;
-}
-
-const mat& FeatureTransform::getDw() const {
-  return _dw;
+void FeatureTransform::print() const {
+  this->_w.print();
 }
 
 void FeatureTransform::update(float learning_rate) {
