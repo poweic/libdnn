@@ -3,7 +3,7 @@
 
 #include <dnn-utility.h>
 
-void playground();
+string toString(std::vector<float> data, size_t rows, size_t cols);
 
 class FeatureTransform {
 public:

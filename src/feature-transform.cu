@@ -1,9 +1,5 @@
 #include <feature-transform.h>
 
-
-// ==========================================================================================
-// ==========================================================================================
-
 // convert a linear index to a row index
 template <typename T>
 struct linear_index_to_row_index : public thrust::unary_function<T,T>
@@ -20,8 +16,6 @@ struct linear_index_to_row_index : public thrust::unary_function<T,T>
     }
 };
 
-// ==========================================================================================
-// ==========================================================================================
 void substractMaxPerRow(mat& x);
 mat getRowMax(mat& A);
 __global__ void substract_max_per_row(float* const A, float* const rmax, unsigned int rows, unsigned int cols);
@@ -69,6 +63,25 @@ mat getRowMax(mat& A) {
      thrust::maximum<float>());
 
   return rmax;
+}
+
+string toString(std::vector<float> data, size_t rows, size_t cols) {
+  stringstream ss;
+  ss << " [";
+
+  for (size_t j=0; j<rows-1; ++j) {
+    ss << "\n  ";
+    for (size_t k=0; k<cols; ++k)
+      ss << data[k * rows + j] << " ";
+  }
+  ss << "]\n";
+
+  ss << "<bias> \n [";
+  for (size_t j=0; j<cols; ++j)
+    ss << data[j * rows + rows - 1] << " ";
+  ss << " ]\n";
+
+  return ss.str();
 }
 
 // ============================
@@ -124,7 +137,13 @@ Sigmoid* Sigmoid::clone() const {
 }
 
 string Sigmoid::toString() const {
-  return "sigmoid";
+  size_t rows = _w.getRows(),
+	 cols = _w.getCols() - 1;
+
+  stringstream ss;
+  ss << "<sigmoid> " << rows - 1 << " " << cols << endl;
+  ss << ::toString(copyToHost(_w), rows, cols);
+  return ss.str();
 }
 
 void Sigmoid::feedForward(mat& fout, const mat& fin) {
@@ -170,7 +189,13 @@ Softmax* Softmax::clone() const {
 }
 
 string Softmax::toString() const {
-  return "softmax";
+  size_t rows = _w.getRows(),
+	 cols = _w.getCols() - 1;
+
+  stringstream ss;
+  ss << "<softmax> " << rows - 1 << " " << cols << endl;
+  ss << ::toString(copyToHost(_w), rows, cols);
+  return ss.str();
 }
 
 /*__global__ void substract_max_per_row(float* const A, unsigned int rows, unsigned int cols) {

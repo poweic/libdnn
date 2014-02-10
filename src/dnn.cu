@@ -107,34 +107,8 @@ void DNN::read(string fn) {
 void DNN::save(string fn) const {
   FILE* fid = fopen(fn.c_str(), "w");
 
-  for (size_t i=0; i<_transforms.size(); ++i) {
-    const mat& w = _transforms[i]->getW();
-
-    size_t rows = w.getRows();
-    size_t cols = w.getCols() - 1;
-
-    fprintf(fid, "<%s> %lu %lu \n", _transforms[i]->toString().c_str(), rows - 1, cols);
-    fprintf(fid, " [");
-
-    // ==============================
-    std::vector<float> data = copyToHost(w);
-    // float* data = new float[w.size()];
-    // CCE(cudaMemcpy(data, w.getData(), sizeof(float) * w.size(), cudaMemcpyDeviceToHost));
-
-    for (size_t j=0; j<rows-1; ++j) {
-      fprintf(fid, "\n  ");
-      for (size_t k=0; k<cols; ++k)
-	fprintf(fid, "%g ", data[k * rows + j]);
-    }
-    fprintf(fid, "]\n");
-
-    fprintf(fid, "<bias> \n [");
-    for (size_t j=0; j<cols; ++j)
-      fprintf(fid, "%g ", data[j * rows + rows - 1]);
-    fprintf(fid, " ]\n");
-
-    // delete [] data;
-  }
+  for (size_t i=0; i<_transforms.size(); ++i)
+    fprintf(fid, "%s", _transforms[i]->toString().c_str());
 
   printf("nn_structure ");
   for (size_t i=0; i<_transforms.size(); ++i)
