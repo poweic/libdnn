@@ -1,5 +1,9 @@
 #include <feature-transform.h>
 
+mat rowSum(mat& m) {
+  return m * (mat(m.getCols(), m.getCols()) += 1);
+}
+
 // convert a linear index to a row index
 template <typename T>
 struct linear_index_to_row_index : public thrust::unary_function<T,T>
@@ -94,10 +98,6 @@ FeatureTransform::FeatureTransform(const FeatureTransform& source): _w(source._w
 FeatureTransform::FeatureTransform(const mat& w): _w(w){
 }
 
-FeatureTransform::FeatureTransform(size_t rows, size_t cols, float variance): _w(rows, cols) {
-  ext::randn(_w, 0.0f, variance);
-}
-
 size_t FeatureTransform::getInputDimension() const {
   return _w.getRows();
 }
@@ -132,9 +132,6 @@ void FeatureTransform::feedBackward(mat& error, const mat& delta) {
 // ===================
 
 Sigmoid::Sigmoid(const mat& w): FeatureTransform(w) {
-}
-
-Sigmoid::Sigmoid(size_t rows, size_t cols, float variance): FeatureTransform(rows, cols, variance) {
 }
 
 Sigmoid::Sigmoid(const Sigmoid& src): FeatureTransform(src) {
@@ -172,9 +169,6 @@ void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float l
 Softmax::Softmax(const mat& w): FeatureTransform(w) {
 }
 
-Softmax::Softmax(size_t rows, size_t cols, float variance): FeatureTransform(rows, cols, variance) {
-}
-
 Softmax::Softmax(const Softmax& src): FeatureTransform(src) {
 }
 
@@ -210,10 +204,6 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
   thrust::device_ptr<float> foutPtr(fout.getData());
   thrust::device_ptr<float> sPtr(sumOfProb.getData());
   thrust::transform(pPtr, pPtr + p.size(), sPtr, foutPtr, thrust::divides<float>());
-}
-
-mat rowSum(mat& m) {
-  return m * (mat(m.getCols(), m.getCols()) += 1);
 }
 
 void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
