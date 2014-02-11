@@ -71,8 +71,18 @@ public:
   T& operator[] (size_t idx) {
     return _data[idx];
   }
+
   const T& operator[] (size_t idx) const {
     return _data[idx];
+  }
+
+  host_matrix<T> operator ~ () const {
+    device_matrix<T> dA(_data, _rows, _cols);
+    dA = ~dA;
+    host_matrix<T> tA(_cols, _rows);
+
+    CCE(cudaMemcpy(tA.getData(), dA.getData(), sizeof(float) * tA.size(), cudaMemcpyDeviceToHost));
+    return tA;
   }
 
   void fillwith(T value) {

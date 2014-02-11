@@ -42,7 +42,6 @@ int main (int argc, char* argv[]) {
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data(train_fn, rescale);
-  data.shuffleFeature();
   data.showSummary();
 
   // Set configurations
