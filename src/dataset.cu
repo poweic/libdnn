@@ -8,8 +8,13 @@ DataSet::DataSet(const string &fn, bool rescale) {
 
   read(fn, rescale);
 
-  convertToStandardLabels();
-  label2PosteriorProb();
+  this->convertToStandardLabels();
+  this->label2PosteriorProb();
+  this->shuffleFeature();
+
+  _hx = ~_hx;
+  _hy = ~_hy;
+  _hp = ~_hp;
 }
 
 void DataSet::convertToStandardLabels() {
@@ -23,11 +28,11 @@ void DataSet::convertToStandardLabels() {
 
 size_t DataSet::getInputDimension() const {
   // FIXME the input dimension shouldn't be so unclear
-  return _hx.getCols() - 1;
+  return _hx.getRows() - 1;
 }
 
 size_t DataSet::getOutputDimension() const {
-  return _hprob.getCols();
+  return _hp.getCols();
 }
 
 void DataSet::rescaleFeature(float lower, float upper) {
@@ -138,14 +143,11 @@ void DataSet::readDenseFeature(ifstream& fin) {
 }
 
 void DataSet::showSummary() const {
-  size_t input_dim  = _hx.getCols();
-  size_t nData	    = _hx.getRows();
-  size_t nClasses   = _hprob.getCols();
 
   printf("+--------------------------------+-----------+\n");
-  printf("| Number of classes              | %9lu |\n", nClasses);
-  printf("| Number of input feature (data) | %9lu |\n", nData);
-  printf("| Dimension of  input feature    | %9lu |\n", input_dim);
+  printf("| Number of classes              | %9lu |\n", this->getClassNumber());
+  printf("| Number of input feature (data) | %9lu |\n", this->size());
+  printf("| Dimension of  input feature    | %9lu |\n", this->getInputDimension());
   printf("+--------------------------------+-----------+\n");
 
 }
@@ -160,11 +162,11 @@ void DataSet::label2PosteriorProb() {
   size_t nClasses = classes.size();
 
   // Convert labels to posterior probabilities
-  _hprob.resize(_hy.getRows(), nClasses);
-  _hprob.fillwith(0);
+  _hp.resize(_hy.getRows(), nClasses);
+  _hp.fillwith(0);
 
-  for (size_t i=0; i<_hprob.getRows(); ++i)
-    _hprob(i, (_hy[i] - 1)) = 1;
+  for (size_t i=0; i<_hp.getRows(); ++i)
+    _hp(i, (_hy[i] - 1)) = 1;
 }
 
 bool isFileSparse(string train_fn) {
@@ -255,22 +257,26 @@ size_t DataSet::size() const {
 }
 
 mat DataSet::getX(size_t offset, size_t nData) const {
-  size_t cols = _hx.getCols();
-  mat x(nData, cols);
+  // size_t cols = _hx.getCols();
+  // mat x(nData, cols);
 
   // FIXME train.getX() copy the whole data from host to device
   // But x use only a tiny part of it
-  memcpy2D(x, this->getX(), offset, 0, nData, cols, 0, 0);
+  // memcpy2D(x, this->getX(), offset, 0, nData, cols, 0, 0);
 
-  return x;
+  // return x;
+
+  size_t dim = _hx.getRows();
+  mat x_transposed(_hx.getData() + offset * dim, dim, nData);
+  return ~x_transposed;
 }
 
 mat DataSet::getX() const {
-  return mat(_hx.getData(), _hx.getRows(), _hx.getCols());
+  return ~mat(_hx.getData(), _hx.getRows(), _hx.getCols());
 }
 
 mat DataSet::getY() const {
-  return mat(_hy.getData(), _hy.getRows(), _hy.getCols());
+  return ~mat(_hy.getData(), _hy.getRows(), _hy.getCols());
 }
 
 mat DataSet::getY(size_t offset, size_t nData) const {
@@ -278,59 +284,69 @@ mat DataSet::getY(size_t offset, size_t nData) const {
 }
 
 mat DataSet::getProb() const {
-  return mat(_hprob.getData(), _hprob.getRows(), _hprob.getCols());
+  return ~mat(_hp.getData(), _hp.getRows(), _hp.getCols());
 }
 
 mat DataSet::getProb(size_t offset, size_t nData) const {
 
-  size_t cols = _hprob.getCols();
+  /*size_t cols = _hp.getCols();
   mat p(nData, cols);
 
   // FIXME the same problem as above
   memcpy2D(p, this->getProb(), offset, 0, nData, cols, 0, 0);
 
-  return p;
+  return p;*/
+  size_t dim = _hp.getRows();
+  mat p_transposed(_hp.getData() + offset * dim, dim, nData);
+  return ~p_transposed;
 }
 
 void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio) {
 
-  size_t rows = _hx.getRows(),
-	 inputDim = _hx.getCols(),
-	 outputDim = _hprob.getCols();
+  size_t inputDim = _hx.getRows(),
+	 outputDim = _hp.getRows();
   
-  size_t nValid = rows / ratio,
-	 nTrain = rows - nValid;
+  size_t nValid = size() / ratio,
+	 nTrain = size() - nValid;
 
   printf("| nTrain                         | %9lu |\n", nTrain);
   printf("| nValid                         | %9lu |\n", nValid);
 
   // Copy data to training set
-  train._hx.resize(nTrain, inputDim);
-  train._hy.resize(nTrain, 1);
-  train._hprob.resize(nTrain, outputDim);
+  train._hx.resize(inputDim , nTrain);
+  train._hy.resize(1	    , nTrain);
+  train._hp.resize(outputDim, nTrain);
 
-  for (size_t i=0; i<nTrain; ++i) {
+  memcpy(train._hx.getData(), _hx.getData(), sizeof(float) * train._hx.size());
+  memcpy(train._hy.getData(), _hy.getData(), sizeof(float) * train._hy.size());
+  memcpy(train._hp.getData(), _hp.getData(), sizeof(float) * train._hp.size());
+
+  /*for (size_t i=0; i<nTrain; ++i) {
     for (size_t j=0; j<inputDim; ++j)
       train._hx(i, j) = _hx(i, j);
 
     for (size_t j=0; j<outputDim; ++j)
-      train._hprob(i, j) = _hprob(i, j);
+      train._hp(i, j) = _hp(i, j);
 
     train._hy[i] = _hy[i];
-  }
+  }*/
 
   // Copy data to validation set
-  valid._hx.resize(nValid, inputDim);
-  valid._hy.resize(nValid, 1);
-  valid._hprob.resize(nValid, outputDim);
+  valid._hx.resize(inputDim , nValid);
+  valid._hy.resize(1	    , nValid);
+  valid._hp.resize(outputDim, nValid);
 
-  for (size_t i=0; i<nValid; ++i) {
+  memcpy(valid._hx.getData(), _hx.getData() + train._hx.size(), sizeof(float) * valid._hx.size());
+  memcpy(valid._hy.getData(), _hy.getData() + train._hy.size(), sizeof(float) * valid._hy.size());
+  memcpy(valid._hp.getData(), _hp.getData() + train._hp.size(), sizeof(float) * valid._hp.size());
+
+  /*for (size_t i=0; i<nValid; ++i) {
     for (size_t j=0; j<inputDim; ++j)
       valid._hx(i, j) = _hx[j * rows + i + nTrain];
 
     for (size_t j=0; j<outputDim; ++j)
-      valid._hprob(i, j) = _hprob[j * rows + i + nTrain];
+      valid._hp(i, j) = _hp[j * rows + i + nTrain];
 
     valid._hy[i] = _hy[i + nTrain];
-  }
+  }*/
 }

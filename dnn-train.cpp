@@ -68,7 +68,6 @@ int main (int argc, char* argv[]) {
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data(train_fn, rescale);
-  data.shuffleFeature();
   data.showSummary();
 
   DataSet train, valid;
@@ -136,8 +135,8 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
 
-    if (dnn.getConfig().randperm)
-      const_cast<DataSet&>(train).shuffleFeature();
+    /*if (dnn.getConfig().randperm)
+      const_cast<DataSet&>(train).shuffleFeature();*/
 
     Batches batches(batchSize, nTrain);
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {

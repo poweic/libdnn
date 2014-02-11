@@ -13,7 +13,6 @@ public:
 
   void read(const string &fn, bool rescale);
   void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
-  void shuffleFeature();
 
   size_t getInputDimension() const;
   size_t getOutputDimension() const;
@@ -34,6 +33,7 @@ public:
   mat getProb() const;
 
 private:
+  void shuffleFeature();
   void convertToStandardLabels();
   void label2PosteriorProb();
 
@@ -41,7 +41,7 @@ private:
   void readSparseFeature(ifstream& fin);
   void readDenseFeature(ifstream& fin);
 
-  hmat _hx, _hy, _hprob;
+  hmat _hx, _hy, _hp;
 };
 
 bool isFileSparse(string train_fn);
