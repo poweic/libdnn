@@ -182,9 +182,6 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   printf("\n%ld epochs in total\n", epoch);
   timer.elapsed();
 
-  dnn.feedForward(fout, train.getX());
-  Ein = zeroOneError(fout, train.getY(), errorMeasure);
-
   printf("[   In-Sample   ] ");
   showAccuracy(Ein, train.size());
   printf("[ Out-of-Sample ] ");
