@@ -157,6 +157,20 @@ void DNN::adjustLearningRate(float trainAcc) {
   }
 }
 
+mat DNN::feedForward(const mat& fin) {
+
+  mat y;
+
+  _transforms[0]->feedForward(y, fin);
+
+  for (size_t i=1; i<_transforms.size(); ++i)
+    _transforms[i]->feedForward(y, y);
+
+  y.resize(y.getRows(), y.getCols() - 1);
+
+  return y;
+}
+
 void DNN::feedForward(mat& output, const mat& fin) {
 
   // FIXME This should be an ASSERTION, not resizing.
