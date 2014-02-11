@@ -135,9 +135,6 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
 
-    /*if (dnn.getConfig().randperm)
-      const_cast<DataSet&>(train).shuffleFeature();*/
-
     Batches batches(batchSize, nTrain);
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
@@ -151,8 +148,6 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 	  errorMeasure);
 
       dnn.backPropagate(error, fin, fout, dnn.getConfig().learningRate);
-
-      // dnn.update(dnn.getConfig().learningRate);
     }
 
     // dnn.feedForward(fout, valid.getX());

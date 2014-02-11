@@ -15,6 +15,8 @@ public:
   virtual void feedForward(mat& fout, const mat& fin) = 0;
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) = 0;
 
+  virtual void feedBackward(mat& error, const mat& delta);
+
   size_t getInputDimension() const;
   size_t getOutputDimension() const;
   void print() const;
@@ -23,11 +25,6 @@ protected:
   FeatureTransform(const mat& w);
 
   mat _w;
-  // mat _dw;
-/*void FeatureTransform::update(float learning_rate) {
-  _dw *= learning_rate;
-  _w -= _dw;
-}*/
 
 private:
   virtual FeatureTransform& operator = (const FeatureTransform& rhs) {}

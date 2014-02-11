@@ -110,6 +110,22 @@ void FeatureTransform::print() const {
   this->_w.print();
 }
 
+void FeatureTransform::feedBackward(mat& error, const mat& delta) {
+  // The last row of _w is bias, and the last column of _w is saved only for computational efficiency.
+  // Therefore, ignore last column, which is the bias.
+  size_t traceLength = delta.getCols() - 1;
+
+  error.resize(delta.getRows(), _w.getRows());
+
+  device_matrix<float>::cublas_gemm(
+      CUBLAS_OP_N, CUBLAS_OP_T,
+      delta.getRows(), _w.getRows(), traceLength, 
+      1.0,
+      delta.getData(), delta.getRows(),
+      _w.getData(), _w.getRows(),
+      0.0,
+      error.getData(), error.getRows());
+}
 
 // ===================
 // ===== Sigmoid =====
@@ -145,23 +161,8 @@ void Sigmoid::feedForward(mat& fout, const mat& fin) {
 
 void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
   mat delta = error & (1.0f - fout) & fout;
-
-  // Ignore last column, which is the bias
-  size_t traceLength = delta.getCols() - 1;
-
-  error.resize(delta.getRows(), _w.getRows());
-
-  device_matrix<float>::cublas_gemm(
-      CUBLAS_OP_N, CUBLAS_OP_T,
-      delta.getRows(), _w.getRows(), traceLength, 
-      1.0,
-      delta.getData(), delta.getRows(),
-      _w.getData(), _w.getRows(),
-      0.0,
-      error.getData(), error.getRows());
-
+  this->feedBackward(error, delta);
   gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
-
 }
 
 // ===================
@@ -220,19 +221,7 @@ void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout, float l
   mat error_times_fout = error & fout;
   mat delta = error_times_fout - (rowSum(error_times_fout) & fout);
 
-  // Ignore last column, which is the bias
-  size_t traceLength = delta.getCols() - 1;
-
-  error.resize(delta.getRows(), _w.getRows());
-
-  device_matrix<float>::cublas_gemm(
-      CUBLAS_OP_N, CUBLAS_OP_T,
-      delta.getRows(), _w.getRows(), traceLength, 
-      1.0,
-      delta.getData(), delta.getRows(),
-      _w.getData(), _w.getRows(),
-      0.0,
-      error.getData(), error.getRows());
+  this->feedBackward(error, delta);
 
   gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
 }
