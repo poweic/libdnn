@@ -156,11 +156,11 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
       // dnn.update(dnn.getConfig().learningRate);
     }
 
-    dnn.feedForward(fout, valid.getX());
-    Eout.push_back(zeroOneError(fout, valid.getY(), errorMeasure));
+    // dnn.feedForward(fout, valid.getX());
+    Eout.push_back(zeroOneError(dnn.feedForward(valid.getX()), valid.getY(), errorMeasure));
   
-    dnn.feedForward(fout, train.getX());
-    Ein = zeroOneError(fout, train.getY(), errorMeasure);
+    // dnn.feedForward(fout, train.getX());
+    Ein = zeroOneError(dnn.feedForward(train.getX()), train.getY(), errorMeasure);
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
