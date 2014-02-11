@@ -39,9 +39,8 @@ int main (int argc, char* argv[]) {
      .add("--rescale", "Rescale each feature to [0, 1]", "false")
      .add("--slope-thres", "threshold of ratio of slope in RBM pre-training", "0.05")
      .add("--pre", "type of Pretraining. Choose one of the following:\n"
-	"0 -- Random initialization (no pre-training)\n"
 	"1 -- RBM (Restricted Boltzman Machine)\n"
-	"2 -- Load from pre-trained model", "0")
+	"2 -- Load from pre-trained model", "1")
      .add("-f", "when option --pre is set to 2, specify the filename of the pre-trained model", "train.dat.model");
 
   cmd.addGroup("Example usage: dnn-train data/train3.dat --nodes=16-8");
@@ -85,10 +84,6 @@ int main (int argc, char* argv[]) {
   DNN dnn;
   // Initialize Deep Neural Network
   switch (preTraining) {
-    case 0:
-      dnn.init(config.dims);
-      break;
-
     case 1:
       dnn.init(rbminit(data, getDimensionsForRBM(data, structure), slopeThres));
       break;
@@ -135,9 +130,6 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
 
-    /*if (dnn.getConfig().randperm)
-      const_cast<DataSet&>(train).shuffleFeature();*/
-
     Batches batches(batchSize, nTrain);
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
@@ -151,8 +143,6 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 	  errorMeasure);
 
       dnn.backPropagate(error, fin, fout, dnn.getConfig().learningRate);
-
-      // dnn.update(dnn.getConfig().learningRate);
     }
 
     // dnn.feedForward(fout, valid.getX());

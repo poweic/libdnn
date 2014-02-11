@@ -24,23 +24,6 @@ void DNN::init(const std::vector<mat>& weights) {
   _transforms.back() = new Softmax(weights.back());
 }
 
-void DNN::init(const std::vector<size_t>& dims) {
-  assert(dims.size() > 0);
-  size_t L = dims.size() - 1;
-
-  _transforms.resize(L);
-
-  for (size_t i=0; i<L; ++i) {
-    size_t M = dims[i] + 1;
-    size_t N = dims[i+1] + 1;
-
-    if (i == L-1)
-      _transforms[i] = new Softmax(M, N, _config.variance);
-    else
-      _transforms[i] = new Sigmoid(M, N, _config.variance);
-  }
-}
-
 DNN::~DNN() {
   for (size_t i=0; i<_transforms.size(); ++i)
     delete _transforms[i];

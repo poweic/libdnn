@@ -7,21 +7,6 @@
 #include <config.h>
 #include <utility.h>
 
-// sigmoid mapping
-//    x     sigmoid(x) percentage
-// -4.5951    0.01	   1%
-// -3.8918    0.02         2%
-// -2.9444    0.05         5%
-// -2.1972    0.10        10%
-// -1.3863    0.20        20%
-//    0       0.50        50%
-//  4.5951    0.80        20%
-//  3.8918    0.90        10%
-//  2.9444    0.95         5%
-//  2.1972    0.98         2%
-//  1.3863    0.99         1%
-//
-
 class DNN {
 public:
   DNN();
@@ -32,14 +17,11 @@ public:
 
   DNN& operator = (DNN rhs);
 
-  void init(const std::vector<size_t>& dims);
   void init(const std::vector<mat>& weights);
 
   mat feedForward(const mat& fin);
   void feedForward(mat& output, const mat& fin);
   void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
-
-  // void update(float learning_rate);
 
   void setConfig(const Config& config);
   size_t getNLayer() const;
@@ -69,13 +51,4 @@ private:
 };
 
 void swap(DNN& lhs, DNN& rhs);
-
-template <typename T>
-void remove_bias(vector<T>& v) {
-  v.pop_back();
-}
-
-void print(const thrust::host_vector<float>& hv);
-void print(const thrust::device_vector<float>& dv);
-
 #endif  // __DNN_H_
