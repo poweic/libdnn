@@ -1,5 +1,9 @@
 #include <feature-transform.h>
 
+mat rowSum(mat& m) {
+  return m * (mat(m.getCols(), m.getCols()) += 1);
+}
+
 // convert a linear index to a row index
 template <typename T>
 struct linear_index_to_row_index : public thrust::unary_function<T,T>
@@ -94,10 +98,6 @@ FeatureTransform::FeatureTransform(const FeatureTransform& source): _w(source._w
 FeatureTransform::FeatureTransform(const mat& w): _w(w){
 }
 
-FeatureTransform::FeatureTransform(size_t rows, size_t cols, float variance): _w(rows, cols) {
-  ext::randn(_w, 0.0f, variance);
-}
-
 size_t FeatureTransform::getInputDimension() const {
   return _w.getRows();
 }
@@ -110,15 +110,28 @@ void FeatureTransform::print() const {
   this->_w.print();
 }
 
+void FeatureTransform::feedBackward(mat& error, const mat& delta) {
+  // The last row of _w is bias, and the last column of _w is saved only for computational efficiency.
+  // Therefore, ignore last column, which is the bias.
+  size_t traceLength = delta.getCols() - 1;
+
+  error.resize(delta.getRows(), _w.getRows());
+
+  device_matrix<float>::cublas_gemm(
+      CUBLAS_OP_N, CUBLAS_OP_T,
+      delta.getRows(), _w.getRows(), traceLength, 
+      1.0,
+      delta.getData(), delta.getRows(),
+      _w.getData(), _w.getRows(),
+      0.0,
+      error.getData(), error.getRows());
+}
 
 // ===================
 // ===== Sigmoid =====
 // ===================
 
 Sigmoid::Sigmoid(const mat& w): FeatureTransform(w) {
-}
-
-Sigmoid::Sigmoid(size_t rows, size_t cols, float variance): FeatureTransform(rows, cols, variance) {
 }
 
 Sigmoid::Sigmoid(const Sigmoid& src): FeatureTransform(src) {
@@ -139,30 +152,14 @@ string Sigmoid::toString() const {
 }
 
 void Sigmoid::feedForward(mat& fout, const mat& fin) {
-  fout = ext::sigmoid(const_cast<mat&>(fin) * _w);
+  fout = ext::sigmoid(fin * _w);
   fillLastColumnWith(fout, (float) 1.0);
 }
 
 void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
   mat delta = error & (1.0f - fout) & fout;
-
-  // Ignore last column, which is the bias
-  size_t traceLength = delta.getCols() - 1;
-
-  error.resize(delta.getRows(), _w.getRows());
-
-  device_matrix<float>::cublas_gemm(
-      CUBLAS_OP_N, CUBLAS_OP_T,
-      delta.getRows(), _w.getRows(), traceLength, 
-      1.0,
-      delta.getData(), delta.getRows(),
-      _w.getData(), _w.getRows(),
-      0.0,
-      error.getData(), error.getRows());
-
+  this->feedBackward(error, delta);
   gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
-  // _dw = ~const_cast<mat&>(fin) * delta;
-
 }
 
 // ===================
@@ -170,9 +167,6 @@ void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float l
 // ===================
 
 Softmax::Softmax(const mat& w): FeatureTransform(w) {
-}
-
-Softmax::Softmax(size_t rows, size_t cols, float variance): FeatureTransform(rows, cols, variance) {
 }
 
 Softmax::Softmax(const Softmax& src): FeatureTransform(src) {
@@ -194,7 +188,7 @@ string Softmax::toString() const {
 
 void Softmax::feedForward(mat& fout, const mat& fin) {
 
-  mat x = const_cast<mat&>(fin) * const_cast<mat&>(_w);
+  mat x = fin * _w;
   x.resize(x.getRows(), x.getCols() - 1);
   substractMaxPerRow(x);
 
@@ -212,32 +206,12 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
   thrust::transform(pPtr, pPtr + p.size(), sPtr, foutPtr, thrust::divides<float>());
 }
 
-mat rowSum(mat& m) {
-  return m * (mat(m.getCols(), m.getCols()) += 1);
-}
-
 void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
 
   mat error_times_fout = error & fout;
-  mat sum = rowSum(error_times_fout);
+  mat delta = error_times_fout - (rowSum(error_times_fout) & fout);
 
-  mat sum_times_fout = sum & fout;
-  mat delta = error_times_fout - sum_times_fout;
-
-  // Ignore last column, which is the bias
-  size_t traceLength = delta.getCols() - 1;
-
-  error.resize(delta.getRows(), _w.getRows());
-
-  device_matrix<float>::cublas_gemm(
-      CUBLAS_OP_N, CUBLAS_OP_T,
-      delta.getRows(), _w.getRows(), traceLength, 
-      1.0,
-      delta.getData(), delta.getRows(),
-      _w.getData(), _w.getRows(),
-      0.0,
-      error.getData(), error.getRows());
+  this->feedBackward(error, delta);
 
   gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
-  // _dw = ~const_cast<mat&>(fin) * delta;
 }
