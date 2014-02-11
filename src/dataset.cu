@@ -18,7 +18,7 @@ void DataSet::convertToStandardLabels() {
   // Replace labels to 1, 2, 3, N, using mapping
   map<int, int> classes = getLabelMapping(_hy);
   for (size_t i=0; i<_hy.getRows(); ++i)
-    _hy.getData()[i] = classes[_hy.getData()[i]];
+    _hy[i] = classes[_hy[i]];
 }
 
 size_t DataSet::getInputDimension() const {
@@ -36,8 +36,8 @@ void DataSet::rescaleFeature(float lower, float upper) {
 	 cols = _hx.getCols();
 
   for (size_t i=0; i<rows; ++i) {
-    float min = _hx.getData()[i],
-	  max = _hx.getData()[i];
+    float min = _hx(i, 0),
+	  max = _hx(i, 0);
 
     for (size_t j=0; j<cols; ++j) {
       float x = _hx(i, j);
@@ -101,7 +101,7 @@ void DataSet::readSparseFeature(ifstream& fin) {
     stringstream ss(line);
   
     ss >> token;
-    _hy.getData()[i] = str2float(token);
+    _hy[i] = str2float(token);
 
     while (ss >> token) {
       size_t pos = token.find(':');
@@ -111,7 +111,7 @@ void DataSet::readSparseFeature(ifstream& fin) {
       size_t j = str2float(token.substr(0, pos)) - 1;
       float value = str2float(token.substr(pos + 1));
       
-      _hx.getData()[j * rows + i] = value;
+      _hx(i, j) = value;
     }
     ++i;
   }
@@ -128,11 +128,11 @@ void DataSet::readDenseFeature(ifstream& fin) {
     stringstream ss(line);
   
     ss >> token;
-    _hy.getData()[i] = str2float(token);
+    _hy[i] = str2float(token);
 
     size_t j = 0;
     while (ss >> token)
-      _hx.getData()[(j++) * rows + i] = str2float(token);
+      _hx(i, j++) = str2float(token);
     ++i;
   }
 }
