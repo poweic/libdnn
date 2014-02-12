@@ -10,9 +10,12 @@ You need to install NVIDIA CUDA toolkit (at least 5.0)
 
 
 ## Quick Start
-1. Download the [training data](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a) and the [testing data](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a.t).
-2. ```git clone https://github.com/botonchou/libdnn.git```
-3. ```./install-sh```
+1. ```git clone https://github.com/botonchou/libdnn.git```
+2. ```cd libdnn && ./install-sh```
+3. Download the [training data](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a) and the [testing data](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a.t).
+4. dnn-init a1a --nodes 512-512
+5. dnn-train a1a --pre 2 -f a1a.model --min-acc 0.8
+6. dnn-predict a1a.t a1a.model
 
 ## How to Install ?
 ```
@@ -67,5 +70,3 @@ If you just want to mess around but without data at hand, you can download some 
 
 ### Start training
 There're 3 programs, dnn-init, dnn-train, dnn-predict.
-
-#### Example Usage
