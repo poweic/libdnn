@@ -7,8 +7,14 @@ C++ Library of Deep Neural Network
 You need to install NVIDIA CUDA toolkit (at least 5.0)
 (Here'e the link https://developer.nvidia.com/cuda-toolkit)
 
+
+
+## Quick Start
+1. Download the [training data](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a) and the [testing data](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a.t).
+2. ```git clone https://github.com/botonchou/libdnn.git```
+3. ```./install-sh```
+
 ## How to Install ?
-Simply type
 ```
 ./install-sh
 ```
@@ -18,7 +24,6 @@ Simply type
 Libdnn aims to an easy quick machine learning using **deep neural network**.
 
 ### Prepare your data
-#### Training data and testing data
 
 #### Data Format
 The data can be provided either in the LIBSVM format or the dense format.
@@ -54,6 +59,13 @@ The first column of each row are the labels, and the rest are feature vectors in
 ```
 (this is the same data as the above)
 
+#### Training data and testing data
+
+You need at least two data files, one with labels (called training data) and the other with/without labels (called testing data.)
+
+If you just want to mess around but without data at hand, you can download some from the [LibSVM website](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/). 
+
 ### Start training
 There're 3 programs, dnn-init, dnn-train, dnn-predict.
 
+#### Example Usage
