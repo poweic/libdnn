@@ -5,6 +5,8 @@
 #include <dnn-utility.h>
 #include <dataset.h>
 
+void playground();
+
 std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres);
 
 __global__ void turnOnWithProbabilityKernel(float* const data, const float* const prob, unsigned int rows, unsigned int cols);
