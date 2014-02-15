@@ -33,7 +33,6 @@ public:
   void _read(FILE* fid);
   void read(string fn);
   void save(string fn) const;
-  void print() const;
 
   friend void swap(DNN& lhs, DNN& rhs);
 

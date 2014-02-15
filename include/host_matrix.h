@@ -16,6 +16,12 @@ public:
     memcpy(_data, source._data, sizeof(T) * _capacity);
   }
 
+  host_matrix(const device_matrix<T>& source): _rows(source.getRows()), _cols(source.getCols()), _capacity(_rows * _cols), _data(NULL) {
+
+    _data = new T[_capacity];
+    CCE(cudaMemcpy(_data, source.getData(), sizeof(float) * size(), cudaMemcpyDeviceToHost));
+  }
+
   ~host_matrix() {
     if (_data != NULL)
       delete [] _data;

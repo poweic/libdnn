@@ -33,7 +33,7 @@ int main (int argc, char* argv[]) {
   bool isOutputProb = cmd["--prob"];
 
   DataSet test(test_fn, rescale);
-  test.showSummary();
+  // test.showSummary();
 
   bool hasAnswer = test.isLabeled();
 

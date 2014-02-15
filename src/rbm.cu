@@ -2,8 +2,6 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-__global__ void setupCuRandState( curandState * state, size_t rows, size_t cols, unsigned long seed );
-
 std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres) {
   std::vector<mat> weights(dims.size() - 1);
 
@@ -24,55 +22,43 @@ __device__ float generate_rand(curandState* globalState) {
   return RANDOM;
 }
 
-__global__ void setupCuRandState( curandState * state, size_t rows, size_t cols, unsigned long seed ) {
+__global__ void setupCuRandState( curandState * state, unsigned long seed ) {
   int x = blockIdx.x*blockDim.x + threadIdx.x;
-  int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-  if (x >= cols || y >= rows)
-    return;
-
-  unsigned int i = x * rows + y;
-  curand_init ( seed, i, 0, &state[i] );
+  curand_init ( seed, x, 0, &state[x] );
 }
 
 __global__ void turnOnWithProbabilityKernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
 
   // Matrix index
-  int x = blockIdx.x*blockDim.x + threadIdx.x;
-  int y = blockIdx.y*blockDim.y + threadIdx.y;
+  int x = blockIdx.x*blockDim.x + tx;
+  int y = blockIdx.y*blockDim.y + ty;
 
   if (x >= cols || y >= rows)
     return;
 
-  unsigned int i = x * rows + y;
-  // data[i] = (float) data[i] > prob[i];
-  data[i] = (float) (data[i] > generate_rand(globalState + i));
+  int i = x * rows + y;
+  int j = tx * blockDim.y + ty;
+  data[i] = (float) (data[i] > generate_rand(globalState + j));
   __syncthreads();
 }
 
 void turnOnWithProbability(mat &y) {
   size_t rows = y.getRows();
   size_t cols = y.getCols();
-  size_t N = rows * cols;
-
-  const size_t BLOCK_DIM = 32;
-  dim3 threads(BLOCK_DIM, BLOCK_DIM);
+  
+  const size_t N = 32;
+  dim3 threads(N, N);
   dim3 grid;
-  grid.x = (unsigned int) ceil((float) y.getCols() / BLOCK_DIM);
-  grid.y = (unsigned int) ceil((float) y.getRows() / BLOCK_DIM);
+  grid.x = (unsigned int) ceil((float) y.getCols() / N);
+  grid.y = (unsigned int) ceil((float) y.getRows() / N);
 
   static curandState* devStates = NULL;
-  static size_t prevN = N;
-  if (N > prevN) {
-    prevN = N;
-    cudaFree(devStates);
-    devStates = NULL;
-  }
 
   if (devStates == NULL) {
-    // printf("\n\nAllocate curandState of size %lu MBytes\n", N * sizeof(curandState) / 1024 / 1024);
-    cudaMalloc ( &devStates, N * sizeof( curandState ) );
-    setupCuRandState <<< grid, threads >>> ( devStates, rows, cols, unsigned(time(NULL)) );
+    cudaMalloc ( &devStates, N * N * sizeof( curandState ) );
+    setupCuRandState <<< 1, N*N >>> ( devStates, unsigned(time(NULL)) );
   }
 
   turnOnWithProbabilityKernel<<< grid, threads >>>(y.getData(), devStates, y.getRows(), y.getCols());
@@ -105,7 +91,11 @@ mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
   float initialSlope = 0;
 
   ProgressBar pBar("RBM init ( error = ...       , slope ratio = ...        )");
-  for (size_t epoch=0; epoch < maxEpoch; ++epoch) {
+
+  perf::Timer timer;
+  timer.start();
+  size_t epoch;
+  for (epoch=0; epoch < maxEpoch; ++epoch) {
 
     float error = 0;
     for (size_t i=0; i<nBatch; ++i) {
@@ -152,7 +142,9 @@ mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
     }
   }
 
-  printf("\nAverage magnitude of element in weight W = %.7f\n", nrm2(W) / sqrt(W.size()));
+  printf("Average magnitude of element in weight W = %.7f\n", nrm2(W) / sqrt(W.size()));
+  float t_end = timer.getTime();
+  printf("Average time for each epoch = %f\n", t_end / epoch);
   
   return W;
 }

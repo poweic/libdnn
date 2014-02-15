@@ -16,9 +16,10 @@ public:
 
   virtual void feedBackward(mat& error, const mat& delta);
 
+  static void print(FILE* fid, const host_matrix<float>& A, string type);
   size_t getInputDimension() const;
   size_t getOutputDimension() const;
-  void print() const;
+  void print(FILE* fid) const;
 
 protected:
   FeatureTransform(const mat& w);
