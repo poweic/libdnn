@@ -11,9 +11,6 @@ public:
   DataSet();
   DataSet(const string &fn, bool rescale = false);
 
-  void read(const string &fn, bool rescale);
-  void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
-
   size_t getInputDimension() const;
   size_t getOutputDimension() const;
 
@@ -32,15 +29,20 @@ public:
   mat getProb(size_t offset, size_t nData) const;
   mat getProb() const;
 
-private:
   void shuffleFeature();
+  void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
+
+private:
+
+  void read(const string &fn, bool rescale);
+  void readSparseFeature(ifstream& fin);
+  void readDenseFeature(ifstream& fin);
+  void rescaleFeature(float lower = 0, float upper = 1);
+
   void convertToStandardLabels();
   void label2PosteriorProb();
 
-  void rescaleFeature(float lower = 0, float upper = 1);
-  void readSparseFeature(ifstream& fin);
-  void readDenseFeature(ifstream& fin);
-
+  size_t _dim;
   hmat _hx, _hy, _hp;
 };
 
