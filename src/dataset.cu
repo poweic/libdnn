@@ -36,10 +36,10 @@ size_t DataSet::getOutputDimension() const {
 
 void DataSet::rescaleFeature(float lower, float upper) {
 
-  size_t rows = _hx.getRows(),
-	 cols = _hx.getCols();
+  size_t rows = this->size(),
+	 cols = this->_dim;
 
-  for (size_t i=0; i<rows; ++i) {
+  for (size_t i=0; i<this->size(); ++i) {
     float min = _hx(i, 0),
 	  max = _hx(i, 0);
 
@@ -69,7 +69,7 @@ void DataSet::read(const string &fn, bool rescale) {
   _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
   size_t N = getLineNumber(fin);
 
-  _hx.resize(N, _dim);
+  _hx.resize(N, _dim + 1);
   _hy.resize(N, 1);
 
   if (isSparse)
@@ -84,9 +84,6 @@ void DataSet::read(const string &fn, bool rescale) {
     printf("\33[33m[Info]\33[0m rescale each feature to [0, 1]\n");
     rescaleFeature();
   }
-
-  _hx.reserve(N * (_dim + 1));
-  _hx.resize(N, _dim + 1);
 
   float* lastColumn = _hx.getData() + N * _dim;
   std::fill(lastColumn, lastColumn + N, 1.0f);
@@ -120,9 +117,6 @@ void DataSet::readSparseFeature(ifstream& fin) {
 
 void DataSet::readDenseFeature(ifstream& fin) {
   
-  size_t rows = _hx.getRows(),
-	 cols = _hx.getCols();
-
   string line, token;
   size_t i = 0;
   while (std::getline(fin, line)) {
@@ -303,16 +297,6 @@ void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int rati
   memcpy(train._hy.getData(), _hy.getData(), sizeof(float) * train._hy.size());
   memcpy(train._hp.getData(), _hp.getData(), sizeof(float) * train._hp.size());
 
-  /*for (size_t i=0; i<nTrain; ++i) {
-    for (size_t j=0; j<inputDim; ++j)
-      train._hx(i, j) = _hx(i, j);
-
-    for (size_t j=0; j<outputDim; ++j)
-      train._hp(i, j) = _hp(i, j);
-
-    train._hy[i] = _hy[i];
-  }*/
-
   // Copy data to validation set
   valid._hx.resize(inputDim , nValid);
   valid._hy.resize(1	    , nValid);
@@ -321,14 +305,4 @@ void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int rati
   memcpy(valid._hx.getData(), _hx.getData() + train._hx.size(), sizeof(float) * valid._hx.size());
   memcpy(valid._hy.getData(), _hy.getData() + train._hy.size(), sizeof(float) * valid._hy.size());
   memcpy(valid._hp.getData(), _hp.getData() + train._hp.size(), sizeof(float) * valid._hp.size());
-
-  /*for (size_t i=0; i<nValid; ++i) {
-    for (size_t j=0; j<inputDim; ++j)
-      valid._hx(i, j) = _hx[j * rows + i + nTrain];
-
-    for (size_t j=0; j<outputDim; ++j)
-      valid._hp(i, j) = _hp[j * rows + i + nTrain];
-
-    valid._hy[i] = _hy[i + nTrain];
-  }*/
 }

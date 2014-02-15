@@ -84,13 +84,6 @@ public:
 	t(i, j) = (*this)(j, i);
 
     return t;
-
-    /*device_matrix<T> dA(_data, _rows, _cols);
-    dA = ~dA;
-    host_matrix<T> tA(_cols, _rows);
-
-    CCE(cudaMemcpy(tA.getData(), dA.getData(), sizeof(float) * tA.size(), cudaMemcpyDeviceToHost));
-    return tA;*/
   }
 
   void fillwith(T value) {
