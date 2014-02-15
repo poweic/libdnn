@@ -19,7 +19,7 @@ public:
 
   void init(const std::vector<mat>& weights);
 
-  mat feedForward(const mat& fin);
+  mat feedForward(const mat& fin) const;
   void feedForward(mat& output, const mat& fin);
   void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 

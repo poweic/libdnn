@@ -7,6 +7,7 @@
 #include <batch.h>
 using namespace std;
 
+size_t dnn_predict(const DNN& dnn, const DataSet& data, ERROR_MEASURE errorMeasure);
 void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
 void playground();
@@ -135,22 +136,17 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
       // Copy a batch of data from host to device
-      mat fin = train.getX(itr->offset, itr->nData);
+      mat fin = train.getX(*itr);
       dnn.feedForward(fout, fin);
 
-      mat error = getError(
-	  train.getProb(itr->offset, itr->nData),
-	  fout,
-	  errorMeasure);
+      mat error = getError( train.getProb(*itr), fout, errorMeasure);
 
       dnn.backPropagate(error, fin, fout, dnn.getConfig().learningRate);
     }
 
-    // dnn.feedForward(fout, valid.getX());
-    Eout.push_back(zeroOneError(dnn.feedForward(valid.getX()), valid.getY(), errorMeasure));
+    Eout.push_back(dnn_predict(dnn, valid, errorMeasure));
   
-    // dnn.feedForward(fout, train.getX());
-    Ein = zeroOneError(dnn.feedForward(train.getX()), train.getY(), errorMeasure);
+    Ein = dnn_predict(dnn, train, errorMeasure);
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
@@ -177,6 +173,18 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   showAccuracy(Ein, train.size());
   printf("[ Out-of-Sample ] ");
   showAccuracy(Eout.back(), valid.size());
+}
+
+size_t dnn_predict(const DNN& dnn, const DataSet& data, ERROR_MEASURE errorMeasure) {
+  size_t nError = 0;
+
+  Batches batches(2048, data.size());
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    mat prob = dnn.feedForward(data.getX(*itr));
+    nError += zeroOneError(prob, data.getY(*itr), errorMeasure);
+  }
+
+  return nError;
 }
 
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch) {

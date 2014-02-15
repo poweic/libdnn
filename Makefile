@@ -20,6 +20,7 @@ SOURCES=dnn.cu\
 	rbm.cu\
 	feature-transform.cu\
 	dataset.cpp\
+	batch.cpp\
 	config.cpp
 
 EXECUTABLES=dnn-train dnn-predict dnn-init

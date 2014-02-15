@@ -140,7 +140,7 @@ void DNN::adjustLearningRate(float trainAcc) {
   }
 }
 
-mat DNN::feedForward(const mat& fin) {
+mat DNN::feedForward(const mat& fin) const {
 
   mat y;
 

@@ -42,12 +42,6 @@ void DataSet::showSummary() const {
 
 }
 
-mat DataSet::getX(size_t offset, size_t nData) const {
-  size_t dim = _hx.getRows();
-  mat x_transposed(_hx.getData() + offset * dim, dim, nData);
-  return ~x_transposed;
-}
-
 mat DataSet::getX() const {
   return ~mat(_hx.getData(), _hx.getRows(), _hx.getCols());
 }
@@ -56,20 +50,26 @@ mat DataSet::getY() const {
   return ~mat(_hy.getData(), _hy.getRows(), _hy.getCols());
 }
 
-mat DataSet::getY(size_t offset, size_t nData) const {
-  size_t dim = _hy.getRows();
-  mat y_transposed(_hy.getData() + offset * dim, dim, nData);
-  return ~y_transposed;
-}
-
 mat DataSet::getProb() const {
   return ~mat(_hp.getData(), _hp.getRows(), _hp.getCols());
 }
 
-mat DataSet::getProb(size_t offset, size_t nData) const {
+mat DataSet::getX(const Batches::Batch& b) const {
+  size_t dim = _hx.getRows();
+  mat x_transposed(_hx.getData() + b.offset * dim, dim, b.nData);
+  return ~x_transposed;
+}
+
+mat DataSet::getY(const Batches::Batch& b) const {
+  size_t dim = _hy.getRows();
+  mat y_transposed(_hy.getData() + b.offset * dim, dim, b.nData);
+  return ~y_transposed;
+}
+
+mat DataSet::getProb(const Batches::Batch& b) const {
 
   size_t dim = _hp.getRows();
-  mat p_transposed(_hp.getData() + offset * dim, dim, nData);
+  mat p_transposed(_hp.getData() + b.offset * dim, dim, b.nData);
   return ~p_transposed;
 }
 

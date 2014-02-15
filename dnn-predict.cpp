@@ -47,10 +47,10 @@ int main (int argc, char* argv[]) {
 
   Batches batches(1024, test.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    mat prob = dnn.feedForward(test.getX(itr->offset, itr->nData));
+    mat prob = dnn.feedForward(test.getX(*itr));
 
     if (hasAnswer)
-      nError += zeroOneError(prob, test.getY(itr->offset, itr->nData), errorMeasure);
+      nError += zeroOneError(prob, test.getY(*itr), errorMeasure);
 
     if (hasAnswer && output_fn.empty())
       continue;

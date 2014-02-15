@@ -1,13 +1,13 @@
 #ifndef __BATCH_H_
 #define __BATCH_H_
 
+#include <cstdlib>
+#include <cmath>
+#include <algorithm>
+
 class Batches {
 public:
-  Batches(size_t batchSize, size_t totalSize):
-    _batchSize(batchSize), _totalSize(totalSize),
-    _begin(0, _batchSize, _totalSize),
-    _end(-1, _batchSize, _totalSize) {
-  }
+  Batches(size_t batchSize, size_t totalSize);
 
   class iterator;
 
@@ -31,13 +31,24 @@ public:
 
       iterator& operator = (iterator rhs);
 
-      iterator& operator ++ ()	  { _batch->offset += _batchSize; return *this; }
-      iterator operator ++ (int)  { _batch->offset += _batchSize; return *this; }
-
-      Batch* operator -> () const {
+      iterator& operator ++ ()	  {
+	_batch->offset += _batchSize;
 	if (_batch->offset + _batch->nData >= _totalSize)
 	  _batch->nData = _totalSize - _batch->offset;
+	return *this;
+      }
 
+      iterator operator ++ (int)  {
+	iterator itr(*this);
+	++(*this);
+	return itr; 
+      }
+
+      const Batch& operator * () const {
+	return *_batch;
+      }
+
+      Batch* operator -> () const {
 	return _batch;
       }
 
@@ -53,9 +64,9 @@ public:
 
       Batch* _batch;
 
-      iterator(size_t index, size_t batchSize, size_t totalSize):
+      iterator(int index, size_t batchSize, size_t totalSize):
 	_batchSize(batchSize), _totalSize(totalSize) {
-	  size_t offset = index;
+	  int offset = index;
 	  if (offset == -1)
 	    offset = ceil((float) _totalSize / _batchSize) * _batchSize;
 
@@ -75,11 +86,6 @@ private:
   iterator _end;
 };
 
-void swap(Batches::iterator& lhs, Batches::iterator& rhs) {
-  std::swap(lhs._batchSize, rhs._batchSize);
-  std::swap(lhs._totalSize, rhs._totalSize);
-  std::swap(lhs._batch, rhs._batch);
-}
-
+void swap(Batches::iterator& lhs, Batches::iterator& rhs);
 
 #endif // __BATCH_H_
