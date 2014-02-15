@@ -26,6 +26,8 @@ public:
       iterator(const iterator& source):
 	_batchSize(source._batchSize), _totalSize(source._totalSize) {
 	  _batch = new Batch(source._batch->offset, source._batch->nData);
+	  if (_batch->offset + _batch->nData >= _totalSize)
+	    _batch->nData = _totalSize - _batch->offset;
       }
       ~iterator() { delete _batch; }
 
