@@ -11,18 +11,14 @@ DataSet::DataSet(const string &fn, bool rescale): _dim(0) {
   this->convertToStandardLabels();
   this->label2PosteriorProb();
   this->shuffleFeature();
-
-  _hx = ~_hx;
-  _hy = ~_hy;
-  _hp = ~_hp;
 }
 
 void DataSet::convertToStandardLabels() {
-  assert(_hy.getCols() == 1);
+  assert(_hy.getRows() == 1);
 
   // Replace labels to 1, 2, 3, N, using mapping
   map<int, int> classes = getLabelMapping(_hy);
-  for (size_t i=0; i<_hy.getRows(); ++i)
+  for (size_t i=0; i<_hy.size(); ++i)
     _hy[i] = classes[_hy[i]];
 }
 
@@ -36,28 +32,25 @@ size_t DataSet::getOutputDimension() const {
 
 void DataSet::rescaleFeature(float lower, float upper) {
 
-  size_t rows = this->size(),
-	 cols = this->_dim;
-
   for (size_t i=0; i<this->size(); ++i) {
-    float min = _hx(i, 0),
-	  max = _hx(i, 0);
+    float min = _hx(0, i),
+	  max = _hx(0, i);
 
-    for (size_t j=0; j<cols; ++j) {
-      float x = _hx(i, j);
+    for (size_t j=0; j<_dim; ++j) {
+      float x = _hx(j, i);
       if (x > max) max = x;
       if (x < min) min = x;
     }
 
     if (max == min) {
-      for (size_t j=0; j<cols; ++j)
-	_hx(i, j) = upper;
+      for (size_t j=0; j<_dim; ++j)
+	_hx(j, i) = upper;
       continue;
     }
 
     float ratio = (upper - lower) / (max - min);
-    for (size_t j=0; j<cols; ++j)
-      _hx(i, j) = (_hx(i, j) - min) * ratio + lower;
+    for (size_t j=0; j<_dim; ++j)
+      _hx(j, i) = (_hx(j, i) - min) * ratio + lower;
   }
 }
 
@@ -69,8 +62,8 @@ void DataSet::read(const string &fn, bool rescale) {
   _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
   size_t N = getLineNumber(fin);
 
-  _hx.resize(N, _dim + 1);
-  _hy.resize(N, 1);
+  _hx.resize(_dim + 1, N);
+  _hy.resize(1, N);
 
   if (isSparse)
     readSparseFeature(fin);
@@ -85,8 +78,11 @@ void DataSet::read(const string &fn, bool rescale) {
     rescaleFeature();
   }
 
-  float* lastColumn = _hx.getData() + N * _dim;
-  std::fill(lastColumn, lastColumn + N, 1.0f);
+  /*float* lastColumn = _hx.getData() + N * _dim;
+  std::fill(lastColumn, lastColumn + N, 1.0f);*/
+
+  for (size_t i=0; i<N; ++i)
+    _hx(_dim, i) = 1;
 
   // --------------------------------------
 }
@@ -109,7 +105,7 @@ void DataSet::readSparseFeature(ifstream& fin) {
       size_t j = str2float(token.substr(0, pos)) - 1;
       float value = str2float(token.substr(pos + 1));
       
-      _hx(i, j) = value;
+      _hx(j, i) = value;
     }
     ++i;
   }
@@ -127,7 +123,7 @@ void DataSet::readDenseFeature(ifstream& fin) {
 
     size_t j = 0;
     while (ss >> token)
-      _hx(i, j++) = str2float(token);
+      _hx(j++, i) = str2float(token);
     ++i;
   }
 }
@@ -152,11 +148,11 @@ void DataSet::label2PosteriorProb() {
   size_t nClasses = classes.size();
 
   // Convert labels to posterior probabilities
-  _hp.resize(_hy.getRows(), nClasses);
+  _hp.resize(nClasses, _hy.getCols());
   _hp.fillwith(0);
 
-  for (size_t i=0; i<_hp.getRows(); ++i)
-    _hp(i, (_hy[i] - 1)) = 1;
+  for (size_t i=0; i<_hp.getCols(); ++i)
+    _hp((_hy[i] - 1), i) = 1;
 }
 
 bool isFileSparse(string train_fn) {
@@ -222,16 +218,13 @@ size_t findDimension(ifstream& fin) {
 
 void DataSet::shuffleFeature() {
 
-  size_t rows = _hx.getRows(),
-	 cols = _hx.getCols();
-
-  std::vector<size_t> perm = randperm(rows);
+  std::vector<size_t> perm = randperm(size());
 
   hmat x(_hx), y(_hy);
 
-  for (size_t i=0; i<rows; ++i) {
-    for (size_t j=0; j<cols; ++j)
-      _hx(perm[i], j) = x (i, j);
+  for (size_t i=0; i<size(); ++i) {
+    for (size_t j=0; j<_dim + 1; ++j)
+      _hx(j, perm[i]) = x(j, i);
     _hy[perm[i]] = y[i];
   }
 
