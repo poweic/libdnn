@@ -77,12 +77,20 @@ public:
   }
 
   host_matrix<T> operator ~ () const {
-    device_matrix<T> dA(_data, _rows, _cols);
+    host_matrix<T> t(_cols, _rows);
+
+    for (size_t i=0; i<t._rows; ++i)
+      for (size_t j=0; j<t._cols; ++j)
+	t(i, j) = (*this)(j, i);
+
+    return t;
+
+    /*device_matrix<T> dA(_data, _rows, _cols);
     dA = ~dA;
     host_matrix<T> tA(_cols, _rows);
 
     CCE(cudaMemcpy(tA.getData(), dA.getData(), sizeof(float) * tA.size(), cudaMemcpyDeviceToHost));
-    return tA;
+    return tA;*/
   }
 
   void fillwith(T value) {

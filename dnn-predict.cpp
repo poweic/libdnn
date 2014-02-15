@@ -3,7 +3,11 @@
 #include <dnn.h>
 #include <dnn-utility.h>
 #include <cmdparser.h>
+#include <batch.h>
 using namespace std;
+
+void printLabels(const mat& prob, FILE* fid);
+FILE* openFileOrStdout(const string& filename);
 
 int main (int argc, char* argv[]) {
 
@@ -28,44 +32,64 @@ int main (int argc, char* argv[]) {
   bool rescale      = cmd["--rescale"];
   bool isOutputProb = cmd["--prob"];
 
+  // cout << "Reading data..." << endl;
   DataSet test(test_fn, rescale);
   test.showSummary();
 
-  DNN dnn(model_fn);
-  mat prob;
-  dnn.feedForward(prob, test.getX());
+  // cout << "Test if there's a label" << endl;
+  bool hasAnswer = test.isLabeled();
+  // cout << "Test done." << endl;
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
-  bool hasAnswer = test.isLabeled();
+  // cout << "Loading DNN model from " << model_fn << endl;
+  DNN dnn(model_fn);
+  // cout << "Model loaded" << endl;
 
-  if (hasAnswer) {
-    size_t nError = zeroOneError(prob, test.getY(), errorMeasure);
-    showAccuracy(nError, test.getY().size());
+  size_t nError = 0;
+
+  FILE* fid = openFileOrStdout(output_fn);
+
+  Batches batches(1024, test.size());
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    // printf("offset = %lu, nData = %lu\n", itr->offset, itr->nData);
+    mat prob = dnn.feedForward(test.getX(itr->offset, itr->nData));
+
+    if (hasAnswer)
+      nError += zeroOneError(prob, test.getY(itr->offset, itr->nData), errorMeasure);
+
+    if (hasAnswer && output_fn.empty())
+      continue;
+
+    if (isOutputProb)
+      prob.print(fid);
+    else
+      printLabels(prob, fid);
   }
-
-  if (hasAnswer && output_fn.empty())
-    return 0;
-
-  FILE* fid = output_fn.empty() ? stdout : fopen(output_fn.c_str(), "w");
-  if (fid == NULL) {
-    fprintf(stderr, "Failed to open output file");
-    return -1;
-  }
-
-  if (!isOutputProb) {
-    mat d_labels = posteriorProb2Label(prob);
-    std::vector<float> labels = copyToHost(d_labels);
-    for (size_t i=0; i<labels.size(); ++i)
-      fprintf(fid, "%d\n", (int) labels[i]);
-  }
-  else
-    prob.print(fid);
-
 
   if (fid != stdout)
     fclose(fid);
 
+  if (hasAnswer)
+    showAccuracy(nError, test.size());
+
   return 0;
 }
 
+void printLabels(const mat& prob, FILE* fid) {
+  std::vector<float> labels = copyToHost(posteriorProb2Label(prob));
+  for (size_t i=0; i<labels.size(); ++i)
+    fprintf(fid, "%d\n", (int) labels[i]);
+}
+
+FILE* openFileOrStdout(const string& filename) {
+
+  FILE* fid = filename.empty() ? stdout : fopen(filename.c_str(), "w");
+
+  if (fid == NULL) {
+    fprintf(stderr, "Failed to open output file");
+    exit(-1);
+  }
+
+  return fid;
+}

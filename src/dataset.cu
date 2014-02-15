@@ -257,15 +257,6 @@ size_t DataSet::size() const {
 }
 
 mat DataSet::getX(size_t offset, size_t nData) const {
-  // size_t cols = _hx.getCols();
-  // mat x(nData, cols);
-
-  // FIXME train.getX() copy the whole data from host to device
-  // But x use only a tiny part of it
-  // memcpy2D(x, this->getX(), offset, 0, nData, cols, 0, 0);
-
-  // return x;
-
   size_t dim = _hx.getRows();
   mat x_transposed(_hx.getData() + offset * dim, dim, nData);
   return ~x_transposed;
@@ -280,7 +271,9 @@ mat DataSet::getY() const {
 }
 
 mat DataSet::getY(size_t offset, size_t nData) const {
-  // TODO
+  size_t dim = _hy.getRows();
+  mat y_transposed(_hy.getData() + offset * dim, dim, nData);
+  return ~y_transposed;
 }
 
 mat DataSet::getProb() const {
@@ -289,13 +282,6 @@ mat DataSet::getProb() const {
 
 mat DataSet::getProb(size_t offset, size_t nData) const {
 
-  /*size_t cols = _hp.getCols();
-  mat p(nData, cols);
-
-  // FIXME the same problem as above
-  memcpy2D(p, this->getProb(), offset, 0, nData, cols, 0, 0);
-
-  return p;*/
   size_t dim = _hp.getRows();
   mat p_transposed(_hp.getData() + offset * dim, dim, nData);
   return ~p_transposed;
