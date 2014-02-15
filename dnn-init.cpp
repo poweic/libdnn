@@ -45,15 +45,19 @@ int main (int argc, char* argv[]) {
   data.shuffleFeature();
   data.showSummary();
 
-  // Set configurations
-  Config config;
+  // Initialize by RBM
+  
+  std::vector<mat> weights = rbminit(data, getDimensionsForRBM(data, structure), slopeThres);
 
-  // Initialize Deep Neural Network
-  DNN dnn(config);
-  dnn.init(rbminit(data, getDimensionsForRBM(data, structure), slopeThres));
+  FILE* fid = fopen(model_fn.c_str(), "w");
+
+  for (size_t i=0; i<weights.size() - 1; ++i)
+    FeatureTransform::print(fid, weights[i], "sigmoid");
+  FeatureTransform::print(fid, weights.back(), "softmax");
+
+  fclose(fid);
 
   // Save the model
-  dnn.save(model_fn);
 
   return 0;
 }
