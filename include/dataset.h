@@ -41,6 +41,7 @@ private:
   void readSparseFeature(ifstream& fin);
   void readDenseFeature(ifstream& fin);
 
+  size_t _dim;
   hmat _hx, _hy, _hp;
 };
 

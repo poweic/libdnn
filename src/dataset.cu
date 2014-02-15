@@ -1,10 +1,10 @@
 #include <dataset.h>
 #include <dnn-utility.h>
 
-DataSet::DataSet() {
+DataSet::DataSet(): _dim(0) {
 }
 
-DataSet::DataSet(const string &fn, bool rescale) {
+DataSet::DataSet(const string &fn, bool rescale): _dim(0) {
 
   read(fn, rescale);
 
@@ -27,8 +27,7 @@ void DataSet::convertToStandardLabels() {
 }
 
 size_t DataSet::getInputDimension() const {
-  // FIXME the input dimension shouldn't be so unclear
-  return _hx.getRows() - 1;
+  return _dim;
 }
 
 size_t DataSet::getOutputDimension() const {
@@ -67,11 +66,11 @@ void DataSet::read(const string &fn, bool rescale) {
 
   bool isSparse = isFileSparse(fn);
 
-  size_t cols = isSparse ? findMaxDimension(fin) : findDimension(fin);
-  size_t rows = getLineNumber(fin);
+  _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
+  size_t N = getLineNumber(fin);
 
-  _hx.resize(rows, cols);
-  _hy.resize(rows, 1);
+  _hx.resize(N, _dim);
+  _hy.resize(N, 1);
 
   if (isSparse)
     readSparseFeature(fin);
@@ -86,19 +85,16 @@ void DataSet::read(const string &fn, bool rescale) {
     rescaleFeature();
   }
 
-  _hx.reserve(rows * (cols + 1));
-  _hx.resize(rows, cols + 1);
+  _hx.reserve(N * (_dim + 1));
+  _hx.resize(N, _dim + 1);
 
-  float* lastColumn = _hx.getData() + rows * cols;
-  std::fill(lastColumn, lastColumn + rows, 1.0f);
+  float* lastColumn = _hx.getData() + N * _dim;
+  std::fill(lastColumn, lastColumn + N, 1.0f);
 
   // --------------------------------------
 }
 
 void DataSet::readSparseFeature(ifstream& fin) {
-
-  size_t rows = _hx.getRows(),
-	 cols = _hx.getCols();
 
   string line, token;
   size_t i = 0;
