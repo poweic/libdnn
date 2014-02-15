@@ -1,5 +1,26 @@
 #include <feature-transform.h>
 
+void FeatureTransform::print(FILE* fid, const host_matrix<float>& data, string type) {
+  fprintf(fid, "<%s> %lu %lu\n", type.c_str(), data.getRows() - 1, data.getCols() - 1);
+
+  size_t rows = data.getRows(),
+	 cols = data.getCols();
+
+  fprintf(fid, " [");
+
+  for (size_t j=0; j<rows-1; ++j) {
+    fprintf(fid, "\n  ");
+    for (size_t k=0; k<cols-1; ++k)
+      fprintf(fid, "%g ", data[k * rows + j]);
+  }
+  fprintf(fid, "]\n");
+
+  fprintf(fid, "<bias> \n [");
+  for (size_t j=0; j<cols-1; ++j)
+    fprintf(fid, "%g ", data[j * rows + rows - 1]);
+  fprintf(fid, " ]\n");
+}
+
 mat rowSum(mat& m) {
   return m * (mat(m.getCols(), m.getCols()) += 1);
 }
@@ -69,25 +90,6 @@ mat getRowMax(mat& A) {
   return rmax;
 }
 
-string toString(std::vector<float> data, size_t rows, size_t cols) {
-  stringstream ss;
-  ss << " [";
-
-  for (size_t j=0; j<rows-1; ++j) {
-    ss << "\n  ";
-    for (size_t k=0; k<cols; ++k)
-      ss << data[k * rows + j] << " ";
-  }
-  ss << "]\n";
-
-  ss << "<bias> \n [";
-  for (size_t j=0; j<cols; ++j)
-    ss << data[j * rows + rows - 1] << " ";
-  ss << " ]\n";
-
-  return ss.str();
-}
-
 // ============================
 // ===== FeatureTransform =====
 // ============================
@@ -106,8 +108,8 @@ size_t FeatureTransform::getOutputDimension() const {
   return _w.getCols();
 }
 
-void FeatureTransform::print() const {
-  this->_w.print();
+void FeatureTransform::print(FILE* fid) const {
+  FeatureTransform::print(fid, this->_w, this->toString());
 }
 
 void FeatureTransform::feedBackward(mat& error, const mat& delta) {
@@ -142,13 +144,7 @@ Sigmoid* Sigmoid::clone() const {
 }
 
 string Sigmoid::toString() const {
-  size_t rows = _w.getRows(),
-	 cols = _w.getCols() - 1;
-
-  stringstream ss;
-  ss << "<sigmoid> " << rows - 1 << " " << cols << endl;
-  ss << ::toString(copyToHost(_w), rows, cols);
-  return ss.str();
+  return "sigmoid";
 }
 
 void Sigmoid::feedForward(mat& fout, const mat& fin) {
@@ -177,13 +173,7 @@ Softmax* Softmax::clone() const {
 }
 
 string Softmax::toString() const {
-  size_t rows = _w.getRows(),
-	 cols = _w.getCols() - 1;
-
-  stringstream ss;
-  ss << "<softmax> " << rows - 1 << " " << cols << endl;
-  ss << ::toString(copyToHost(_w), rows, cols);
-  return ss.str();
+  return "softmax";
 }
 
 void Softmax::feedForward(mat& fout, const mat& fin) {

@@ -67,7 +67,7 @@ void DNN::read(string fn) {
 
   while (fscanf(fid, "%s", type) != EOF) {
     fscanf(fid, "%lu %lu\n [\n", &rows, &cols);
-    printf("\33[34m%-17s\33[0m %-6lu x %-6lu \n", type, rows, cols);
+    // printf("\33[34m%-17s\33[0m %-6lu x %-6lu \n", type, rows, cols);
 
     float* hw = new float[(rows + 1) * (cols + 1)];
     readweight(fid, hw, rows + 1, cols);
@@ -91,19 +91,9 @@ void DNN::save(string fn) const {
   FILE* fid = fopen(fn.c_str(), "w");
 
   for (size_t i=0; i<_transforms.size(); ++i)
-    fprintf(fid, "%s", _transforms[i]->toString().c_str());
-
-  cout << "nn_structure ";
-  for (size_t i=0; i<_transforms.size(); ++i)
-    cout << _transforms[i]->getInputDimension() << " ";
-  cout << _transforms.back()->getOutputDimension() << endl;
+    _transforms[i]->print(fid);
   
   fclose(fid);
-}
-
-void DNN::print() const {
-  for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->print();
 }
 
 // ========================
@@ -140,7 +130,7 @@ void DNN::adjustLearningRate(float trainAcc) {
   }
 }
 
-mat DNN::feedForward(const mat& fin) {
+mat DNN::feedForward(const mat& fin) const {
 
   mat y;
 

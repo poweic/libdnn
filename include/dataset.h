@@ -3,6 +3,7 @@
 
 #include <device_matrix.h>
 #include <host_matrix.h>
+#include <batch.h>
 typedef device_matrix<float> mat;
 typedef host_matrix<float> hmat;
 
@@ -20,14 +21,13 @@ public:
   bool isLabeled() const;
   void showSummary() const;
 
-  mat getX(size_t offset, size_t nData) const;
   mat getX() const;
-
-  mat getY(size_t offset, size_t nData) const;
   mat getY() const;
-
-  mat getProb(size_t offset, size_t nData) const;
   mat getProb() const;
+
+  mat getX(const Batches::Batch& b) const;
+  mat getY(const Batches::Batch& b) const;
+  mat getProb(const Batches::Batch& b) const;
 
   void shuffleFeature();
   void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
