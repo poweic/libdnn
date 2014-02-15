@@ -10,7 +10,6 @@ DataSet::DataSet(const string &fn, bool rescale): _dim(0) {
 
   this->convertToStandardLabels();
   this->label2PosteriorProb();
-  this->shuffleFeature();
 }
 
 size_t DataSet::getInputDimension() const {
@@ -111,6 +110,7 @@ void DataSet::read(const string &fn, bool rescale) {
   bool isSparse = isFileSparse(fn);
 
   _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
+
   size_t N = getLineNumber(fin);
 
   _hx.resize(_dim + 1, N);

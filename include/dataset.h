@@ -29,6 +29,7 @@ public:
   mat getProb(size_t offset, size_t nData) const;
   mat getProb() const;
 
+  void shuffleFeature();
   void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
 
 private:
@@ -40,7 +41,6 @@ private:
 
   void convertToStandardLabels();
   void label2PosteriorProb();
-  void shuffleFeature();
 
   size_t _dim;
   hmat _hx, _hy, _hp;

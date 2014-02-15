@@ -32,19 +32,14 @@ int main (int argc, char* argv[]) {
   bool rescale      = cmd["--rescale"];
   bool isOutputProb = cmd["--prob"];
 
-  // cout << "Reading data..." << endl;
   DataSet test(test_fn, rescale);
   test.showSummary();
 
-  // cout << "Test if there's a label" << endl;
   bool hasAnswer = test.isLabeled();
-  // cout << "Test done." << endl;
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
-  // cout << "Loading DNN model from " << model_fn << endl;
   DNN dnn(model_fn);
-  // cout << "Model loaded" << endl;
 
   size_t nError = 0;
 
@@ -52,7 +47,6 @@ int main (int argc, char* argv[]) {
 
   Batches batches(1024, test.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    // printf("offset = %lu, nData = %lu\n", itr->offset, itr->nData);
     mat prob = dnn.feedForward(test.getX(itr->offset, itr->nData));
 
     if (hasAnswer)
