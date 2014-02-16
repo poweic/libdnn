@@ -7,6 +7,8 @@
 typedef device_matrix<float> mat;
 typedef host_matrix<float> hmat;
 
+mat getBatchData(const hmat& data, const Batches::Batch& b);
+
 class DataSet {
 public:
   DataSet();
