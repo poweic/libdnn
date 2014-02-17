@@ -1,6 +1,10 @@
 #include <dataset.h>
 #include <dnn-utility.h>
 
+mat getBatchData(const hmat& data, const Batches::Batch& b) {
+  return ~mat(data.getData() + b.offset * data.getRows(), data.getRows(), b.nData);
+}
+
 DataSet::DataSet(): _dim(0) {
 }
 
@@ -42,35 +46,28 @@ void DataSet::showSummary() const {
 
 }
 
-mat DataSet::getX() const {
-  return ~mat(_hx.getData(), _hx.getRows(), _hx.getCols());
+const hmat& DataSet::getX() const {
+  return _hx;
 }
 
-mat DataSet::getY() const {
-  return ~mat(_hy.getData(), _hy.getRows(), _hy.getCols());
+const hmat& DataSet::getY() const {
+  return _hy;
 }
 
-mat DataSet::getProb() const {
-  return ~mat(_hp.getData(), _hp.getRows(), _hp.getCols());
+const hmat& DataSet::getProb() const {
+  return _hp;
 }
 
 mat DataSet::getX(const Batches::Batch& b) const {
-  size_t dim = _hx.getRows();
-  mat x_transposed(_hx.getData() + b.offset * dim, dim, b.nData);
-  return ~x_transposed;
+  return getBatchData(_hx, b);
 }
 
 mat DataSet::getY(const Batches::Batch& b) const {
-  size_t dim = _hy.getRows();
-  mat y_transposed(_hy.getData() + b.offset * dim, dim, b.nData);
-  return ~y_transposed;
+  return getBatchData(_hy, b);
 }
 
 mat DataSet::getProb(const Batches::Batch& b) const {
-
-  size_t dim = _hp.getRows();
-  mat p_transposed(_hp.getData() + b.offset * dim, dim, b.nData);
-  return ~p_transposed;
+  return getBatchData(_hp, b);
 }
 
 void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio) {
