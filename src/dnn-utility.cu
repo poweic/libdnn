@@ -37,6 +37,15 @@ namespace ext {
     return hMaxPtr[0];
   }
 
+  float max(const hmat& v) {
+    float* m = thrust::max_element(v.getData(), v.getData() + v.size());
+    return *m;
+  }
+
+  float min(const hmat& v) {
+    float* m = thrust::min_element(v.getData(), v.getData() + v.size());
+    return *m;
+  }
 };
 
 mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {

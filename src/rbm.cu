@@ -7,7 +7,7 @@ std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float s
 
   mat X = data.getX();
   for (size_t i=0; i<weights.size(); ++i) {
-    weights[i] = RBMinit(X, dims[i + 1], slopeThres);
+    weights[i] = RBMinit(mat(~X), dims[i + 1], slopeThres);
     X = ext::sigmoid(X * weights[i]);
     fillLastColumnWith(X, 1.0f);
   }
@@ -65,23 +65,20 @@ void turnOnWithProbability(mat &y) {
   CCE(cudaDeviceSynchronize());
 }
 
-mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
+mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold) {
   // Make sure the visible units have values in the range [0, 1]
   float max = ext::max(data),
 	min = ext::min(data);
 
   assert(max <= 1 && min >= 0);
 
-  size_t input_dim = data.getCols();
+  size_t batchSize = 128;
+  size_t input_dim = data.getRows();
+  size_t nData = data.getCols();
 
   mat W(input_dim, nHiddenUnits + 1);
   ext::randn(W, 0, 0.1 / W.getCols());
 
-
-  size_t batchSize = 128;
-  size_t nData = data.getRows();
-
-  size_t nBatch = nData / batchSize;
   size_t minEpoch = 5, maxEpoch = 1024;
 
   std::vector<float> errors;
@@ -98,9 +95,11 @@ mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
   for (epoch=0; epoch < maxEpoch; ++epoch) {
 
     float error = 0;
-    for (size_t i=0; i<nBatch; ++i) {
-      mat v1(batchSize, input_dim);
-      memcpy2D(v1, data, i * batchSize, 0, batchSize, input_dim, 0, 0);
+
+    Batches batches(batchSize, nData);
+    for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+
+      mat v1 = getBatchData(data, *itr);
 
       // Up Sampling
       mat h1 = ext::sigmoid(v1 * W);
@@ -126,7 +125,8 @@ mat RBMinit(mat& data, size_t nHiddenUnits, float threshold) {
       W += dW;
       error += pow(nrm2(v1 - v2), 2.0f);
     }
-    errors.push_back(sqrt(error) / ( nBatch * batchSize ) );
+
+    errors.push_back(sqrt(error) / nData );
 
     if (epoch == minEpoch)
       initialSlope = getSlope(errors, minEpoch);
