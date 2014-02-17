@@ -18,14 +18,16 @@ You need
 
 # Examples
 There're 3 examples in example/:
-- ```./example1.sh```
-- ```./example2.sh```
-- ```./example3.sh```
+- example1.sh
+- example2.sh
+- example3.sh
 
 You can run all of them by ```./go_all.sh```
 
 # How to Install ?
-```
+```bash
+git clone https://github.com/botonchou/libdnn.git
+cd libdnn/
 ./install-sh
 ```
 
