@@ -46,11 +46,7 @@ int main (int argc, char* argv[]) {
   data.showSummary();
 
   // Initialize by RBM
-  
   std::vector<mat> weights = rbminit(data, getDimensionsForRBM(data, structure), slopeThres);
-
-  for (size_t i=0; i<weights.size() - 1; ++i)
-    printf("W[%lu]: rows = %lu, cols = %lu\n", i, weights[i].getRows(), weights[i].getCols());
 
   FILE* fid = fopen(model_fn.c_str(), "w");
 
@@ -59,8 +55,6 @@ int main (int argc, char* argv[]) {
   FeatureTransform::print(fid, weights.back(), "softmax");
 
   fclose(fid);
-
-  // Save the model
 
   return 0;
 }
