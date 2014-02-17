@@ -39,37 +39,148 @@
         <ul></ul>
       </nav>
       <section>
-        <h3>
-<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>Welcome to GitHub Pages.</h3>
+        <h1>
+<a name="libdnn" class="anchor" href="#libdnn"><span class="octicon octicon-link"></span></a>libdnn</h1>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
+<p>C++ Library of Deep Neural Network</p>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
+<h1>
+<a name="prerequisite" class="anchor" href="#prerequisite"><span class="octicon octicon-link"></span></a>Prerequisite</h1>
+
+<p>You need</p>
+
+<ul>
+<li>A Graphic Processing Unit (GPU)</li>
+<li>Linux / Ubuntu</li>
+<li>Install <a href="https://developer.nvidia.com/cuda-toolkit">NVIDIA CUDA toolkit</a> (at least CUDA 5.0)</li>
+</ul><h1>
+<a name="quick-start" class="anchor" href="#quick-start"><span class="octicon octicon-link"></span></a>Quick Start</h1>
+
+<ol>
+<li><code>git clone https://github.com/botonchou/libdnn.git &amp;&amp; cd libdnn &amp;&amp; ./install-sh</code></li>
+<li><code>cd example/</code></li>
+<li>
+<code>dnn-init data/a1a --nodes 512-512</code> ( Please enter 2 )</li>
+<li><code>dnn-train data/a1a --pre 2 -f a1a.model --min-acc 0.8</code></li>
+<li><code>dnn-predict data/a1a.t a1a.model</code></li>
+</ol><h1>
+<a name="examples" class="anchor" href="#examples"><span class="octicon octicon-link"></span></a>Examples</h1>
+
+<p>There're 3 examples in example/:</p>
+
+<ul>
+<li>example1.sh</li>
+<li>example2.sh</li>
+<li>example3.sh</li>
+</ul><p>You can run all of them by <code>./go_all.sh</code></p>
+
+<h1>
+<a name="how-to-install-" class="anchor" href="#how-to-install-"><span class="octicon octicon-link"></span></a>How to Install ?</h1>
+
+<div class="highlight highlight-bash"><pre>git clone https://github.com/botonchou/libdnn.git
+<span class="nb">cd </span>libdnn/
+./install-sh
+</pre></div>
+
+<h1>
+<a name="tutorial" class="anchor" href="#tutorial"><span class="octicon octicon-link"></span></a>Tutorial</h1>
+
+<p>Libdnn aims to an easy quick machine learning using <strong>deep neural network</strong>.</p>
+
+<h3>
+<a name="prepare-your-data" class="anchor" href="#prepare-your-data"><span class="octicon octicon-link"></span></a>Prepare your data</h3>
+
+<h4>
+<a name="training-data-and-testing-data" class="anchor" href="#training-data-and-testing-data"><span class="octicon octicon-link"></span></a>Training data and testing data</h4>
+
+<p>You need at least two data files, one with labels (called training data) and the other with/without labels (called testing data.)</p>
+
+<p>If you just want to mess around but without data at hand, you can download some from the <a href="http://www.csie.ntu.edu.tw/%7Ecjlin/libsvmtools/datasets/">LibSVM website</a>. </p>
+
+<h4>
+<a name="data-format" class="anchor" href="#data-format"><span class="octicon octicon-link"></span></a>Data Format</h4>
+
+<p>The data can be provided either in the LIBSVM format or the dense format.</p>
+
+<h5>
+<a name="libsvm-format" class="anchor" href="#libsvm-format"><span class="octicon octicon-link"></span></a>LIBSVM format:</h5>
+
+<pre><code>-1 5:1 6:1 15:1 22:1 36:1 42:1
++1 3:1 6:1 17:1 19:1 39:1 42:1
+-1 5:1 7:1 14:1 22:1 36:1 40:1
+-1 1:1 6:1 17:1 22:1 36:1 42:1
++1 4:1 6:1 14:1 29:1 39:1 42:1
+-1 3:1 6:1 15:1 22:1 36:1 42:1
++1 5:1 6:1 15:1 22:1 36:1 40:1
 </code></pre>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
+<p>Each row is one feature vector. In this case, 7 rows means 7 feature vector (i.e. 7 training data.)
+The first column of each row are the labels, and the rest are feature vectors in the sparse format. Take the first row for example:</p>
+
+<pre><code>-1 5:1 6:1 15:1 22:1 36:1 42:1
+</code></pre>
+
+<p><strong>-1</strong> is the label. The n:x format means the value of n-th dimension of this vector is x. In this example, it's a vector consists most of 0 with only few exceptions at 5, 6, 15, 22, 36, 42.</p>
+
+<h5>
+<a name="dense-format" class="anchor" href="#dense-format"><span class="octicon octicon-link"></span></a>Dense format:</h5>
+
+<pre><code>-1 0 0 0 0 1 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
++1 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1
+-1 0 0 0 0 1 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0
+-1 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
++1 0 0 0 1 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 1
+-1 0 0 1 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
++1 0 0 0 0 1 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0
+</code></pre>
+
+<p>(this is the same data as the above)</p>
+
+<h2>
+<a name="how-to-use-" class="anchor" href="#how-to-use-"><span class="octicon octicon-link"></span></a>How to Use ?</h2>
+
+<p>There're 3 programs, dnn-init, dnn-train, dnn-predict.</p>
 
 <h3>
-<a name="designer-templates" class="anchor" href="#designer-templates"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
+<a name="dnn-init" class="anchor" href="#dnn-init"><span class="octicon octicon-link"></span></a>dnn-init</h3>
 
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
+<pre><code>dnn-init [options] training_data [model_out]
+</code></pre>
+
+<p>This program performs a model initialization using stacked Restricted Boltzmann Machine (stacked RBM). For example:</p>
+
+<pre><code>dnn-init --nodes 1024-1024 train.dat
+</code></pre>
+
+<p>The program will first ask you for the number of target classes (i.e. the number of nodes in output layer, <strong>Dout</strong>). Also, it'll found the dimension of input feature vector (<strong>Din</strong>) from <em>train.dat</em>. 
+It then perform stacked RBM initialization for a neural network of the structure:</p>
+
+<pre><code>Din-1024-1024-Dout
+</code></pre>
+
+<p>(<strong>Note</strong>: If the values in train.dat does not lie in the range <strong>[0, 1]</strong>, it would cause an assertion. Try to add <code>--rescale true</code> after <code>dnn-init</code> like: <code>dnn-init --rescale true --nodes 1024-1024 train.dat</code>.)</p>
 
 <h3>
-<a name="rather-drive-stick" class="anchor" href="#rather-drive-stick"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
+<a name="dnn-train" class="anchor" href="#dnn-train"><span class="octicon octicon-link"></span></a>dnn-train</h3>
 
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
+<pre><code>dnn-train [options] training_data [model_out]
+</code></pre>
+
+<p>This program perform mini-batch stochastic gradient descent (mini-batch SGD) to train the model initialized by <code>dnn-init</code>.</p>
+
+<pre><code>dnn-train train.dat --pre 2 -f train.dat.model
+</code></pre>
 
 <h3>
-<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+<a name="dnn-predict" class="anchor" href="#dnn-predict"><span class="octicon octicon-link"></span></a>dnn-predict</h3>
 
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
+<pre><code>dnn-predict testing_data model_in [predict_out]
+</code></pre>
 
-<h3>
-<a name="support-or-contact" class="anchor" href="#support-or-contact"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
+<p>For example:</p>
 
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
+<pre><code>dnn-predict test.dat train.dat.model
+</code></pre>
       </section>
       <footer>
         <p>Project maintained by <a href="https://github.com/botonchou">botonchou</a></p>
