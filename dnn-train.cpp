@@ -155,12 +155,13 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
       continue;
     }
 
-    float validAcc= 1.0f - (float) Eout[epoch] / nValid;
-    if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
-      break;
+    float validAcc = 1.0f - (float) Eout[epoch] / nValid;
 
     printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
       epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); 
+
+    if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
+      break;
 
     dnn.adjustLearningRate(trainAcc);
   }

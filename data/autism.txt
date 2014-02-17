@@ -1,4 +1,0 @@
-/share/DeepLearning_hu/autism/train.txt
-/share/DeepLearning_hu/autism/trainlabel.txt
-/share/DeepLearning_hu/autism/test.txt
-/share/DeepLearning_hu/autism/testlabel.txt
