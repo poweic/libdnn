@@ -4,6 +4,7 @@
 #include <pbar.h>
 #include <dnn-utility.h>
 #include <dataset.h>
+#include <host_matrix.h>
 
 void playground();
 
@@ -13,7 +14,7 @@ __global__ void turnOnWithProbabilityKernel(float* const data, const float* cons
 
 void turnOnWithProbability(mat &y);
 
-mat RBMinit(mat& data, size_t nHiddenUnits, float threshold);
+mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold);
 
 std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure);
 

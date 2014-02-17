@@ -38,6 +38,9 @@ namespace ext {
   float max(const mat& v);
   float min(const mat& v);
 
+  float max(const hmat& v);
+  float min(const hmat& v);
+
   template <typename T>
   device_matrix<T> sigmoid(const device_matrix<T>& x) {
     device_matrix<T> s(x.getRows(), x.getCols());

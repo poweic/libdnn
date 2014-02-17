@@ -7,6 +7,8 @@
 typedef device_matrix<float> mat;
 typedef host_matrix<float> hmat;
 
+mat getBatchData(const hmat& data, const Batches::Batch& b);
+
 class DataSet {
 public:
   DataSet();
@@ -21,9 +23,9 @@ public:
   bool isLabeled() const;
   void showSummary() const;
 
-  mat getX() const;
-  mat getY() const;
-  mat getProb() const;
+  const hmat& getX() const;
+  const hmat& getY() const;
+  const hmat& getProb() const;
 
   mat getX(const Batches::Batch& b) const;
   mat getY(const Batches::Batch& b) const;
