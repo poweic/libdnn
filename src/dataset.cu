@@ -46,16 +46,16 @@ void DataSet::showSummary() const {
 
 }
 
-mat DataSet::getX() const {
-  return ~mat(_hx.getData(), _hx.getRows(), _hx.getCols());
+const hmat& DataSet::getX() const {
+  return _hx;
 }
 
-mat DataSet::getY() const {
-  return ~mat(_hy.getData(), _hy.getRows(), _hy.getCols());
+const hmat& DataSet::getY() const {
+  return _hy;
 }
 
-mat DataSet::getProb() const {
-  return ~mat(_hp.getData(), _hp.getRows(), _hp.getCols());
+const hmat& DataSet::getProb() const {
+  return _hp;
 }
 
 mat DataSet::getX(const Batches::Batch& b) const {

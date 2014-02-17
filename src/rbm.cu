@@ -2,14 +2,34 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
+hmat batchFeedForwarding(const hmat& X, const mat& w) {
+  size_t nData = X.getCols();
+
+  hmat Y(w.getCols(), nData);
+  Batches batches(2048, nData);
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    mat fin  = getBatchData(X, *itr);
+    mat fout = ext::sigmoid(fin * w);
+    fillLastColumnWith(fout, 1.0f);
+
+    size_t offset = fout.getCols() * itr->offset,
+	   nBytes = sizeof(float) * fout.size();
+
+    fout = ~fout;
+    CCE(cudaMemcpy(Y.getData() + offset, fout.getData(), nBytes, cudaMemcpyDeviceToHost));
+  }
+  return Y;
+}
+
 std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres) {
   std::vector<mat> weights(dims.size() - 1);
 
-  mat X = data.getX();
+  size_t nData = data.size();
+
+  hmat X = data.getX();
   for (size_t i=0; i<weights.size(); ++i) {
-    weights[i] = RBMinit(mat(~X), dims[i + 1], slopeThres);
-    X = ext::sigmoid(X * weights[i]);
-    fillLastColumnWith(X, 1.0f);
+    weights[i] = RBMinit(X, dims[i + 1], slopeThres);
+    X = batchFeedForwarding(X, weights[i]);
   }
 
   return weights;
