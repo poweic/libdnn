@@ -195,6 +195,7 @@ std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& struc
   dims.insert(dims.begin(), input_dim);
   dims.push_back((size_t) output_dim);
 
+  printf("\n");
   printf("\33[32m Start RBM pre-training with following hidden structure:\33[0m\n");
   printf("\33[34m [   input  layer  ]\33[0m %lu\n", dims[0]);
   for (size_t i=1; i<dims.size()-1; ++i)
