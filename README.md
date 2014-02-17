@@ -11,14 +11,18 @@ You need
 
 # Quick Start
 1. ```git clone https://github.com/botonchou/libdnn.git && cd libdnn && ./install-sh```
-2. Download the [training data](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a) and the [testing data](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a.t).
-```
-   wget http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a
-   wget http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a.t
-```
-3. ```dnn-init a1a --nodes 512-512```
-4. ```dnn-train a1a --pre 2 -f a1a.model --min-acc 0.8```
-5. ```dnn-predict a1a.t a1a.model```
+2. ```cd example/```
+3. ```dnn-init data/a1a --nodes 512-512``` ( Please enter 2 )
+4. ```dnn-train data/a1a --pre 2 -f a1a.model --min-acc 0.8```
+5. ```dnn-predict data/a1a.t a1a.model```
+
+# Examples
+There're 3 examples in example/:
+- ```./example1.sh```
+- ```./example2.sh```
+- ```./example3.sh```
+
+You can run all of them by ```./go_all.sh```
 
 # How to Install ?
 ```
