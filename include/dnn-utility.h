@@ -1,7 +1,6 @@
 #ifndef _DNN_UTILITY_H_
 #define _DNN_UTILITY_H_
 
-#include <arithmetic.h>
 #include <math_ext.h>
 #include <utility.h>
 #include <map>
@@ -40,18 +39,6 @@ namespace ext {
 
   float max(const hmat& v);
   float min(const hmat& v);
-
-  template <typename T>
-  device_matrix<T> sigmoid(const device_matrix<T>& x) {
-    device_matrix<T> s(x.getRows(), x.getCols());
-
-    thrust::device_ptr<T> xPtr(x.getData());
-    thrust::device_ptr<T> sPtr(s.getData());
-
-    thrust::transform(xPtr, xPtr + x.size(), sPtr, func::sigmoid<float>());
-
-    return s;
-  }
 };
 
 template <typename T>

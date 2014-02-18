@@ -9,7 +9,7 @@ hmat batchFeedForwarding(const hmat& X, const mat& w) {
   Batches batches(2048, nData);
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     mat fin  = getBatchData(X, *itr);
-    mat fout = ext::sigmoid(fin * w);
+    mat fout = sigmoid(fin * w);
     fillLastColumnWith(fout, 1.0f);
 
     size_t offset = fout.getCols() * itr->offset,
@@ -122,16 +122,16 @@ mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold) {
       mat v1 = getBatchData(data, *itr);
 
       // Up Sampling
-      mat h1 = ext::sigmoid(v1 * W);
+      mat h1 = sigmoid(v1 * W);
       fillLastColumnWith(h1, 1.0f);
       turnOnWithProbability(h1);
 
       // Down-and-Up propagation
-      mat v2 = ext::sigmoid(h1 * ~W);
+      mat v2 = sigmoid(h1 * ~W);
       fillLastColumnWith(v2, 1.0f);
       turnOnWithProbability(v2);
 
-      mat h2 = ext::sigmoid(v2 * W);
+      mat h2 = sigmoid(v2 * W);
       fillLastColumnWith(h2, 1.0f);
 
       // Calculate Positive & Negative

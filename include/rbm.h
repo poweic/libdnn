@@ -5,6 +5,7 @@
 #include <dnn-utility.h>
 #include <dataset.h>
 #include <host_matrix.h>
+#include <feature-transform.h>
 
 void playground();
 
