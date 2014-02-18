@@ -36,6 +36,8 @@ std::vector<std::string> split(const std::string &s, char delim);
 std::vector<std::string>& split(const std::string &s, char delim, std::vector<std::string>& elems);
 std::vector<size_t> splitAsInt(const std::string &s, char delim);
 std::vector<size_t> randperm(size_t N);
+bool is_number(const std::string& s);
+void linearRegression(const std::vector<float> &x, const std::vector<float>& y, float* const &m, float* const &c);
 
 void showAccuracy(size_t nError, size_t nTotal);
 

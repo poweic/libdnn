@@ -28,7 +28,7 @@ std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float s
 
   hmat X = data.getX();
   for (size_t i=0; i<weights.size(); ++i) {
-    weights[i] = RBMinit(X, dims[i + 1], slopeThres);
+    weights[i] = rbmTrain(X, dims[i + 1], slopeThres);
     X = batchFeedForwarding(X, weights[i]);
   }
 
@@ -85,7 +85,7 @@ void turnOnWithProbability(mat &y) {
   CCE(cudaDeviceSynchronize());
 }
 
-mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold) {
+mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold) {
   // Make sure the visible units have values in the range [0, 1]
   float max = ext::max(data),
 	min = ext::min(data);
@@ -169,12 +169,6 @@ mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold) {
   return W;
 }
 
-bool is_number(const std::string& s) {
-  std::string::const_iterator it = s.begin();
-  while (it != s.end() && std::isdigit(*it)) ++it;
-  return !s.empty() && it == s.end();
-}
-
 std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure) {
 
   string userInput = "";
@@ -206,30 +200,14 @@ std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& struc
   return dims;
 }
 
-
-void linearRegression(const std::vector<float> &x, const std::vector<float>& y, float* const &m, float* const &c) {
-  int n = x.size();
-  double A=0.0,B=0.0,C=0.0,D=0.0;
-
-  for (size_t i=0; i<n; ++i) {
-    A += x[i];
-    B += y[i];
-    C += x[i]*x[i];
-    D += x[i]*y[i];
-  }
-
-  *m = (n*D-A*B) / (n*C-A*A);
-  *c = (B-(*m)*A) / n;
-} 
-
-float getSlope(const std::vector<float> &error, size_t N) {
+float getSlope(const std::vector<float> &seq, size_t N) {
   std::vector<float> x(N);
   for (size_t i=0; i<N; ++i)
     x[i] = N - 1 - i;
 
   std::vector<float> y(N);
-  for (size_t i=error.size() - N; i<error.size(); ++i)
-    y[i - (error.size() - N)] = error[i];
+  for (size_t i=seq.size() - N; i<seq.size(); ++i)
+    y[i - (seq.size() - N)] = seq[i];
 
   float m, c;
   linearRegression(x, y, &m, &c);

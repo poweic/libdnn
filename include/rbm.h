@@ -15,11 +15,9 @@ __global__ void turnOnWithProbabilityKernel(float* const data, const float* cons
 
 void turnOnWithProbability(mat &y);
 
-mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold);
+mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold);
 
 std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure);
-
-void linearRegression(const std::vector<float> &x, const std::vector<float>& y, float* const &m, float* const &c);
 
 float getSlope(const std::vector<float> &error, size_t N);
 
