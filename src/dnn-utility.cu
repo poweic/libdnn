@@ -52,7 +52,7 @@ mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
 
   mat error;
 
-  mat& O = const_cast<mat&>(output);
+  const mat& O = output;
 
   switch (errorMeasure) {
     case L2ERROR: 
@@ -83,8 +83,6 @@ mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
     default:
       break;
   }
-
-  O.resize(O.getRows(), O.getCols() + 1);
 
   return error;
 }
@@ -154,23 +152,7 @@ size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasur
   else {
     mat L = posteriorProb2Label(prob);
     nError = countDifference(L, label);
-
-    // matlog(prob); matlog(L); PAUSE;
   }
 
   return nError;
 }
-
-/*mat& calcError(const mat& output, const mat& trainY, size_t offset, size_t nData) {
-
-  mat error(nData, trainY.getCols());
-
-  device_matrix<float>::cublas_geam(
-      CUBLAS_OP_N, CUBLAS_OP_N,
-      nData, trainY.getCols(),
-      1.0, output.getData(), nData,
-      -1.0, trainY.getData() + offset, trainY.getRows(),
-      error.getData(), nData);
-
-  return error;
-}*/
