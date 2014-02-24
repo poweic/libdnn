@@ -11,9 +11,9 @@ void playground();
 
 std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres);
 
-__global__ void turnOnWithProbabilityKernel(float* const data, const float* const prob, unsigned int rows, unsigned int cols);
+__global__ void turn_on_kernel(float* const data, const float* const prob, unsigned int rows, unsigned int cols);
 
-void turnOnWithProbability(mat &y);
+void turnOn(mat &prob);
 
 mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold);
 

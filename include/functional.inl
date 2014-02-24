@@ -67,6 +67,11 @@ namespace func {
   };
 
   template <typename T>
+  struct normal_dist {
+    __host__ __device__ T operator() (const T& x) { return 1.0 / ( 1.0 + expf(-x) ); }
+  };
+
+  template <typename T>
   struct dsigma {
     __host__ __device__ T operator() (const T& x) { return x * (1.0 - x); }
   };

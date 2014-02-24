@@ -47,7 +47,7 @@ __global__ void setupCuRandState( curandState * state, unsigned long seed ) {
   curand_init ( seed, x, 0, &state[x] );
 }
 
-__global__ void turnOnWithProbabilityKernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
+__global__ void turn_on_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -64,15 +64,15 @@ __global__ void turnOnWithProbabilityKernel(float* const data, curandState* glob
   __syncthreads();
 }
 
-void turnOnWithProbability(mat &y) {
-  size_t rows = y.getRows();
-  size_t cols = y.getCols();
+void turnOn(mat &prob) {
+  size_t rows = prob.getRows();
+  size_t cols = prob.getCols();
   
   const size_t N = 32;
   dim3 threads(N, N);
   dim3 grid;
-  grid.x = (unsigned int) ceil((float) y.getCols() / N);
-  grid.y = (unsigned int) ceil((float) y.getRows() / N);
+  grid.x = (unsigned int) ceil((float) prob.getCols() / N);
+  grid.prob = (unsigned int) ceil((float) prob.getRows() / N);
 
   static curandState* devStates = NULL;
 
@@ -81,7 +81,7 @@ void turnOnWithProbability(mat &y) {
     setupCuRandState <<< 1, N*N >>> ( devStates, unsigned(time(NULL)) );
   }
 
-  turnOnWithProbabilityKernel<<< grid, threads >>>(y.getData(), devStates, y.getRows(), y.getCols());
+  turn_on_kernel<<< grid, threads >>>(prob.getData(), devStates, prob.getRows(), prob.getCols());
   CCE(cudaDeviceSynchronize());
 }
 
@@ -124,12 +124,11 @@ mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold) {
       // Up Sampling
       mat h1 = sigmoid(v1 * W);
       fillLastColumnWith(h1, 1.0f);
-      turnOnWithProbability(h1);
+      turnOn(h1);
 
       // Down-and-Up propagation
       mat v2 = sigmoid(h1 * ~W);
       fillLastColumnWith(v2, 1.0f);
-      turnOnWithProbability(v2);
 
       mat h2 = sigmoid(v2 * W);
       fillLastColumnWith(h2, 1.0f);
