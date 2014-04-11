@@ -55,24 +55,18 @@ __global__ void setupCuRandState( curandState * state, unsigned long seed ) {
   curand_init ( seed, x, 0, &state[x] );
 }
 
-__global__ void add_gaussian_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-
-  // Matrix index
-  int x = blockIdx.x*blockDim.x + tx;
-  int y = blockIdx.y*blockDim.y + ty;
-
-  if (x >= cols || y >= rows)
-    return;
-
-  int i = x * rows + y;
-  int j = tx * blockDim.y + ty;
-  data[i] = (float) (data[i] + curand_normal(globalState + j));
-  __syncthreads();
+inline __device__ void gaussian(float& x, curandState* state) {
+  x += curand_normal(state);
 }
 
-__global__ void sample_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
+inline __device__ void bernoulli(float& x, curandState* state) {
+  x = (float) (x >= curand_uniform(state));
+}
+
+typedef __device__ void (*Operation)(float&, curandState*);
+
+template <Operation op>
+__global__ void sampling_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -85,7 +79,8 @@ __global__ void sample_kernel(float* const data, curandState* globalState, unsig
 
   int i = x * rows + y;
   int j = tx * blockDim.y + ty;
-  data[i] = (float) (data[i] > curand_uniform(globalState + j));
+  op(data[i], globalState +j);
+  // data[i] = data[i] + curand_normal(globalState + j);
   __syncthreads();
 }
 
@@ -106,7 +101,7 @@ private:
   curandState* _states;
 };
 
-void sample(mat &prob) {
+void sample(mat &prob, RBM_TYPE type) {
   static CURAND_STATE state;
 
   const size_t N = 32;
@@ -115,21 +110,17 @@ void sample(mat &prob) {
   grid.x = (unsigned int) ceil((float) prob.getCols() / N);
   grid.y = (unsigned int) ceil((float) prob.getRows() / N);
 
-  sample_kernel<<< grid, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+  switch (type) {
+    case GAUSSIAN_BERNOULLI:
+      sampling_kernel<gaussian><<< grid, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      break;
+    case BERNOULLI_BERNOULLI:
+      sampling_kernel<bernoulli><<< grid, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      break;
+  }
+
   CCE(cudaDeviceSynchronize());
-}
-
-void addGaussian(mat &prob) {
-  static CURAND_STATE state;
-
-  const size_t N = 32;
-  dim3 threads(N, N);
-  dim3 grid;
-  grid.x = (unsigned int) ceil((float) prob.getCols() / N);
-  grid.y = (unsigned int) ceil((float) prob.getRows() / N);
-
-  add_gaussian_kernel<<< grid, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
-  CCE(cudaDeviceSynchronize());
+  fill_bias(prob);
 }
 
 void apply_cmvn(hmat& data) {
@@ -159,6 +150,23 @@ void apply_cmvn(hmat& data) {
     for (int j=0; j<nData; ++j)
       data(i, j) /= deviation;
   }
+}
+
+void up_propagate(const mat& W, const mat& visible, mat& hidden, RBM_TYPE type) {
+  switch (type) {
+    case BERNOULLI_BERNOULLI:
+      hidden = sigmoid(visible * W);
+      break;
+    case GAUSSIAN_BERNOULLI:
+      hidden = visible * W;
+      break;
+  }
+  fill_bias(hidden);
+}
+
+void down_propagate(const mat& W, mat& visible, const mat& hidden, RBM_TYPE type) {
+  visible = sigmoid(hidden * ~W);
+  fill_bias(visible);
 }
 
 mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type) {
@@ -211,48 +219,27 @@ mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type)
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
       mat v1, v2, h1, h2;
+
       v1 = getBatchData(data, *itr);
       fill_bias(v1);
 
-      switch (type) {
-	case BERNOULLI_BERNOULLI:
-	  // Up Sampling
-	  h1 = sigmoid(v1 * W);
-	  sample(h1);
-	  fill_bias(h1);
+      // Up propagation
+      up_propagate(W, v1, h1, type);
 
-	  // Down-and-Up propagation
-	  v2 = sigmoid(h1 * ~W);
-	  fill_bias(v2);
-
-	  h2 = sigmoid(v2 * W);
-	  fill_bias(h2);
-
-	  break;
-	case GAUSSIAN_BERNOULLI:
-	  // Up Sampling
-	  h1 = v1 * W;
-	  addGaussian(h1);
-	  matlog(h1);
-	  fill_bias(h1);
-
-	  // Down-and-Up propagation
-	  v2 = sigmoid(h1 * ~W);
-	  fill_bias(v2);
-
-	  h2 = v2 * W;
-	  addGaussian(h2);
-	  fill_bias(h2);
-
-	  break;
-      }
-
-      // Calculate Positive & Negative
+      // Calculate positive
       mat positive = ~v1 * h1;
+
+      // Sampling
+      sample(h1, type);
+
+      // Down-and-Up propagation
+      down_propagate(W, v2, h1, type);
+      up_propagate(W, v2, h2, type);
+
+      // Calculate negative
       mat negative = ~v2 * h2;
 
       float lr = learningRate / batchSize;
-
       mat dW = lr * (positive - negative);
 
       W += dW;
