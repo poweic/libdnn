@@ -31,6 +31,14 @@ enum ERROR_MEASURE {
   CROSS_ENTROPY
 };
 
+template <typename T>
+void print(const vector<T>& v) {
+  cout << "[";
+  for (int i=0; i<v.size(); ++i)
+    cout << v[i] << ", ";
+  cout << "\b\b]" << endl;
+}
+
 float str2float(const std::string &s);
 std::vector<std::string> split(const std::string &s, char delim);
 std::vector<std::string>& split(const std::string &s, char delim, std::vector<std::string>& elems);

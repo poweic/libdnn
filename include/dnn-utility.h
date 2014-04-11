@@ -42,6 +42,17 @@ namespace ext {
 };
 
 template <typename T>
+bool hasNAN(const host_matrix<T>& x) {
+
+  for (int i=0; i<x.getRows(); ++i)
+    for (int j=0; j<x.getCols(); ++j)
+      if (x(i, j) != x(i, j))
+	return true;
+
+  return false;
+}
+
+template <typename T>
 void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src, size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {
 
   device_matrix<float>::cublas_geam(

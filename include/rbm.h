@@ -9,13 +9,21 @@
 
 void playground();
 
-std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres);
+enum RBM_TYPE {
+  GAUSSIAN_BERNOULLI,
+  BERNOULLI_BERNOULLI
+};
 
-__global__ void turn_on_kernel(float* const data, const float* const prob, unsigned int rows, unsigned int cols);
+ostream& operator << (ostream& os, const RBM_TYPE& type);
 
-void turnOn(mat &prob);
+std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims, float slopeThres, RBM_TYPE type = GAUSSIAN_BERNOULLI);
 
-mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold);
+void sample(mat &prob);
+void addGaussian(mat &prob);
+
+void apply_cmvn(hmat& data);
+
+mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_TYPE type);
 
 std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure);
 
