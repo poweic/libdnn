@@ -3,20 +3,6 @@
 #include <curand_kernel.h>
 #define fill_bias(x) { fillLastColumnWith(x, 1.0f); }
 
-void playground() {
-  perf::Timer timer;
-  timer.start();
-
-  mat X(1024, 1024);
-  for (int i=0; i<10000; ++i)
-    addGaussian(X);
-
-  timer.elapsed();
-
-  // Prevent O3 optimization
-  X.save("x.mat");
-}
-
 ostream& operator << (ostream& os, const RBM_TYPE& type) {
   switch (type) {
     case GAUSSIAN_BERNOULLI:
@@ -64,20 +50,6 @@ std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims, 
   return weights;
 }
 
-__device__ float generate_randn(curandState* globalState) {
-  curandState localState = *globalState;
-  float RANDOM = curand_normal( &localState );
-  *globalState = localState;
-  return RANDOM;
-}
-
-__device__ float generate_rand(curandState* globalState) {
-  curandState localState = *globalState;
-  float RANDOM = curand_uniform( &localState );
-  *globalState = localState;
-  return RANDOM;
-}
-
 __global__ void setupCuRandState( curandState * state, unsigned long seed ) {
   int x = blockIdx.x*blockDim.x + threadIdx.x;
   curand_init ( seed, x, 0, &state[x] );
@@ -96,8 +68,7 @@ __global__ void add_gaussian_kernel(float* const data, curandState* globalState,
 
   int i = x * rows + y;
   int j = tx * blockDim.y + ty;
-  data[i] = (float) (data[i] + generate_randn(globalState + j));
-  // data[i] = (float) (data[i] + curand_uniform(globalState + j));
+  data[i] = (float) (data[i] + curand_normal(globalState + j));
   __syncthreads();
 }
 
@@ -114,7 +85,7 @@ __global__ void sample_kernel(float* const data, curandState* globalState, unsig
 
   int i = x * rows + y;
   int j = tx * blockDim.y + ty;
-  data[i] = (float) (data[i] > generate_rand(globalState + j));
+  data[i] = (float) (data[i] > curand_uniform(globalState + j));
   __syncthreads();
 }
 
