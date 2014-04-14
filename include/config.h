@@ -16,10 +16,8 @@ struct Config {
   size_t nNonIncEpoch;
   float minValidAccuracy;
   bool randperm;
-  std::vector<size_t> dims;
 
   void print() const;
-  void setDimensions(const std::string& structure, const DataSet& data);
 };
 
 #endif // __CONFIG_H_

@@ -1,6 +1,17 @@
 #include <rbm.h>
 #include <curand.h>
 #include <curand_kernel.h>
+#define fill_bias(x) { fillLastColumnWith(x, 1.0f); }
+
+ostream& operator << (ostream& os, const RBM_TYPE& type) {
+  switch (type) {
+    case GAUSSIAN_BERNOULLI:
+      os << "Gaussian-Bernoulli RBM"; break;
+    case BERNOULLI_BERNOULLI:
+      os << "Bernoulli-Bernoulli RBM"; break;
+  }
+  return os;
+}
 
 hmat batchFeedForwarding(const hmat& X, const mat& w) {
   size_t nData = X.getCols();
@@ -9,8 +20,8 @@ hmat batchFeedForwarding(const hmat& X, const mat& w) {
   Batches batches(2048, nData);
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     mat fin  = getBatchData(X, *itr);
-    mat fout = ext::sigmoid(fin * w);
-    fillLastColumnWith(fout, 1.0f);
+    mat fout = sigmoid(fin * w);
+    fill_bias(fout);
 
     size_t offset = fout.getCols() * itr->offset,
 	   nBytes = sizeof(float) * fout.size();
@@ -21,25 +32,22 @@ hmat batchFeedForwarding(const hmat& X, const mat& w) {
   return Y;
 }
 
-std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres) {
+std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims, float slopeThres, RBM_TYPE type) {
   std::vector<mat> weights(dims.size() - 1);
 
   size_t nData = data.size();
 
   hmat X = data.getX();
   for (size_t i=0; i<weights.size(); ++i) {
-    weights[i] = RBMinit(X, dims[i + 1], slopeThres);
+    // Only the first layer need to be Gaussian-Bernoulli
+    if (type == GAUSSIAN_BERNOULLI && i > 0)
+      type = BERNOULLI_BERNOULLI;
+
+    weights[i] = rbmTrain(X, dims[i + 1], slopeThres, type);
     X = batchFeedForwarding(X, weights[i]);
   }
 
   return weights;
-}
-
-__device__ float generate_rand(curandState* globalState) {
-  curandState localState = *globalState;
-  float RANDOM = curand_uniform( &localState );
-  *globalState = localState;
-  return RANDOM;
 }
 
 __global__ void setupCuRandState( curandState * state, unsigned long seed ) {
@@ -47,7 +55,18 @@ __global__ void setupCuRandState( curandState * state, unsigned long seed ) {
   curand_init ( seed, x, 0, &state[x] );
 }
 
-__global__ void turnOnWithProbabilityKernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
+inline __device__ void gaussian(float& x, curandState* state) {
+  x += curand_normal(state);
+}
+
+inline __device__ void bernoulli(float& x, curandState* state) {
+  x = (float) (x >= curand_uniform(state));
+}
+
+typedef __device__ void (*Operation)(float&, curandState*);
+
+template <Operation op>
+__global__ void sampling_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -60,37 +79,118 @@ __global__ void turnOnWithProbabilityKernel(float* const data, curandState* glob
 
   int i = x * rows + y;
   int j = tx * blockDim.y + ty;
-  data[i] = (float) (data[i] > generate_rand(globalState + j));
+  op(data[i], globalState +j);
+  // data[i] = data[i] + curand_normal(globalState + j);
   __syncthreads();
 }
 
-void turnOnWithProbability(mat &y) {
-  size_t rows = y.getRows();
-  size_t cols = y.getCols();
-  
+class CURAND_STATE {
+public:
+  CURAND_STATE(unsigned seed = unsigned(time(NULL)), int N = 32): _states(NULL) {
+    cudaMalloc ( &_states, N * N * sizeof( curandState ) );
+    setupCuRandState <<< 1, N * N >>> ( _states, seed );
+  }
+
+  curandState* get() const { return _states; }
+
+  ~CURAND_STATE() {
+    cudaFree(_states);
+  }
+
+private:
+  curandState* _states;
+};
+
+void sample(mat &prob, RBM_TYPE type) {
+  static CURAND_STATE state;
+
   const size_t N = 32;
   dim3 threads(N, N);
   dim3 grid;
-  grid.x = (unsigned int) ceil((float) y.getCols() / N);
-  grid.y = (unsigned int) ceil((float) y.getRows() / N);
+  grid.x = (unsigned int) ceil((float) prob.getCols() / N);
+  grid.y = (unsigned int) ceil((float) prob.getRows() / N);
 
-  static curandState* devStates = NULL;
-
-  if (devStates == NULL) {
-    cudaMalloc ( &devStates, N * N * sizeof( curandState ) );
-    setupCuRandState <<< 1, N*N >>> ( devStates, unsigned(time(NULL)) );
+  switch (type) {
+    case GAUSSIAN_BERNOULLI:
+      sampling_kernel<gaussian><<< grid, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      break;
+    case BERNOULLI_BERNOULLI:
+      sampling_kernel<bernoulli><<< grid, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      break;
   }
 
-  turnOnWithProbabilityKernel<<< grid, threads >>>(y.getData(), devStates, y.getRows(), y.getCols());
   CCE(cudaDeviceSynchronize());
+  fill_bias(prob);
 }
 
-mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold) {
-  // Make sure the visible units have values in the range [0, 1]
-  float max = ext::max(data),
-	min = ext::min(data);
+void apply_cmvn(hmat& data) {
+  size_t input_dim = data.getRows();
+  size_t nData = data.getCols();
 
-  assert(max <= 1 && min >= 0);
+  for (int i=0; i<input_dim - 1; ++i) {
+    float mean = 0;
+    for (int j=0; j<nData; ++j)
+      mean += data(i, j);
+    mean /= nData;
+
+    for (int j=0; j<nData; ++j)
+      data(i, j) -= mean;
+
+    if (nData <= 1)
+      continue;
+
+    float deviation = 0;
+    for (int j=0; j<nData; ++j)
+      deviation += pow(data(i, j), 2.0f);
+    deviation = sqrt(deviation / (nData - 1));
+
+    if (deviation == 0)
+      continue;
+
+    for (int j=0; j<nData; ++j)
+      data(i, j) /= deviation;
+  }
+}
+
+void up_propagate(const mat& W, const mat& visible, mat& hidden, RBM_TYPE type) {
+  switch (type) {
+    case BERNOULLI_BERNOULLI:
+      hidden = sigmoid(visible * W);
+      break;
+    case GAUSSIAN_BERNOULLI:
+      hidden = visible * W;
+      break;
+  }
+  fill_bias(hidden);
+}
+
+void down_propagate(const mat& W, mat& visible, const mat& hidden, RBM_TYPE type) {
+  visible = sigmoid(hidden * ~W);
+  fill_bias(visible);
+}
+
+mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type) {
+  hmat data(d);
+
+  float learningRate = 1e-1;
+  switch (type) {
+    case BERNOULLI_BERNOULLI:
+      cout << "BERNOULLI_BERNOULLI" << endl;
+
+      // If Bernoulli, make sure the visible units have values in the range [0, 1]
+      assert(ext::max(d) <= 1 && ext::min(d) >= 0);
+      break;
+    case GAUSSIAN_BERNOULLI:
+      cout << "GAUSSIAN_BERNOULLI" << endl;
+
+      // Note: The learning rate of Gaussian RBM needs to be about one or two
+      // orders of magnitude smaller than when using binary visible units.
+      // Otherwise value will explode very quickly and get NaN.
+      // [cf. A Practical Guide to Training Restricted Boltzmann Machines]
+      learningRate /= 100;
+      apply_cmvn(data);
+      break;
+  }
 
   size_t batchSize = 128;
   size_t input_dim = data.getRows();
@@ -103,7 +203,6 @@ mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold) {
 
   std::vector<float> errors;
   errors.reserve(maxEpoch);
-  float learningRate = 1e-1;
 
   float initialSlope = 0;
 
@@ -119,27 +218,28 @@ mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold) {
     Batches batches(batchSize, nData);
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
-      mat v1 = getBatchData(data, *itr);
+      mat v1, v2, h1, h2;
 
-      // Up Sampling
-      mat h1 = ext::sigmoid(v1 * W);
-      fillLastColumnWith(h1, 1.0f);
-      turnOnWithProbability(h1);
+      v1 = getBatchData(data, *itr);
+      fill_bias(v1);
+
+      // Up propagation
+      up_propagate(W, v1, h1, type);
+
+      // Calculate positive
+      mat positive = ~v1 * h1;
+
+      // Sampling
+      sample(h1, type);
 
       // Down-and-Up propagation
-      mat v2 = ext::sigmoid(h1 * ~W);
-      fillLastColumnWith(v2, 1.0f);
-      turnOnWithProbability(v2);
+      down_propagate(W, v2, h1, type);
+      up_propagate(W, v2, h2, type);
 
-      mat h2 = ext::sigmoid(v2 * W);
-      fillLastColumnWith(h2, 1.0f);
-
-      // Calculate Positive & Negative
-      mat positive = ~v1 * h1;
+      // Calculate negative
       mat negative = ~v2 * h2;
 
       float lr = learningRate / batchSize;
-
       mat dW = lr * (positive - negative);
 
       W += dW;
@@ -167,12 +267,6 @@ mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold) {
   printf("Average time for each epoch = %f\n", t_end / epoch);
   
   return W;
-}
-
-bool is_number(const std::string& s) {
-  std::string::const_iterator it = s.begin();
-  while (it != s.end() && std::isdigit(*it)) ++it;
-  return !s.empty() && it == s.end();
 }
 
 std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure) {
@@ -206,30 +300,14 @@ std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& struc
   return dims;
 }
 
-
-void linearRegression(const std::vector<float> &x, const std::vector<float>& y, float* const &m, float* const &c) {
-  int n = x.size();
-  double A=0.0,B=0.0,C=0.0,D=0.0;
-
-  for (size_t i=0; i<n; ++i) {
-    A += x[i];
-    B += y[i];
-    C += x[i]*x[i];
-    D += x[i]*y[i];
-  }
-
-  *m = (n*D-A*B) / (n*C-A*A);
-  *c = (B-(*m)*A) / n;
-} 
-
-float getSlope(const std::vector<float> &error, size_t N) {
+float getSlope(const std::vector<float> &seq, size_t N) {
   std::vector<float> x(N);
   for (size_t i=0; i<N; ++i)
     x[i] = N - 1 - i;
 
   std::vector<float> y(N);
-  for (size_t i=error.size() - N; i<error.size(); ++i)
-    y[i - (error.size() - N)] = error[i];
+  for (size_t i=seq.size() - N; i<seq.size(); ++i)
+    y[i - (seq.size() - N)] = seq[i];
 
   float m, c;
   linearRegression(x, y, &m, &c);

@@ -5,20 +5,25 @@
 #include <dnn-utility.h>
 #include <dataset.h>
 #include <host_matrix.h>
+#include <feature-transform.h>
 
 void playground();
 
-std::vector<mat> rbminit(DataSet& data, const std::vector<size_t>& dims, float slopeThres);
+enum RBM_TYPE {
+  GAUSSIAN_BERNOULLI,
+  BERNOULLI_BERNOULLI
+};
 
-__global__ void turnOnWithProbabilityKernel(float* const data, const float* const prob, unsigned int rows, unsigned int cols);
+ostream& operator << (ostream& os, const RBM_TYPE& type);
 
-void turnOnWithProbability(mat &y);
+std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims, float slopeThres, RBM_TYPE type = GAUSSIAN_BERNOULLI);
 
-mat RBMinit(const hmat& data, size_t nHiddenUnits, float threshold);
+void sample(mat &prob);
+void apply_cmvn(hmat& data);
+
+mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_TYPE type);
 
 std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure);
-
-void linearRegression(const std::vector<float> &x, const std::vector<float>& y, float* const &m, float* const &c);
 
 float getSlope(const std::vector<float> &error, size_t N);
 

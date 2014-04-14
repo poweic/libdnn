@@ -13,13 +13,13 @@
 
 using namespace std;
 
-template <typename T>
+/*template <typename T>
 vector<T> operator & (const vector<T>& x, const vector<T>& y) {
   assert(x.size() == y.size());
   vector<T> z(x.size());
   std::transform (x.begin(), x.end(), y.begin(), z.begin(), std::multiplies<float>());
   return z;
-}
+}*/
 
 #define VECTOR std::vector
 #define WHERE std

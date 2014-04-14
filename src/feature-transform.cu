@@ -148,7 +148,8 @@ string Sigmoid::toString() const {
 }
 
 void Sigmoid::feedForward(mat& fout, const mat& fin) {
-  fout = ext::sigmoid(fin * _w);
+  // fout = sigmoid(fin * _w);
+  fout = transform(fin * _w, func::sigmoid<float>());
   fillLastColumnWith(fout, (float) 1.0);
 }
 

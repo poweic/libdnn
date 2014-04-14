@@ -58,21 +58,32 @@ void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
 }
 
 void DNN::read(string fn) {
+
   FILE* fid = fopen(fn.c_str(), "r");
+
+  if (!fid)
+    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
 
   _transforms.clear();
 
-  size_t rows, cols;
+  printf("+-------------------------------------+\n");
+  printf("| File: %-30s"                       "|\n", fn.c_str());
+  printf("+-------------------+--------+--------+\n");
+  printf("| Feature Transform |  rows  |  cols  |\n");
+  printf("+-------------------+--------+--------+\n");
+
   char type[80];
 
   while (fscanf(fid, "%s", type) != EOF) {
+    size_t rows, cols;
     fscanf(fid, "%lu %lu\n [\n", &rows, &cols);
-    // printf("\33[34m%-17s\33[0m %-6lu x %-6lu \n", type, rows, cols);
+
+    printf("|     %-13s |  %-5lu |  %-5lu |\n", type, rows, cols);
 
     float* hw = new float[(rows + 1) * (cols + 1)];
     readweight(fid, hw, rows + 1, cols);
 
-    // Reserve one more column for bias)
+    // Reserve one more column/row for bias
     mat w(hw, rows + 1, cols + 1);
 
     string transformType = string(type);
@@ -83,6 +94,7 @@ void DNN::read(string fn) {
 
     delete [] hw;
   }
+  printf("+-------------------+--------+--------+\n\n");
 
   fclose(fid);
 }

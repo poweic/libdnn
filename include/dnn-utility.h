@@ -1,7 +1,6 @@
 #ifndef _DNN_UTILITY_H_
 #define _DNN_UTILITY_H_
 
-#include <arithmetic.h>
 #include <math_ext.h>
 #include <utility.h>
 #include <map>
@@ -40,19 +39,18 @@ namespace ext {
 
   float max(const hmat& v);
   float min(const hmat& v);
-
-  template <typename T>
-  device_matrix<T> sigmoid(const device_matrix<T>& x) {
-    device_matrix<T> s(x.getRows(), x.getCols());
-
-    thrust::device_ptr<T> xPtr(x.getData());
-    thrust::device_ptr<T> sPtr(s.getData());
-
-    thrust::transform(xPtr, xPtr + x.size(), sPtr, func::sigmoid<float>());
-
-    return s;
-  }
 };
+
+template <typename T>
+bool hasNAN(const host_matrix<T>& x) {
+
+  for (int i=0; i<x.getRows(); ++i)
+    for (int j=0; j<x.getCols(); ++j)
+      if (x(i, j) != x(i, j))
+	return true;
+
+  return false;
+}
 
 template <typename T>
 void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src, size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {

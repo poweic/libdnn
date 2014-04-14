@@ -104,6 +104,9 @@ void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int rati
 void DataSet::read(const string &fn, bool rescale) {
   ifstream fin(fn.c_str());
 
+  if (!fin.is_open())
+    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
+
   bool isSparse = isFileSparse(fn);
 
   _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
