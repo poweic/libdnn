@@ -10,7 +10,6 @@ using namespace std;
 size_t dnn_predict(const DNN& dnn, const DataSet& data, ERROR_MEASURE errorMeasure);
 void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
-void playground();
 
 int main (int argc, char* argv[]) {
 
@@ -69,13 +68,12 @@ int main (int argc, char* argv[]) {
   config.maxEpoch = maxEpoch;
   config.print();
 
-  assert(!model_in.empty());
-  printf("Loading pre-trained model from file: \"%s\"\n", model_in.c_str());
+  // Load model
   DNN dnn(model_in);
   dnn.setConfig(config);
 
-  ERROR_MEASURE err = CROSS_ENTROPY;
   // Start Training
+  ERROR_MEASURE err = CROSS_ENTROPY;
   dnn_train(dnn, train, valid, batchSize, err);
 
   // Save the model

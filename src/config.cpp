@@ -21,5 +21,7 @@ void Config::print() const {
   printf("| minimun validation accuracy    | %9g |\n", minValidAccuracy);
   printf("| random permuation each epoch   | %9s |\n", randperm?"true":"false");
   printf("+--------------------------------+-----------+\n");
-  printf("When the accuracy on validation set doesn't go up for %lu epochs, the training procedure would stop\n", nNonIncEpoch);
+  printf("\33[34m[Note]\33[0m When the accuracy on validation set doesn't go up"
+      "for %lu epochs, the training procedure would stop.\n\n", nNonIncEpoch);
+
 }
