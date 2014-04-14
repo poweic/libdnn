@@ -19,12 +19,12 @@ int main (int argc, char* argv[]) {
 	"(Note: This does not include input and output layer)");
 
   cmd.addGroup("Pre-training options:")
-     .add("--rescale", "Rescale each feature to [0, 1]", "false")
-     .add("--slope-thres", "threshold of ratio of slope in RBM pre-training", "0.05")
-     .add("--batch-size", "number of data per mini-batch", "32")
      .add("--type", "type of Pretraining. Choose one of the following:\n"
 	"0 -- Gaussian-Bernoulli  RBM"
-	"1 -- Bernoulli-Bernoulli RBM", "0");
+	"1 -- Bernoulli-Bernoulli RBM", "0")
+     .add("--rescale", "Rescale each dimension of feature to [0, 1] respectively", "false")
+     .add("--slope-thres", "threshold of ratio of slope in RBM pre-training", "0.05")
+     .add("--batch-size", "number of data per mini-batch", "32");
 
   cmd.addGroup("Example usage: dnn-init data/train3.dat --nodes=16-8");
 
@@ -34,10 +34,11 @@ int main (int argc, char* argv[]) {
   string train_fn   = cmd[1];
   string model_fn   = cmd[2];
   string structure  = cmd["--nodes"];
-  size_t batchSize  = cmd["--batch-size"];
-  size_t type	    = cmd["--type"];
-  bool rescale      = cmd["--rescale"];
-  float slopeThres  = cmd["--slope-thres"];
+
+  RBM_TYPE type	      = RBM_TYPE ((int) cmd["--type"]);
+  size_t batchSize    = cmd["--batch-size"];
+  bool rescale        = cmd["--rescale"];
+  float slopeThres    = cmd["--slope-thres"];
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
@@ -46,13 +47,10 @@ int main (int argc, char* argv[]) {
   data.shuffleFeature();
   data.showSummary();
 
+  auto dims = getDimensionsForRBM(data, structure);
+
   // Initialize by RBM
-  std::vector<mat> weights = initStackedRBM(
-      data,
-      getDimensionsForRBM(data, structure),
-      slopeThres,
-      (RBM_TYPE) type
-  );
+  auto weights = initStackedRBM(data, dims, slopeThres, type);
 
   FILE* fid = fopen(model_fn.c_str(), "w");
 

@@ -84,12 +84,13 @@ int main (int argc, char* argv[]) {
   config.print();
 
   DNN dnn;
+  auto dims = getDimensionsForRBM(data, structure);
   // Initialize Deep Neural Network
   // TODO remove rand init and stacked RBM from dnn-train.cpp.
   // Auto generate command line for user about how to use dnn-init.
   switch (preTraining) {
     case 1:
-      dnn.init(initStackedRBM(data, getDimensionsForRBM(data, structure), slopeThres));
+      dnn.init(initStackedRBM(data, dims, slopeThres));
       break;
 
     case 2:

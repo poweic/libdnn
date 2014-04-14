@@ -43,7 +43,7 @@ CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 
 $(EXECUTABLES): % : %.cpp $(OBJ)
-	$(CXX) $(CFLAGS) $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
+	$(CXX) $(CFLAGS) -std=c++0x $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
 # +==============================+
 # +===== Other Phony Target =====+
 # +==============================+
