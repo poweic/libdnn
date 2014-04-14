@@ -20,7 +20,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Pre-training options:")
      .add("--type", "type of Pretraining. Choose one of the following:\n"
-	"0 -- Gaussian-Bernoulli  RBM"
+	"0 -- Gaussian-Bernoulli  RBM\n"
 	"1 -- Bernoulli-Bernoulli RBM", "0")
      .add("--rescale", "Rescale each dimension of feature to [0, 1] respectively", "false")
      .add("--slope-thres", "threshold of ratio of slope in RBM pre-training", "0.05")
