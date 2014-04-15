@@ -61,11 +61,8 @@ __global__ void dcrossentropy_kernel(float* error, float* const target, float* c
 
   int i = x * rows + y;
 
-  float o = output[i];
-  if (o < 1e-10)
-    o = 1e-10;
+  error[i] = output[i] - (float) (target[y] - 1 == x);
 
-  error[i] = (target[y] - 1 == x) ? (-1.0 / o) : 0; 
   __syncthreads();
 }
 
@@ -94,28 +91,12 @@ mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
       error.resize(error.getRows(), error.getCols() + 1);*/
 
       break;
-    case CROSS_ENTROPY: {
+    case CROSS_ENTROPY:
 
-	size_t output_dim = output.getCols();
+      error.resize(output.getRows(), output.getCols() + 1);
 
-	error.resize(output.getRows(), output.getCols() + 1);
+      dCrossEntropy(error, target, output);
 
-	dCrossEntropy(error, target, output);
-
-	/* Legacy Code
-	thrust::device_ptr<float> oPtr(output.getData());
-	thrust::device_vector<float> TMP(output.size());
-	thrust::transform(oPtr, oPtr + output.size(), TMP.begin(), func::min_threshold<float>(1e-10));
-
-	thrust::device_ptr<float> pPtr(target.getData());
-	thrust::device_ptr<float> ePtr(error.getData());
-	thrust::transform(pPtr, pPtr + target.size(), TMP.begin(), ePtr, func::dcrossentropy<float>());
-	*/
-
-	break;
-      }
-
-    default:
       break;
   }
 

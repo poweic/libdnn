@@ -121,7 +121,7 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
-    if (trainAcc < 0.5) {
+    if (trainAcc < 0) {
       cout << "."; cout.flush();
       continue;
     }
