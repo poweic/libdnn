@@ -18,7 +18,10 @@ int main (int argc, char* argv[]) {
     .add("output_file", false);
 
   cmd.addGroup("Options:")
-    .add("--rescale", "Rescale each feature to [0, 1]", "false")
+     .add("--normalize", "Feature normalization: \n"
+	"0 -- Do not normalize.\n"
+	"1 -- Rescale each dimension to [0, 1] respectively.\n"
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
     .add("--prob", "output posterior probabilities if true", "false");
 
   cmd.addGroup("Example usage: dnn-predict test3.dat train3.dat.model");
@@ -29,11 +32,11 @@ int main (int argc, char* argv[]) {
   string test_fn    = cmd[1];
   string model_fn   = cmd[2];
   string output_fn  = cmd[3];
-  bool rescale      = cmd["--rescale"];
+  int n_type	    = cmd["--normalize"];
   bool isOutputProb = cmd["--prob"];
 
-  DataSet test(test_fn, rescale);
-  // test.showSummary();
+  DataSet test(test_fn);
+  test.normalize(n_type);
 
   bool hasAnswer = test.isLabeled();
 

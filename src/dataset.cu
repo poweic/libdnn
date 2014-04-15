@@ -8,14 +8,57 @@ mat getBatchData(const hmat& data, const Batches::Batch& b) {
 DataSet::DataSet(): _dim(0) {
 }
 
-DataSet::DataSet(const string &fn, bool rescale): _dim(0) {
-
+DataSet::DataSet(const string &fn): _dim(0) {
   read(fn);
-
-  if (rescale)
-    rescaleFeature();
-
   this->cvtLabelsToZeroBased();
+}
+
+void DataSet::normalizeToStandardScore() {
+  hmat& data = _hx;
+  size_t input_dim = data.getRows();
+  size_t nData = data.getCols();
+
+  for (int i=0; i<input_dim - 1; ++i) {
+    float mean = 0;
+    for (int j=0; j<nData; ++j)
+      mean += data(i, j);
+    mean /= nData;
+
+    for (int j=0; j<nData; ++j)
+      data(i, j) -= mean;
+
+    if (nData <= 1)
+      continue;
+
+    float deviation = 0;
+    for (int j=0; j<nData; ++j)
+      deviation += pow(data(i, j), 2.0f);
+    deviation = sqrt(deviation / (nData - 1));
+
+    if (deviation == 0)
+      continue;
+
+    for (int j=0; j<nData; ++j)
+      data(i, j) /= deviation;
+  }
+}
+
+void DataSet::normalize(int type) {
+
+  switch (type) {
+    case 0: // Do not normalize
+      break;
+
+    case 1: // Rescale each dimension to [0, 1] (for Bernoulli-Bernoulli RBM)
+      printf("\33[33m[Info]\33[0m Rescale each dimension to [0, 1]\n");
+      linearScaling(0, 1);
+      break;
+
+    case 2: // Normalize to standard score z = (x-u)/sigma (i.e. CMVN in speech)
+      printf("\33[33m[Info]\33[0m Normalize each dimension to standard score\n");
+      normalizeToStandardScore();
+      break;
+  }
 }
 
 size_t DataSet::getInputDimension() const {
@@ -69,6 +112,7 @@ void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int rati
 
   printf("| nTrain                         | %9lu |\n", nTrain);
   printf("| nValid                         | %9lu |\n", nValid);
+  printf("+--------------------------------+-----------+\n");
 
   // Copy data to training set
   train._hx.resize(inputDim , nTrain);
@@ -164,9 +208,7 @@ void DataSet::readDenseFeature(ifstream& fin) {
   }
 }
 
-void DataSet::rescaleFeature(float lower, float upper) {
-
-  printf("\33[33m[Info]\33[0m rescale each feature to [%f, %f]\n", lower, upper);
+void DataSet::linearScaling(float lower, float upper) {
 
   for (size_t i=0; i<this->size(); ++i) {
     float min = _hx(0, i),
@@ -199,7 +241,7 @@ void DataSet::cvtLabelsToZeroBased() {
     _hy[i] = classes[_hy[i]];
 }
 
-void DataSet::shuffleFeature() {
+void DataSet::shuffle() {
 
   std::vector<size_t> perm = randperm(size());
 

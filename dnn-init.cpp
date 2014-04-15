@@ -22,7 +22,10 @@ int main (int argc, char* argv[]) {
      .add("--type", "type of Pretraining. Choose one of the following:\n"
 	"0 -- Gaussian-Bernoulli  RBM\n"
 	"1 -- Bernoulli-Bernoulli RBM", "0")
-     .add("--rescale", "Rescale each dimension of feature to [0, 1] respectively", "false")
+     .add("--normalize", "Feature normalization: \n"
+	"0 -- Do not normalize.\n"
+	"1 -- Rescale each dimension to [0, 1] respectively.\n"
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
      .add("--slope-thres", "threshold of ratio of slope in RBM pre-training", "0.05")
      .add("--batch-size", "number of data per mini-batch", "32");
 
@@ -35,16 +38,17 @@ int main (int argc, char* argv[]) {
   string model_fn   = cmd[2];
   string structure  = cmd["--nodes"];
 
-  RBM_TYPE type	      = RBM_TYPE ((int) cmd["--type"]);
-  size_t batchSize    = cmd["--batch-size"];
-  bool rescale        = cmd["--rescale"];
-  float slopeThres    = cmd["--slope-thres"];
+  RBM_TYPE type	    = RBM_TYPE ((int) cmd["--type"]);
+  size_t batchSize  = cmd["--batch-size"];
+  float slopeThres  = cmd["--slope-thres"];
+  int n_type	    = cmd["--normalize"];
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
-  DataSet data(train_fn, rescale);
-  data.shuffleFeature();
+  DataSet data(train_fn);
+  data.normalize(n_type);
+  data.shuffle();
   data.showSummary();
 
   auto dims = getDimensionsForRBM(data, structure);

@@ -123,35 +123,6 @@ void sample(mat &prob, RBM_TYPE type) {
   fill_bias(prob);
 }
 
-void apply_cmvn(hmat& data) {
-  size_t input_dim = data.getRows();
-  size_t nData = data.getCols();
-
-  for (int i=0; i<input_dim - 1; ++i) {
-    float mean = 0;
-    for (int j=0; j<nData; ++j)
-      mean += data(i, j);
-    mean /= nData;
-
-    for (int j=0; j<nData; ++j)
-      data(i, j) -= mean;
-
-    if (nData <= 1)
-      continue;
-
-    float deviation = 0;
-    for (int j=0; j<nData; ++j)
-      deviation += pow(data(i, j), 2.0f);
-    deviation = sqrt(deviation / (nData - 1));
-
-    if (deviation == 0)
-      continue;
-
-    for (int j=0; j<nData; ++j)
-      data(i, j) /= deviation;
-  }
-}
-
 void up_propagate(const mat& W, const mat& visible, mat& hidden, RBM_TYPE type) {
   switch (type) {
     case BERNOULLI_BERNOULLI:
@@ -188,7 +159,7 @@ mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type)
       // Otherwise value will explode very quickly and get NaN.
       // [cf. A Practical Guide to Training Restricted Boltzmann Machines]
       learningRate /= 200;
-      apply_cmvn(data);
+      // apply_cmvn(data);
       break;
   }
 

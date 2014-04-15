@@ -12,7 +12,9 @@ mat getBatchData(const hmat& data, const Batches::Batch& b);
 class DataSet {
 public:
   DataSet();
-  DataSet(const string &fn, bool rescale = false);
+  DataSet(const string &fn);
+
+  void normalize(int type);
 
   size_t getInputDimension() const;
 
@@ -28,7 +30,7 @@ public:
   mat getX(const Batches::Batch& b) const;
   mat getY(const Batches::Batch& b) const;
 
-  void shuffleFeature();
+  void shuffle();
   void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
 
 private:
@@ -36,7 +38,9 @@ private:
   void read(const string &fn);
   void readSparseFeature(ifstream& fin);
   void readDenseFeature(ifstream& fin);
-  void rescaleFeature(float lower = 0, float upper = 1);
+
+  void linearScaling(float lower = 0, float upper = 1);
+  void normalizeToStandardScore();
 
   void cvtLabelsToZeroBased();
 

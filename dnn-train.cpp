@@ -20,7 +20,10 @@ int main (int argc, char* argv[]) {
      .add("model_out", false);
 
   cmd.addGroup("Training options: ")
-     .add("--rescale", "Rescale each feature to [0, 1]", "false")
+     .add("--normalize", "Feature normalization: \n"
+	"0 -- Do not normalize.\n"
+	"1 -- Rescale each dimension to [0, 1] respectively.\n"
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
      .add("--rp", "perform random permutation at the start of each epoch", "false")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "100000")
@@ -47,7 +50,7 @@ int main (int argc, char* argv[]) {
   float variance      = cmd["--variance"];
   float minValidAcc   = cmd["--min-acc"];
   size_t maxEpoch     = cmd["--max-epoch"];
-  bool rescale        = cmd["--rescale"];
+  int n_type	      = cmd["--normalize"];
   bool randperm	      = cmd["--rp"];
 
   // Set configurations
@@ -63,8 +66,9 @@ int main (int argc, char* argv[]) {
   dnn.setConfig(config);
 
   // Load data
-  DataSet data(train_fn, rescale);
-  data.shuffleFeature();
+  DataSet data(train_fn);
+  data.normalize(n_type);
+  data.shuffle();
   data.showSummary();
 
   DataSet train, valid;
