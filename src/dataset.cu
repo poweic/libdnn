@@ -13,16 +13,16 @@ DataSet::DataSet(const string &fn, bool rescale): _dim(0) {
   read(fn, rescale);
 
   this->convertToStandardLabels();
-  this->label2PosteriorProb();
+  // this->label2PosteriorProb();
 }
 
 size_t DataSet::getInputDimension() const {
   return _dim;
 }
 
-size_t DataSet::getOutputDimension() const {
+/*size_t DataSet::getOutputDimension() const {
   return _hp.getCols();
-}
+}*/
 
 size_t DataSet::size() const {
   return _hy.size();
@@ -54,9 +54,9 @@ const hmat& DataSet::getY() const {
   return _hy;
 }
 
-const hmat& DataSet::getProb() const {
+/*const hmat& DataSet::getProb() const {
   return _hp;
-}
+}*/
 
 mat DataSet::getX(const Batches::Batch& b) const {
   return getBatchData(_hx, b);
@@ -66,14 +66,14 @@ mat DataSet::getY(const Batches::Batch& b) const {
   return getBatchData(_hy, b);
 }
 
-mat DataSet::getProb(const Batches::Batch& b) const {
+/*mat DataSet::getProb(const Batches::Batch& b) const {
   return getBatchData(_hp, b);
-}
+}*/
 
 void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio) {
 
-  size_t inputDim = _hx.getRows(),
-	 outputDim = _hp.getRows();
+  size_t inputDim = _hx.getRows()/*,
+	 outputDim = _hp.getRows()*/;
   
   size_t nValid = size() / ratio,
 	 nTrain = size() - nValid;
@@ -84,20 +84,20 @@ void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int rati
   // Copy data to training set
   train._hx.resize(inputDim , nTrain);
   train._hy.resize(1	    , nTrain);
-  train._hp.resize(outputDim, nTrain);
+  // train._hp.resize(outputDim, nTrain);
 
   memcpy(train._hx.getData(), _hx.getData(), sizeof(float) * train._hx.size());
   memcpy(train._hy.getData(), _hy.getData(), sizeof(float) * train._hy.size());
-  memcpy(train._hp.getData(), _hp.getData(), sizeof(float) * train._hp.size());
+  //memcpy(train._hp.getData(), _hp.getData(), sizeof(float) * train._hp.size());
 
   // Copy data to validation set
   valid._hx.resize(inputDim , nValid);
   valid._hy.resize(1	    , nValid);
-  valid._hp.resize(outputDim, nValid);
+  // valid._hp.resize(outputDim, nValid);
 
   memcpy(valid._hx.getData(), _hx.getData() + train._hx.size(), sizeof(float) * valid._hx.size());
   memcpy(valid._hy.getData(), _hy.getData() + train._hy.size(), sizeof(float) * valid._hy.size());
-  memcpy(valid._hp.getData(), _hp.getData() + train._hp.size(), sizeof(float) * valid._hp.size());
+  // memcpy(valid._hp.getData(), _hp.getData() + train._hp.size(), sizeof(float) * valid._hp.size());
 }
 
 
@@ -109,17 +109,28 @@ void DataSet::read(const string &fn, bool rescale) {
 
   bool isSparse = isFileSparse(fn);
 
-  _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
+  perf::Timer timer;
 
+  printf("Finding feature dimension...\n");
+  timer.start();
+  _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
+  timer.elapsed();
+
+  printf("Getting # of feature vector...\n");
+  timer.start();
   size_t N = getLineNumber(fin);
+  timer.elapsed();
 
   _hx.resize(_dim + 1, N);
   _hy.resize(1, N);
 
+  printf("Parsing features...\n");
+  timer.start();
   if (isSparse)
     readSparseFeature(fin);
   else
     readDenseFeature(fin);
+  timer.elapsed();
 
   fin.close();
 
@@ -206,7 +217,7 @@ void DataSet::convertToStandardLabels() {
     _hy[i] = classes[_hy[i]];
 }
 
-void DataSet::label2PosteriorProb() {
+/*void DataSet::label2PosteriorProb() {
   
   map<int, int> classes = getLabelMapping(_hy);
   size_t nClasses = classes.size();
@@ -215,9 +226,12 @@ void DataSet::label2PosteriorProb() {
   _hp.resize(nClasses, _hy.getCols());
   _hp.fillwith(0);
 
+  // TODO
+  // 似乎不需要先產生_hp，只要在計算cross-entropy時
+  // ，在特定的某一維取值就好，其他的都是0
   for (size_t i=0; i<_hp.getCols(); ++i)
     _hp((_hy[i] - 1), i) = 1;
-}
+}*/
 
 void DataSet::shuffleFeature() {
 
@@ -231,7 +245,7 @@ void DataSet::shuffleFeature() {
     _hy[perm[i]] = y[i];
   }
 
-  label2PosteriorProb();
+  // label2PosteriorProb();
 }
 
 bool isFileSparse(string train_fn) {

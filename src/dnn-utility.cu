@@ -48,34 +48,69 @@ namespace ext {
   }
 };
 
+__global__ void dcrossentropy_kernel(float* error, float* const target, float* const output, unsigned int rows, unsigned int cols) {
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
+
+  // Matrix index
+  int x = blockIdx.x*blockDim.x + tx;
+  int y = blockIdx.y*blockDim.y + ty;
+
+  if (x >= cols || y >= rows)
+    return;
+
+  int i = x * rows + y;
+
+  float o = output[i];
+  if (o < 1e-10)
+    o = 1e-10;
+
+  error[i] = (target[y] - 1 == x) ? (-1.0 / o) : 0; 
+  __syncthreads();
+}
+
+void dCrossEntropy(mat& error, const mat &target, const mat& output) {
+
+  const size_t N = 32;
+  dim3 threads(N, N);
+  dim3 grid;
+  grid.x = (unsigned int) ceil((float) output.getCols() / N);
+  grid.y = (unsigned int) ceil((float) output.getRows() / N);
+
+  dcrossentropy_kernel<<< grid, threads >>>(error.getData(), target.getData(), output.getData(), output.getRows(), output.getCols());
+
+  CCE(cudaDeviceSynchronize());
+}
+
 mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
 
   mat error;
 
-  const mat& O = output;
-
   switch (errorMeasure) {
     case L2ERROR: 
-      error = output - target;
+      // FIXME
+      /*error = output - target;
       error.reserve(error.getRows() * (error.getCols() + 1));
-      error.resize(error.getRows(), error.getCols() + 1);
+      error.resize(error.getRows(), error.getCols() + 1);*/
 
       break;
     case CROSS_ENTROPY: {
 
-	size_t output_dim = target.getCols();
+	size_t output_dim = output.getCols();
 
-	error.resize(target.getRows(), target.getCols() + 1);
+	error.resize(output.getRows(), output.getCols() + 1);
+
+	dCrossEntropy(error, target, output);
+
+	/* Legacy Code
+	thrust::device_ptr<float> oPtr(output.getData());
+	thrust::device_vector<float> TMP(output.size());
+	thrust::transform(oPtr, oPtr + output.size(), TMP.begin(), func::min_threshold<float>(1e-10));
 
 	thrust::device_ptr<float> pPtr(target.getData());
-	thrust::device_ptr<float> oPtr(O.getData());
-
 	thrust::device_ptr<float> ePtr(error.getData());
-
-	thrust::device_vector<float> TMP(O.size());
-	thrust::transform(oPtr, oPtr + O.size(), TMP.begin(), func::min_threshold<float>(1e-10));
-
 	thrust::transform(pPtr, pPtr + target.size(), TMP.begin(), ePtr, func::dcrossentropy<float>());
+	*/
 
 	break;
       }

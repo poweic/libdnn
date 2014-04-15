@@ -50,16 +50,6 @@ int main (int argc, char* argv[]) {
   bool rescale        = cmd["--rescale"];
   bool randperm	      = cmd["--rp"];
 
-  if (model_out.empty())
-    model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
-
-  DataSet data(train_fn, rescale);
-  data.shuffleFeature();
-  data.showSummary();
-
-  DataSet train, valid;
-  data.splitIntoTrainAndValidSet(train, valid, ratio);
-
   // Set configurations
   Config config;
   config.variance = variance;
@@ -72,11 +62,22 @@ int main (int argc, char* argv[]) {
   DNN dnn(model_in);
   dnn.setConfig(config);
 
+  // Load data
+  DataSet data(train_fn, rescale);
+  data.shuffleFeature();
+  data.showSummary();
+
+  DataSet train, valid;
+  data.splitIntoTrainAndValidSet(train, valid, ratio);
+
   // Start Training
   ERROR_MEASURE err = CROSS_ENTROPY;
   dnn_train(dnn, train, valid, batchSize, err);
 
   // Save the model
+  if (model_out.empty())
+    model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
+
   dnn.save(model_out);
 
   return 0;
@@ -109,7 +110,7 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
       mat fin = train.getX(*itr);
       dnn.feedForward(fout, fin);
 
-      mat error = getError( train.getProb(*itr), fout, errorMeasure);
+      mat error = getError( train.getY(*itr), fout, errorMeasure);
 
       dnn.backPropagate(error, fin, fout, dnn.getConfig().learningRate);
     }

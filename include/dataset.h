@@ -15,7 +15,7 @@ public:
   DataSet(const string &fn, bool rescale = false);
 
   size_t getInputDimension() const;
-  size_t getOutputDimension() const;
+  // size_t getOutputDimension() const;
 
   size_t size() const;
   size_t getClassNumber() const;
@@ -25,11 +25,11 @@ public:
 
   const hmat& getX() const;
   const hmat& getY() const;
-  const hmat& getProb() const;
+  // const hmat& getProb() const;
 
   mat getX(const Batches::Batch& b) const;
   mat getY(const Batches::Batch& b) const;
-  mat getProb(const Batches::Batch& b) const;
+  // mat getProb(const Batches::Batch& b) const;
 
   void shuffleFeature();
   void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
@@ -42,10 +42,10 @@ private:
   void rescaleFeature(float lower = 0, float upper = 1);
 
   void convertToStandardLabels();
-  void label2PosteriorProb();
+  // void label2PosteriorProb();
 
   size_t _dim;
-  hmat _hx, _hy, _hp;
+  hmat _hx, _hy/*, _hp*/;
 };
 
 bool isFileSparse(string train_fn);

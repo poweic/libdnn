@@ -42,6 +42,14 @@ size_t DNN::getNLayer() const {
   return _transforms.size() + 1;
 }
 
+std::vector<size_t> DNN::getDimensions() const {
+  std::vector<size_t> dims;
+  for (int i=0; i<_transforms.size(); ++i)
+    dims.push_back(_transforms[i]->getInputDimension());
+  dims.push_back(_transforms.back()->getOutputDimension());
+  return dims;
+}
+
 #pragma GCC diagnostic ignored "-Wunused-result"
 void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
 

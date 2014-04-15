@@ -25,12 +25,11 @@ public:
 
   void setConfig(const Config& config);
   size_t getNLayer() const;
-  void getEmptyGradient(std::vector<mat>& g) const;
+  std::vector<size_t> getDimensions() const;
 
   Config getConfig() const;
   void adjustLearningRate(float trainAcc);
 
-  void _read(FILE* fid);
   void read(string fn);
   void save(string fn) const;
 
