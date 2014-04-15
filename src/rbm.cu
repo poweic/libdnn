@@ -187,7 +187,7 @@ mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type)
       // orders of magnitude smaller than when using binary visible units.
       // Otherwise value will explode very quickly and get NaN.
       // [cf. A Practical Guide to Training Restricted Boltzmann Machines]
-      learningRate /= 100;
+      learningRate /= 200;
       apply_cmvn(data);
       break;
   }
