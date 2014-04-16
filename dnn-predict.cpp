@@ -17,11 +17,15 @@ int main (int argc, char* argv[]) {
     .add("model_file")
     .add("output_file", false);
 
-  cmd.addGroup("Options:")
+  cmd.addGroup("Feature options:")
+     .add("--input-dim", "specify the input dimension (dimension of feature).\n"
+	 "0 for auto detection.", "0")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+
+  cmd.addGroup("Options:")
     .add("--prob", "output posterior probabilities if true", "false");
 
   cmd.addGroup("Example usage: dnn-predict test3.dat train3.dat.model");
@@ -32,10 +36,13 @@ int main (int argc, char* argv[]) {
   string test_fn    = cmd[1];
   string model_fn   = cmd[2];
   string output_fn  = cmd[3];
+
+  size_t input_dim  = cmd["--input-dim"];
   int n_type	    = cmd["--normalize"];
+
   bool isOutputProb = cmd["--prob"];
 
-  DataSet test(test_fn);
+  DataSet test(test_fn, input_dim);
   test.normalize(n_type);
 
   bool hasAnswer = test.isLabeled();

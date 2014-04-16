@@ -8,17 +8,16 @@ mat getBatchData(const hmat& data, const Batches::Batch& b) {
 DataSet::DataSet(): _dim(0) {
 }
 
-DataSet::DataSet(const string &fn): _dim(0) {
-  read(fn);
+DataSet::DataSet(const string &fn, size_t dim): _dim(dim) {
+  this->read(fn);
   this->cvtLabelsToZeroBased();
 }
 
 void DataSet::normalizeToStandardScore() {
   hmat& data = _hx;
-  size_t input_dim = data.getRows();
   size_t nData = data.getCols();
 
-  for (int i=0; i<input_dim - 1; ++i) {
+  for (int i=0; i<_dim; ++i) {
     float mean = 0;
     for (int j=0; j<nData; ++j)
       mean += data(i, j);
@@ -61,7 +60,7 @@ void DataSet::normalize(int type) {
   }
 }
 
-size_t DataSet::getInputDimension() const {
+size_t DataSet::getFeatureDimension() const {
   return _dim;
 }
 
@@ -82,7 +81,7 @@ void DataSet::showSummary() const {
   printf("+--------------------------------+-----------+\n");
   printf("| Number of classes              | %9lu |\n", this->getClassNumber());
   printf("| Number of input feature (data) | %9lu |\n", this->size());
-  printf("| Dimension of  input feature    | %9lu |\n", this->getInputDimension());
+  printf("| Dimension of  input feature    | %9lu |\n", this->getFeatureDimension());
   printf("+--------------------------------+-----------+\n");
 
 }
@@ -142,7 +141,8 @@ void DataSet::read(const string &fn) {
 
   printf("Finding feature dimension...\n");
   timer.start();
-  _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
+  if (_dim == 0)
+    _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
   timer.elapsed();
 
   printf("Getting # of feature vector...\n");
@@ -210,6 +210,9 @@ void DataSet::readDenseFeature(ifstream& fin) {
 
 void DataSet::linearScaling(float lower, float upper) {
 
+  // FIXME
+  // This function rescale every pixel int 0~255 to float 0~1
+  // , rather than rescale each dimension to 0~1
   for (size_t i=0; i<this->size(); ++i) {
     float min = _hx(0, i),
 	  max = _hx(0, i);

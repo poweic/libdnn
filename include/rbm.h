@@ -10,20 +10,27 @@
 void playground();
 
 enum RBM_TYPE {
-  GAUSSIAN_BERNOULLI,
-  BERNOULLI_BERNOULLI
+  BERNOULLI_BERNOULLI,
+  GAUSSIAN_BERNOULLI
 };
 
 ostream& operator << (ostream& os, const RBM_TYPE& type);
 
-std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims, float slopeThres, RBM_TYPE type = GAUSSIAN_BERNOULLI);
+std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims,
+    float slopeThres, RBM_TYPE type, float learning_rate = 0.1);
 
 void sample(mat &prob);
 void apply_cmvn(hmat& data);
 
-mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_TYPE type);
+mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold,
+    RBM_TYPE type, float learning_rate = 0.1);
 
-std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure);
+size_t getOutputDimension();
+
+std::vector<size_t> getDimensionsForRBM(
+    size_t input_dim, 
+    const string& hidden_structure, 
+    size_t output_dim);
 
 float getSlope(const std::vector<float> &error, size_t N);
 

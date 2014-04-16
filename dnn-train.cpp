@@ -19,11 +19,15 @@ int main (int argc, char* argv[]) {
      .add("model_in")
      .add("model_out", false);
 
-  cmd.addGroup("Training options: ")
+  cmd.addGroup("Feature options:")
+     .add("--input-dim", "specify the input dimension (dimension of feature).\n"
+	 "0 for auto detection.", "0")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+
+  cmd.addGroup("Training options: ")
      .add("--rp", "perform random permutation at the start of each epoch", "false")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "100000")
@@ -40,9 +44,12 @@ int main (int argc, char* argv[]) {
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
 
-  string train_fn   = cmd[1];
-  string model_in   = cmd[2];
-  string model_out  = cmd[3];
+  string train_fn     = cmd[1];
+  string model_in     = cmd[2];
+  string model_out    = cmd[3];
+
+  size_t input_dim    = cmd["--input-dim"];
+  int n_type	      = cmd["--normalize"];
 
   int ratio	      = cmd["-v"];
   size_t batchSize    = cmd["--batch-size"];
@@ -50,7 +57,6 @@ int main (int argc, char* argv[]) {
   float variance      = cmd["--variance"];
   float minValidAcc   = cmd["--min-acc"];
   size_t maxEpoch     = cmd["--max-epoch"];
-  int n_type	      = cmd["--normalize"];
   bool randperm	      = cmd["--rp"];
 
   // Set configurations
@@ -66,7 +72,7 @@ int main (int argc, char* argv[]) {
   dnn.setConfig(config);
 
   // Load data
-  DataSet data(train_fn);
+  DataSet data(train_fn, input_dim);
   data.normalize(n_type);
   data.shuffle();
   data.showSummary();

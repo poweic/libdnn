@@ -32,7 +32,9 @@ hmat batchFeedForwarding(const hmat& X, const mat& w) {
   return Y;
 }
 
-std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims, float slopeThres, RBM_TYPE type) {
+std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims,
+    float slopeThres, RBM_TYPE type, float learning_rate) {
+
   std::vector<mat> weights(dims.size() - 1);
 
   size_t nData = data.size();
@@ -43,7 +45,7 @@ std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims, 
     if (type == GAUSSIAN_BERNOULLI && i > 0)
       type = BERNOULLI_BERNOULLI;
 
-    weights[i] = rbmTrain(X, dims[i + 1], slopeThres, type);
+    weights[i] = rbmTrain(X, dims[i + 1], slopeThres, type, learning_rate);
     X = batchFeedForwarding(X, weights[i]);
   }
 
@@ -140,16 +142,14 @@ void down_propagate(const mat& W, mat& visible, const mat& hidden, RBM_TYPE type
   fill_bias(visible);
 }
 
-mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type) {
-  hmat data(d);
+mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_TYPE type, float learning_rate) {
 
-  float learningRate = 1e-1;
   switch (type) {
     case BERNOULLI_BERNOULLI:
       cout << "BERNOULLI_BERNOULLI" << endl;
 
       // If Bernoulli, make sure the visible units have values in the range [0, 1]
-      assert(ext::max(d) <= 1 && ext::min(d) >= 0);
+      assert(ext::max(data) <= 1 && ext::min(data) >= 0);
       break;
     case GAUSSIAN_BERNOULLI:
       cout << "GAUSSIAN_BERNOULLI" << endl;
@@ -158,19 +158,18 @@ mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type)
       // orders of magnitude smaller than when using binary visible units.
       // Otherwise value will explode very quickly and get NaN.
       // [cf. A Practical Guide to Training Restricted Boltzmann Machines]
-      learningRate /= 200;
-      // apply_cmvn(data);
+      learning_rate /= 100;
       break;
   }
 
-  size_t batchSize = 128;
+  size_t batchSize = 1024;
   size_t input_dim = data.getRows();
   size_t nData = data.getCols();
 
   mat W(input_dim, nHiddenUnits + 1);
   ext::randn(W, 0, 0.1 / W.getCols());
 
-  size_t minEpoch = 5, maxEpoch = 1024;
+  size_t minEpoch = 5, maxEpoch = 128;
 
   std::vector<float> errors;
   errors.reserve(maxEpoch);
@@ -210,7 +209,7 @@ mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type)
       // Calculate negative
       mat negative = ~v2 * h2;
 
-      float lr = learningRate / batchSize;
+      float lr = learning_rate / batchSize;
       mat dW = lr * (positive - negative);
 
       W += dW;
@@ -224,9 +223,12 @@ mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type)
 
     if (epoch > minEpoch) {
       float ratio = abs(getSlope(errors, 5) / initialSlope);
+      float percentage = (epoch == maxEpoch - 1) ? 1.0 : std::min(1.0f, threshold / ratio);
+
       char status[100];
       sprintf(status, "RBM init ( error = %.4e, slope ratio = %.4e )", errors[epoch], ratio);
-      pBar.refresh(std::min(1.0f, threshold / ratio), status);
+
+      pBar.refresh(percentage, status);
 
       if (ratio < threshold)
 	break;
@@ -235,13 +237,13 @@ mat rbmTrain(const hmat& d, size_t nHiddenUnits, float threshold, RBM_TYPE type)
 
   printf("Average magnitude of element in weight W = %.7f\n", nrm2(W) / sqrt(W.size()));
   float t_end = timer.getTime();
-  printf("Average time for each epoch = %f\n", t_end / epoch);
+  printf("# of epoch = %lu, average time for each epoch = %f\n", epoch, t_end / epoch);
   
   return W;
 }
 
-std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& structure) {
-
+// Show a dialogue and ask user for the output dimension
+size_t getOutputDimension() {
   string userInput = "";
 
   while (!is_number(userInput)) {
@@ -251,12 +253,17 @@ std::vector<size_t> getDimensionsForRBM(const DataSet& data, const string& struc
     cin >> userInput;
   }
 
-  size_t output_dim = atoi(userInput.c_str());
+  return atoi(userInput.c_str());
+}
+
+std::vector<size_t> getDimensionsForRBM(
+    size_t input_dim, 
+    const string& hidden_structure, 
+    size_t output_dim) {
 
   // ===========================================================================
   // Initialize hidden structure
-  size_t input_dim = data.getInputDimension();
-  std::vector<size_t> dims = splitAsInt(structure, '-');
+  std::vector<size_t> dims = splitAsInt(hidden_structure, '-');
   dims.insert(dims.begin(), input_dim);
   dims.push_back((size_t) output_dim);
 

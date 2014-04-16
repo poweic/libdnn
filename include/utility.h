@@ -31,6 +31,13 @@ enum ERROR_MEASURE {
   CROSS_ENTROPY
 };
 
+/*#include <sys/stat.h>
+long getFileSize(std::string filename) {
+  struct stat stat_buf;
+  int rc = stat(filename.c_str(), &stat_buf);
+  return rc == 0 ? stat_buf.st_size : -1;
+}*/
+
 template <typename T>
 void print(const vector<T>& v) {
   cout << "[";

@@ -12,14 +12,14 @@ mat getBatchData(const hmat& data, const Batches::Batch& b);
 class DataSet {
 public:
   DataSet();
-  DataSet(const string &fn);
+  DataSet(const string &fn, size_t dim = 0);
 
   void normalize(int type);
 
-  size_t getInputDimension() const;
+  size_t getFeatureDimension() const;
+  size_t getClassNumber() const;
 
   size_t size() const;
-  size_t getClassNumber() const;
 
   bool isLabeled() const;
   void showSummary() const;
