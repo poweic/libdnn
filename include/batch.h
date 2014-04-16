@@ -46,6 +46,13 @@ public:
 	return itr; 
       }
 
+      iterator operator + (int n) const {
+	iterator itr(*this);
+	for (int i=0; i<n; ++i)
+	  ++itr;
+	return itr;
+      }
+
       const Batch& operator * () const {
 	return *_batch;
       }

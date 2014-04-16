@@ -199,10 +199,16 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
 
 void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
 
-  mat error_times_fout = error & fout;
+  // This is much faster and easier
+  mat delta = error;
+  this->feedBackward(error, delta);
+  gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
+
+  // cf. /usr/local/lib/python2.7/dist-packages/theano/tensor/nnet/nnet.py:251
+  /*mat error_times_fout = error & fout;
   mat delta = error_times_fout - (rowSum(error_times_fout) & fout);
 
   this->feedBackward(error, delta);
 
-  gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
+  gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);*/
 }
