@@ -9,21 +9,32 @@
 
 void playground();
 
-enum RBM_TYPE {
-  BERNOULLI_BERNOULLI,
-  GAUSSIAN_BERNOULLI
+enum RBM_UNIT_TYPE {
+  BERNOULLI,
+  GAUSSIAN
 };
 
-ostream& operator << (ostream& os, const RBM_TYPE& type);
+ostream& operator << (ostream& os, const RBM_UNIT_TYPE& type);
+
+hmat batchFeedForwarding(const hmat& X, const mat& w);
+
+float calcAverageStandardDeviation(const mat& x);
 
 std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims,
-    float slopeThres, RBM_TYPE type, float learning_rate = 0.1);
+    float slopeThres, RBM_UNIT_TYPE type, float learning_rate = 0.1);
+
+void antiWeightExplosion(mat& W, const mat& v1, const mat& v2, float &learning_rate);
 
 void sample(mat &prob);
-void apply_cmvn(hmat& data);
+
+float getFreeEnergy(const mat& visible, const mat& W);
+float getFreeEnergyGap(const hmat& data, size_t batch_size, const mat& W);
+
+void up_propagate(const mat& W, const mat& visible, mat& hidden, RBM_UNIT_TYPE type);
+void down_propagate(const mat& W, mat& visible, const mat& hidden, RBM_UNIT_TYPE type);
 
 mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold,
-    RBM_TYPE type, float learning_rate = 0.1);
+    RBM_UNIT_TYPE vis_type, RBM_UNIT_TYPE hid_type, float learning_rate = 0.1);
 
 size_t getOutputDimension();
 
