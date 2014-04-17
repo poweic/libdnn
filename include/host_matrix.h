@@ -27,6 +27,12 @@ public:
       delete [] _data;
   }
 
+  operator device_matrix<T> () const {
+    device_matrix<T> d(_rows, _cols);
+    CCE(cudaMemcpy(d.getData(), _data, sizeof(float) * size(), cudaMemcpyHostToDevice));
+    return d;
+  }
+
   host_matrix& operator = (host_matrix<T> rhs) {
     swap(*this, rhs);
     return *this;
