@@ -74,11 +74,11 @@ void DNN::read(string fn) {
 
   _transforms.clear();
 
-  printf("+-------------------------------------+\n");
-  printf("| File: %-30s"                       "|\n", fn.c_str());
-  printf("+-------------------+--------+--------+\n");
-  printf("| Feature Transform |  rows  |  cols  |\n");
-  printf("+-------------------+--------+--------+\n");
+  //printf("+-------------------------------------+\n");
+  //printf("| File: %-30s"                       "|\n", fn.c_str());
+  //printf("+-------------------+--------+--------+\n");
+  //printf("| Feature Transform |  rows  |  cols  |\n");
+  //printf("+-------------------+--------+--------+\n");
 
   char type[80];
 
@@ -86,7 +86,7 @@ void DNN::read(string fn) {
     size_t rows, cols;
     fscanf(fid, "%lu %lu\n [\n", &rows, &cols);
 
-    printf("|     %-13s |  %-5lu |  %-5lu |\n", type, rows, cols);
+    // printf("|     %-13s |  %-5lu |  %-5lu |\n", type, rows, cols);
 
     float* hw = new float[(rows + 1) * (cols + 1)];
     readweight(fid, hw, rows + 1, cols);
@@ -102,7 +102,7 @@ void DNN::read(string fn) {
 
     delete [] hw;
   }
-  printf("+-------------------+--------+--------+\n\n");
+  //printf("+-------------------+--------+--------+\n\n");
 
   fclose(fid);
 }

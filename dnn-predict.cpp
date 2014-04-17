@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 #include <dnn.h>
-#include <dnn-utility.h>
+// #include <dnn-utility.h>
 #include <cmdparser.h>
 #include <batch.h>
 using namespace std;
@@ -26,7 +26,11 @@ int main (int argc, char* argv[]) {
 	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
 
   cmd.addGroup("Options:")
-    .add("--prob", "output posterior probabilities if true", "false");
+    .add("--prob", "output posterior probabilities if true\n"
+	"0 -- Do not output posterior probabilities. Output class-id.\n"
+	"1 -- Output posterior probabilities. (range in [0, 1]) \n"
+	"2 -- Output natural log of posterior probabilities. (range in [-inf, 0])", "0")
+    .add("--silent", "Suppress all log messages", "false");
 
   cmd.addGroup("Example usage: dnn-predict test3.dat train3.dat.model");
 
@@ -40,7 +44,8 @@ int main (int argc, char* argv[]) {
   size_t input_dim  = cmd["--input-dim"];
   int n_type	    = cmd["--normalize"];
 
-  bool isOutputProb = cmd["--prob"];
+  int output_type   = cmd["--prob"];
+  bool silent	    = cmd["--silent"];
 
   DataSet test(test_fn, input_dim);
   test.normalize(n_type);
@@ -62,28 +67,31 @@ int main (int argc, char* argv[]) {
     if (hasAnswer)
       nError += zeroOneError(prob, test.getY(*itr), errorMeasure);
 
-    if (hasAnswer && output_fn.empty())
+    if (hasAnswer && output_fn.empty() && output_type == 0)
       continue;
 
-    if (isOutputProb)
-      prob.print(fid);
-    else
-      printLabels(prob, fid);
+    switch (output_type) {
+      case 0: prob.print(fid);	      break;
+      case 1: printLabels(prob, fid); break;
+      case 2: log(prob).print(fid);   break;
+    }
   }
 
   if (fid != stdout)
     fclose(fid);
 
-  if (hasAnswer)
+  if (hasAnswer && !silent)
     showAccuracy(nError, test.size());
 
   return 0;
 }
 
+// DO NOT USE device_matrix::print()
+// (since labels should be printed as integer)
 void printLabels(const mat& prob, FILE* fid) {
-  std::vector<float> labels = copyToHost(posteriorProb2Label(prob));
-  for (size_t i=0; i<labels.size(); ++i)
-    fprintf(fid, "%d\n", (int) labels[i]);
+  auto h_labels = copyToHost(posteriorProb2Label(prob));
+  for (size_t i=0; i<h_labels.size(); ++i)
+    cout << (int) h_labels[i] << endl;
 }
 
 FILE* openFileOrStdout(const string& filename) {

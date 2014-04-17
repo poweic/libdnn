@@ -90,6 +90,11 @@ namespace func {
   struct log_of_one_plus_exp {
     __host__ __device__ T operator() (const T& x) { return logf(1 + expf(x)); }
   };
+
+  template <typename T>
+  struct log {
+    __host__ __device__ T operator() (const T& x) { return logf(x); }
+  };
 };
 
 #endif // __TEMPLATE_FUNCTIONAL_H_

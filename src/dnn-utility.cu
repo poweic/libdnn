@@ -172,3 +172,7 @@ size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasur
 
   return nError;
 }
+
+device_matrix<float> log(const device_matrix<float>& x) {
+  return transform(x, func::log<float>());
+}

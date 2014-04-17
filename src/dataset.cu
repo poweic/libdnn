@@ -49,12 +49,12 @@ void DataSet::normalize(int type) {
       break;
 
     case 1: // Rescale each dimension to [0, 1] (for Bernoulli-Bernoulli RBM)
-      printf("\33[33m[Info]\33[0m Rescale each dimension to [0, 1]\n");
+      //printf("\33[33m[Info]\33[0m Rescale each dimension to [0, 1]\n");
       linearScaling(0, 1);
       break;
 
     case 2: // Normalize to standard score z = (x-u)/sigma (i.e. CMVN in speech)
-      printf("\33[33m[Info]\33[0m Normalize each dimension to standard score\n");
+      //printf("\33[33m[Info]\33[0m Normalize each dimension to standard score\n");
       normalizeToStandardScore();
       break;
   }
@@ -139,27 +139,27 @@ void DataSet::read(const string &fn) {
 
   perf::Timer timer;
 
-  printf("Finding feature dimension...\n");
-  timer.start();
+  //printf("Finding feature dimension...\n");
+  //timer.start();
   if (_dim == 0)
     _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
-  timer.elapsed();
+  //timer.elapsed();
 
-  printf("Getting # of feature vector...\n");
-  timer.start();
+  //printf("Getting # of feature vector...\n");
+  //timer.start();
   size_t N = getLineNumber(fin);
-  timer.elapsed();
+  //timer.elapsed();
 
   _hx.resize(_dim + 1, N);
   _hy.resize(1, N);
 
-  printf("Parsing features...\n");
-  timer.start();
+  //printf("Parsing features...\n");
+  //timer.start();
   if (isSparse)
     readSparseFeature(fin);
   else
     readDenseFeature(fin);
-  timer.elapsed();
+  //timer.elapsed();
 
   fin.close();
 
