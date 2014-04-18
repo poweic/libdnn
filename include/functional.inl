@@ -5,6 +5,7 @@
 #define __host__
 #define __device__
 #endif
+
 // ===============================
 // ===== Template Functional =====
 // ===============================
@@ -62,12 +63,12 @@ namespace func {
 
   template <typename T>
   struct sigmoid {
-#ifndef __CUDACC__
-    __host__ __device__ T operator() (const T& x) { return 1.0 / ( 1.0 + exp(-x) ); }
-#else
     __host__ __device__ T operator() (const T& x) { return 1.0 / ( 1.0 + expf(-x) ); }
-#endif
+  };
 
+  template <typename T>
+  struct normal_dist {
+    __host__ __device__ T operator() (const T& x) { return 1.0 / ( 1.0 + expf(-x) ); }
   };
 
   template <typename T>
@@ -82,11 +83,17 @@ namespace func {
 
   template <typename T>
   struct exp {
-#ifndef __CUDACC__
-    __host__ __device__ T operator() (const T& x) { return exp(x); }
-#else
     __host__ __device__ T operator() (const T& x) { return expf(x); }
-#endif
+  };
+
+  template <typename T>
+  struct log_of_one_plus_exp {
+    __host__ __device__ T operator() (const T& x) { return logf(1 + expf(x)); }
+  };
+
+  template <typename T>
+  struct log {
+    __host__ __device__ T operator() (const T& x) { return logf(x); }
   };
 };
 
