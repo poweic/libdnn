@@ -14,7 +14,8 @@ INCLUDE= -I include/ \
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
-SOURCES=dnn.cu\
+SOURCES=cnn.cu\
+	dnn.cu\
 	dnn-utility.cu\
 	utility.cpp\
 	rbm.cu\
