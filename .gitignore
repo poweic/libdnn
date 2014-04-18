@@ -1,12 +1,10 @@
 obj/*
 data/*.model
-cpu_example
-gpu_example
 tags
 dnn-predict
 dnn-train
 dnn-init
-svm-to-kaldi
+cnn-train
 *.model
 *.dat
 log

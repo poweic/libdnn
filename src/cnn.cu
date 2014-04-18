@@ -1,5 +1,14 @@
 #include <cnn.h>
 
+void plotL2normInSemilogy() {
+  const float threshold = 1e-6;
+  printf("N = length(L2norm);\n");
+  printf("threshold = %f * ones(1, N);\n", threshold);
+  printf("semilogy(1:N, L2norm, 1:N, threshold);\n");
+  printf("axis([1, N, %e, %e]);\n", threshold / 100, threshold * 100);
+  printf("legend('Minimum Acceptable Error', 'L2-norm');\n");
+}
+
 mat rand(int m, int n) {
   mat x(m, n);
   ext::rand(x);
@@ -30,12 +39,7 @@ void test_convn(string type, int N) {
     printf("L2norm(%d) = norm(delta(:)) / norm(z_gold(:)) / 2;\n", i + 1);
   }
 
-  const float threshold = 1e-6;
-  printf("threshold = %f * ones(1, %d);\n", threshold, N);
-  printf("semilogy(1:%d, L2norm, 1:%d, threshold);\n", N, N);
-  printf("axis([1, %d, %e, %e]);\n", N, threshold / 100, threshold * 100);
-  printf("legend('acceptable error', '%s');\n", type.c_str());
-
+  plotL2normInSemilogy();
 }
 
 __global__ void convn_valid_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
@@ -184,5 +188,79 @@ mat convn(const mat& data, const mat& kernel, string type) {
   CCE(cudaDeviceSynchronize());
   
   return output;
+}
+
+__global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, int W) { 
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
+
+  // Matrix index
+  int x = blockIdx.x*blockDim.x + tx;
+  int y = blockIdx.y*blockDim.y + ty;
+
+  int h = H / scale,
+      w = W / scale;
+
+  if (x >= w || y >= h)
+    return;
+
+  float sum;
+  for (int i=0; i<scale; ++i) {
+    for (int j=0; j<scale; ++j) {
+      if ( x*scale + i < W && y*scale + j < H )
+	sum += src[(x*scale + i) * H + (y*scale + j)];
+    }
+  }
+
+  dst[x * h + y] = sum / (scale * scale);
+}
+
+
+mat downsample(const mat& x, size_t scale) {
+  mat output(x.getRows() / scale, x.getCols() / scale);
+
+  const size_t N = 32;
+  dim3 threads(N, N);
+  dim3 grid;
+  
+  grid.x = (unsigned int) ceil((float) output.getCols() / N);
+  grid.y = (unsigned int) ceil((float) output.getRows() / N);
+
+  downsample_kernel<<<grid, threads>>>(
+      output.getData(),
+      x.getData(),
+      scale,
+      x.getRows(),
+      x.getCols());
+
+  CCE(cudaDeviceSynchronize());
+
+  return output;
+}
+
+void test_downsample() {
+
+  int counter = 1;
+
+  for (int i = 0; i<20; ++i) {
+    int M = rand() % 35 + 69,
+	N = rand() % 43 + 28;
+
+    mat x = rand(M, N);
+
+    for (int scale = 2; scale < 10; ++scale) {
+      mat y = downsample(x, scale);
+
+      matlog(x);
+      matlog(y);
+
+      printf("tmp = convn(x, ones(%d) / (%d ^ 2), 'valid');\n", scale, scale);
+      printf("y_gold = tmp(1:%d:end, 1:%d:end);\n", scale, scale);
+      printf("delta = y - y_gold;\n");
+      printf("L2norm(%d) = norm(delta(:)) / norm(y_gold(:)) / 2;\n", counter++);
+    }
+  }
+
+  plotL2normInSemilogy();
 }
 
