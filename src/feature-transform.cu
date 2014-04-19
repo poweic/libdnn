@@ -48,13 +48,9 @@ __global__ void substract_max_per_row(float* const A, float* const rmax, unsigne
 void substractMaxPerRow(mat& x) {
   mat rmax = getRowMax(x);
 
-  const int N = 32;
-  dim3 grid;
-  grid.x = (unsigned int) ceil((float) x.getCols() / N);
-  grid.y = (unsigned int) ceil((float) x.getRows() / N);
-  dim3 threads(N, N);
+  ALLOCATE_GRIDS_AND_THREADS(x.getRows(), x.getCols());
 
-  substract_max_per_row<<<grid, threads>>>(x.getData(), rmax.getData(), x.getRows(), x.getCols());
+  substract_max_per_row<<< grids, threads >>>(x.getData(), rmax.getData(), x.getRows(), x.getCols());
   CCE(cudaDeviceSynchronize());
 }
 

@@ -47,6 +47,13 @@ void print(const vector<T>& v) {
   cout << "\b\b]" << endl;
 }
 
+template <typename T>
+string to_string(T n) {
+  stringstream ss;
+  ss << n;
+  return ss.str();
+}
+
 float str2float(const std::string &s);
 std::vector<std::string> split(const std::string &s, char delim);
 std::vector<std::string>& split(const std::string &s, char delim, std::vector<std::string>& elems);

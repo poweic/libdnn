@@ -14,9 +14,10 @@ INCLUDE= -I include/ \
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
-SOURCES=cnn.cu\
-	dnn.cu\
+SOURCES=cnn-utility.cu\
+	cnn.cu\
 	dnn-utility.cu\
+	dnn.cu\
 	utility.cpp\
 	rbm.cu\
 	feature-transform.cu\

@@ -1,8 +1,33 @@
 #include <rbm.h>
-#include <curand.h>
-#include <curand_kernel.h>
 #include <cstdlib>
 #define fill_bias(x) { fillLastColumnWith(x, 1.0f); }
+
+inline __device__ void gaussian(float& x, curandState* state) {
+  x += curand_normal(state);
+}
+
+inline __device__ void bernoulli(float& x, curandState* state) {
+  x = (float) (x >= curand_uniform(state));
+}
+
+template <Operation op>
+__global__ void sampling_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
+
+  // Matrix index
+  int x = blockIdx.x*blockDim.x + tx;
+  int y = blockIdx.y*blockDim.y + ty;
+
+  if (x >= cols || y >= rows)
+    return;
+
+  int i = x * rows + y;
+  int j = tx * blockDim.y + ty;
+  op(data[i], globalState +j);
+  // data[i] = data[i] + curand_normal(globalState + j);
+  __syncthreads();
+}
 
 ostream& operator << (ostream& os, const RBM_UNIT_TYPE& type) {
   switch (type) {
@@ -75,72 +100,17 @@ std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims,
   return weights;
 }
 
-__global__ void setupCuRandState( curandState * state, unsigned long seed ) {
-  int x = blockIdx.x*blockDim.x + threadIdx.x;
-  curand_init ( seed, x, 0, &state[x] );
-}
-
-inline __device__ void gaussian(float& x, curandState* state) {
-  x += curand_normal(state);
-}
-
-inline __device__ void bernoulli(float& x, curandState* state) {
-  x = (float) (x >= curand_uniform(state));
-}
-
-typedef __device__ void (*Operation)(float&, curandState*);
-
-template <Operation op>
-__global__ void sampling_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-
-  // Matrix index
-  int x = blockIdx.x*blockDim.x + tx;
-  int y = blockIdx.y*blockDim.y + ty;
-
-  if (x >= cols || y >= rows)
-    return;
-
-  int i = x * rows + y;
-  int j = tx * blockDim.y + ty;
-  op(data[i], globalState +j);
-  // data[i] = data[i] + curand_normal(globalState + j);
-  __syncthreads();
-}
-
-class CURAND_STATE {
-public:
-  CURAND_STATE(unsigned seed = unsigned(time(NULL)), int N = 32): _states(NULL) {
-    cudaMalloc ( &_states, N * N * sizeof( curandState ) );
-    setupCuRandState <<< 1, N * N >>> ( _states, seed );
-  }
-
-  curandState* get() const { return _states; }
-
-  ~CURAND_STATE() {
-    cudaFree(_states);
-  }
-
-private:
-  curandState* _states;
-};
-
 void sample(mat &prob, RBM_UNIT_TYPE type) {
   static CURAND_STATE state;
 
-  const size_t N = 32;
-  dim3 threads(N, N);
-  dim3 grid;
-  grid.x = (unsigned int) ceil((float) prob.getCols() / N);
-  grid.y = (unsigned int) ceil((float) prob.getRows() / N);
+  ALLOCATE_GRIDS_AND_THREADS(prob.getRows(), prob.getCols());
 
   switch (type) {
     case GAUSSIAN:
-      sampling_kernel<gaussian><<< grid, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      sampling_kernel<gaussian><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
       break;
     case BERNOULLI:
-      sampling_kernel<bernoulli><<< grid, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      sampling_kernel<bernoulli><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
       break;
   }
 

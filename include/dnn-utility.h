@@ -9,6 +9,13 @@
   #include <device_math.h>
   #include <device_arithmetic.h>
   #define WHERE thrust
+
+  #define NV_DEVICE_WARP_SIZE 32
+
+  #define ALLOCATE_GRIDS_AND_THREADS(rows, cols) \
+    dim3 grids( ceil( (float) cols / NV_DEVICE_WARP_SIZE), ceil( (float) rows / NV_DEVICE_WARP_SIZE)); \
+    dim3 threads(NV_DEVICE_WARP_SIZE, NV_DEVICE_WARP_SIZE);
+
 #endif
 
 #include <thrust/transform_reduce.h>
@@ -18,6 +25,10 @@
 #include <thrust/inner_product.h>
 
 #include <host_matrix.h>
+
+#include <curand.h>
+#include <curand_kernel.h>
+
 typedef host_matrix<float> hmat;
 
 map<int, int> getLabelMapping(const hmat& labels);
@@ -27,6 +38,23 @@ mat posteriorProb2Label(const mat& prob);
 
 size_t zeroOneError(const mat& predict, const mat& label, ERROR_MEASURE errorMeasure);
 // mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t nData = 0);
+
+class CURAND_STATE {
+public:
+  CURAND_STATE(unsigned seed = unsigned(time(NULL)), int N = 32);
+  curandState* get() const;
+
+  ~CURAND_STATE();
+
+private:
+  curandState* _states;
+};
+
+typedef __device__ void (*Operation)(float&, curandState*);
+__global__ void setupCuRandState( curandState * state, unsigned long seed );
+
+mat randn(int m, int n);
+mat rand(int m, int n);
 
 vector<float> copyToHost(const mat& m);
 size_t countDifference(const mat& m1, const mat& m2);
