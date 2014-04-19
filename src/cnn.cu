@@ -1,266 +1,128 @@
 #include <cnn.h>
 
-void plotL2normInSemilogy() {
-  const float threshold = 1e-6;
-  printf("N = length(L2norm);\n");
-  printf("threshold = %f * ones(1, N);\n", threshold);
-  printf("semilogy(1:N, L2norm, 1:N, threshold);\n");
-  printf("axis([1, N, %e, %e]);\n", threshold / 100, threshold * 100);
-  printf("legend('Minimum Acceptable Error', 'L2-norm');\n");
+ConvolutionalLayer::ConvolutionalLayer(size_t n, size_t m, size_t h, size_t w) {
+  if (w == -1)
+    w = h;
+
+  assert(n > 0 && m > 0 && h > 0 && w > 0);
+
+  _bias.resize(n);
+
+  _kernels.resize(n);
+  for (int i=0; i<n; ++i) {
+    _kernels[i].assign(m, rand(h, w));
+    _bias[i] = 0;
+  }
 }
 
-mat rand(int m, int n) {
-  mat x(m, n);
-  ext::rand(x);
-  return x;
+void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) {
+
+  int nInputs  = getNumInputMaps(),
+      nOutputs = getNumOutputMaps();
+
+  if (fins.size() != nInputs)
+    throw std::runtime_error("\33[31m[Error]\33[0m Number of inputs maps ("
+	+ to_string(fins.size()) + ") does not match number of kernels ("
+	+ to_string(nInputs) + ").");
+
+  fouts.resize(nOutputs);
+
+  for (int j=0; j<nOutputs; j++) {
+    Size s = get_convn_size(fins[0], _kernels[0][j], "valid");
+    fouts[j].resize(s.m, s.n);
+    for (int i=0; i<nInputs; ++i)
+      fouts[j] += convn(fins[i], _kernels[i][j], "valid");
+    fouts[j] = sigmoid(fouts[j] + _bias[j]);
+  }
 }
 
-void test_convn(string type, int N) {
+// NOTE: in MATLAB
+// xcorr2 stands for 2D cross-correlation
+// (I don't know why MATLAB does not have "xcorrn" for n-dimensional xcorr)
+// The following operation are theoretically equivalent:
+// (with only some trivial numerical error)
+// (1)  convn(x, rot180(h)) == xcorr2(x, h)
+//     xcorr2(x, rot180(h)) ==  convn(x, h)
+// (2) convn(rot180(x), h) == rot180(convn(x, rot180(h)))
+//     ^
+//     |_____ which is obviously faster
 
-// #undef matlog
-// #define matlog(x) { printf(#x" = [\n"); x.print(); printf("];\n"); }
+void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& fins,
+    const vector<mat>& fouts, float learning_rate) {
 
-  for (int i=0; i<N; ++i) {
-    int W = rand() % 50 + 5,
-	H = rand() % 50 + 5,
-	kW = rand() % (W-1) + 1,
-	kH = rand() % (H-1) + 1;
+  // FIXME How to backPropagate a BATCH of images AT A TIME.
 
-    mat data = rand(W, H);
-    mat kernel = rand(kW, kH);
+  // In the following codes, the iteration index i and j stands for
+  // i : # of input  features. i = 0 ~ M, where M = fin.size()
+  // j : # of output features. j = 0 ~ N, where N = fouts.size() = errors.size()
+  int M = fins.size(),
+      N = fouts.size();
 
-    mat z = convn(data, kernel, type);
-    matlog(data);
-    matlog(kernel);
-    matlog(z);
+  // Compute delta from errors over the derivatives of sigmoid function.
+  vector<mat> deltas(N);
+  for (size_t j=0; j<N; ++j)
+    deltas[j] = fouts[j] & ( 1.0f - fouts[j] ) & errors[j];
 
-    printf("z_gold = convn(data, kernel, '%s');\n", type.c_str());
-    printf("delta = z_gold - z;\n");
-    printf("L2norm(%d) = norm(delta(:)) / norm(z_gold(:)) / 2;\n", i + 1);
+  // Update kernels with learning rate
+  for (size_t j=0; j<N; ++j) {
+    for (size_t i=0; i<M; ++i)
+      _kernels[i][j] += convn(rot180(fins[i]), deltas[j], "valid") * learning_rate;
+
+    _bias[j] += sum_all(deltas[j]) * learning_rate;
   }
 
-  plotL2normInSemilogy();
+  // Feed Backward
+  Size s = get_convn_size(errors[0], rot180(_kernels[0][0]), "full");
+  vector<mat> err(M);
+  for (size_t i=0; i<M; ++i) {
+    err[i].resize(s.m, s.n);
+
+    for (size_t j=0; j<N; ++j)
+      err[i] += convn(errors[j], rot180(_kernels[j][i]), "full");
+  }
 }
 
-__global__ void convn_valid_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
+void ConvolutionalLayer::status() const {
 
-  // Matrix index
-  int x = blockIdx.x*blockDim.x + tx;
-  int y = blockIdx.y*blockDim.y + ty;
+  printf("+--------------+---------------+--------------+---------------+\n");
+  printf("| # input maps | # output maps | kernel width | kernel height |\n");
+  printf("+--------------+---------------+--------------+---------------+\n");
+  printf("|      %-5lu   |       %-5lu   |      %-5lu   |       %-5lu   |\n",
+      getNumInputMaps(), getNumOutputMaps(), getKernelWidth(), getKernelHeight());
+  printf("+--------------+---------------+--------------+---------------+\n");
 
-  // vH, vW stands for valid H and valid W
-  const int vH = H - kH + 1,
-	    vW = W - kW + 1;
-
-  if (x >= vW || y >= vH)
-    return;
-
-  x += kW - 1;
-  y += kH - 1;
-
-  float sum = 0; 
-  for (int i = 0; i < kW; ++i)
-    for(int j = 0; j < kH; ++j)
-      sum += kernel[ i * kH + j ] * data[ (x - i) * H + (y - j) ]; 
-
-  x -= kW - 1;
-  y -= kH - 1;
-
-  output[ x * vH + y ] = sum;
-} 
-
-__global__ void convn_same_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-
-  // Matrix index
-  int x = blockIdx.x*blockDim.x + tx;
-  int y = blockIdx.y*blockDim.y + ty;
-
-  if (x >= W || y >= H)
-    return;
-
-  const int i0 = kW / 2, j0 = kH / 2;
-
-  float sum = 0; 
-  for (int i = 0; i < kW; ++i) {
-    for(int j = 0; j < kH; ++j) {
-      int ii = x - i + i0, jj = y - j + j0;
-
-      if ( ii < 0 || ii >= W || jj < 0 || jj >= H )
-	continue;
-
-      sum += kernel[ i * kH + j ] * data[ ii * H + jj ]; 
-    }
-  }
-
-  output[x * H + y] = sum;
-} 
-
-
-__global__ void convn_full_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-
-  // Matrix index
-  int x = blockIdx.x*blockDim.x + tx;
-  int y = blockIdx.y*blockDim.y + ty;
-
-  // fH, fW stands for full H and full W
-  const int fH = H + kH - 1,
-	    fW = W + kW - 1;
-
-  if (x >= fW || y >= fH)
-    return;
-
-  float sum = 0; 
-  for (int i = 0; i < kW; ++i) {
-    for(int j = 0; j < kH; ++j) {
-      int ii = x - i, jj = y - j;
-
-      if ( ii < 0 || ii >= W || jj < 0 || jj >= H )
-	continue;
-
-      sum += kernel[ i * kH + j ] * data[ ii * H + jj ]; 
-    }
-  }
-
-  output[ x * fH + y ] = sum;
 }
 
-mat convn(const mat& data, const mat& kernel, string type) {
-
-  const size_t N = 32;
-  dim3 threads(N, N);
-  dim3 grid;
-  
-  int H = data.getRows(),
-      W = data.getCols(),
-      kH = kernel.getRows(),
-      kW = kernel.getCols();
-
-  mat output;
-  
-  if (type == "same")
-    output.resize(H, W);
-  else if (type == "valid") {
-    int a = max(H - kH + 1, 0),
-	b = max(W - kW + 1, 0);
-
-    if (a == 0 || b == 0)
-      return mat();
-
-    output.resize(a, b);
-  }
-  else if (type == "full")
-    output.resize(H + kH - 1, W + kW - 1);
-  else
-    throw std::runtime_error("No such type of convolution");
-
-  grid.x = (unsigned int) ceil((float) output.getCols() / N);
-  grid.y = (unsigned int) ceil((float) output.getRows() / N);
-
-
-  if (type == "same") {
-    convn_same_kernel<<<grid, threads>>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "valid") {
-    convn_valid_kernel<<<grid, threads>>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "full") {
-    convn_full_kernel<<<grid, threads>>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-
-  CCE(cudaDeviceSynchronize());
-  
-  return output;
+size_t ConvolutionalLayer::getKernelWidth() const {
+  return _kernels[0][0].getCols();
 }
 
-__global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, int W) { 
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-
-  // Matrix index
-  int x = blockIdx.x*blockDim.x + tx;
-  int y = blockIdx.y*blockDim.y + ty;
-
-  int h = H / scale,
-      w = W / scale;
-
-  if (x >= w || y >= h)
-    return;
-
-  float sum;
-  for (int i=0; i<scale; ++i) {
-    for (int j=0; j<scale; ++j) {
-      if ( x*scale + i < W && y*scale + j < H )
-	sum += src[(x*scale + i) * H + (y*scale + j)];
-    }
-  }
-
-  dst[x * h + y] = sum / (scale * scale);
+size_t ConvolutionalLayer::getKernelHeight() const {
+  return _kernels[0][0].getRows();
 }
 
-
-mat downsample(const mat& x, size_t scale) {
-  mat output(x.getRows() / scale, x.getCols() / scale);
-
-  const size_t N = 32;
-  dim3 threads(N, N);
-  dim3 grid;
-  
-  grid.x = (unsigned int) ceil((float) output.getCols() / N);
-  grid.y = (unsigned int) ceil((float) output.getRows() / N);
-
-  downsample_kernel<<<grid, threads>>>(
-      output.getData(),
-      x.getData(),
-      scale,
-      x.getRows(),
-      x.getCols());
-
-  CCE(cudaDeviceSynchronize());
-
-  return output;
+size_t ConvolutionalLayer::getNumInputMaps() const {
+  return _kernels.size();
 }
 
-void test_downsample() {
-
-  int counter = 1;
-
-  for (int i = 0; i<20; ++i) {
-    int M = rand() % 35 + 69,
-	N = rand() % 43 + 28;
-
-    mat x = rand(M, N);
-
-    for (int scale = 2; scale < 10; ++scale) {
-      mat y = downsample(x, scale);
-
-      matlog(x);
-      matlog(y);
-
-      printf("tmp = convn(x, ones(%d) / (%d ^ 2), 'valid');\n", scale, scale);
-      printf("y_gold = tmp(1:%d:end, 1:%d:end);\n", scale, scale);
-      printf("delta = y - y_gold;\n");
-      printf("L2norm(%d) = norm(delta(:)) / norm(y_gold(:)) / 2;\n", counter++);
-    }
-  }
-
-  plotL2normInSemilogy();
+size_t ConvolutionalLayer::getNumOutputMaps() const {
+  return _kernels[0].size();
 }
 
+SubSamplingLayer::SubSamplingLayer(size_t scale): _scale(scale) {
+}
+
+void SubSamplingLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) {
+  fouts.resize(fins.size());
+
+  for (size_t i=0; i<fins.size(); ++i)
+    fouts[i] = downsample(fins[i], _scale);
+}
+
+void SubSamplingLayer::backPropagate(vector<mat>& errors, const vector<mat>& fins,
+    const vector<mat>& fouts, float learning_rate) {
+
+  // FIXME A downsampling followed by upsampling may NOT give the same dimension.
+  for (size_t i=0; i<errors.size(); ++i)
+    errors[i] = upsample(errors[i], _scale);
+}

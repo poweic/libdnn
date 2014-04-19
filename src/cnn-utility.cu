@@ -144,6 +144,11 @@ mat convn(const mat& data, const mat& kernel, string type) {
   return output;
 }
 
+mat xcorrn(const mat& data, const mat& kernel, string type) {
+  // TODO
+  return mat();
+}
+
 __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, int W) { 
   int tx = threadIdx.x;
   int ty = threadIdx.y;
@@ -219,6 +224,31 @@ mat upsample(const mat& x, size_t scale) {
 
   return output;
 }
+
+mat rot180(const mat& x) {
+  // TODO ROTATE 180 degree (OR create another __global__ called cross_correlation
+  return x;
+}
+
+/* ! \brief Sum all the elements in a matrix.
+ * \fn sum_all(const device_matrix<float>& x)
+ * \param x matrix x to be sum
+ * return the result in host memory.
+ */
+float sum_all(const mat& x) {
+  int r = x.getRows(),
+      c = x.getCols();
+  mat d_s = (mat(1, r) += 1) * x * (mat(c, 1) += 1);
+
+  float s;
+  CCE(cudaMemcpy(&s, d_s.getData(), sizeof(float), cudaMemcpyDeviceToHost));
+  return s;
+}
+
+/* Codes for unit-testing 
+ * 
+ * 
+ */
 
 void plotL2normInSemilogy() {
   const float threshold = 1e-6;
