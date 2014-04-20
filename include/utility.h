@@ -39,6 +39,12 @@ long getFileSize(std::string filename) {
   return rc == 0 ? stat_buf.st_size : -1;
 }*/
 
+
+/*! \brief divide --struct into cnn-structure and nn-structure
+ */
+void parseNetworkStructure(const string &structure,
+    string& cnn_struct, string& nn_struct);
+
 template <typename T>
 void print(const vector<T>& v) {
   cout << "[";
@@ -54,6 +60,7 @@ string to_string(T n) {
   return ss.str();
 }
 
+int str2int(const std::string &s);
 float str2float(const std::string &s);
 std::vector<std::string> split(const std::string &s, char delim);
 std::vector<std::string>& split(const std::string &s, char delim, std::vector<std::string>& elems);

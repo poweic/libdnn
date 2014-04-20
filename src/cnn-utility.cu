@@ -1,5 +1,46 @@
 #include <cnn-utility.h>
 
+/*! Convert each row to a 2D image
+ * \param data Each row in data is a feature vector. The number of rows in data
+ *  is the number of feature vectors. The number of columns in data is the
+ *  dimension of the feature vector.
+ */
+vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
+
+  mat t_data = ~data;
+  vector<mat> images(data.getRows());
+
+  for (size_t i=0; i<images.size(); ++i) {
+    images[i].resize(s.m, s.n);
+
+    CCE(cudaMemcpy(images[i].getData(), t_data.getData() + i * t_data.getRows(),
+	  sizeof(float) * images[i].size(), cudaMemcpyDeviceToDevice));
+  }
+
+  return images;
+}
+
+mat reshapeImages2Vectors(const vector<mat>& images) {
+  assert(images.size() > 0);
+
+  mat t_data(images[0].size(), images.size());
+
+  int M = images[0].getRows(),
+      N = images[0].getCols();
+  
+  for (size_t i=0; i<images.size(); ++i)
+    CCE(cudaMemcpy(t_data.getData() + i * t_data.getRows(), images[i].getData(),
+	  sizeof(float) * images[i].size(), cudaMemcpyDeviceToDevice));
+
+  return ~t_data;
+}
+
+
+SIZE parseInputDimension(const string &m_by_n) {
+  size_t pos = m_by_n.find("x");
+  return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
+}
+
 __global__ void convn_valid_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
   int tx = threadIdx.x;
   int ty = threadIdx.y;
@@ -88,7 +129,7 @@ __global__ void convn_full_kernel(float *output, float *data, float *kernel, int
   output[ x * fH + y ] = sum;
 }
 
-Size get_convn_size(const mat& data, const mat& kernel, string type) {
+SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
 
   int H = data.getRows(),
       W = data.getCols(),
@@ -96,43 +137,57 @@ Size get_convn_size(const mat& data, const mat& kernel, string type) {
       kW = kernel.getCols();
 
   if (type == "same")
-    return Size(H, W);
+    return SIZE(H, W);
   else if (type == "valid")
-    return Size(max(H - kH + 1, 0), max(W - kW + 1, 0));
+    return SIZE(max(H - kH + 1, 0), max(W - kW + 1, 0));
   else if (type == "full")
-    return Size(H + kH - 1, W + kW - 1);
+    return SIZE(H + kH - 1, W + kW - 1);
   else
     throw std::runtime_error("No such type of convolution");
 }
 
 mat convn(const mat& data, const mat& kernel, string type) {
 
+  const int N_STREAM = 4;
+  static vector<cudaStream_t> streams(N_STREAM);
+  static bool first = true;
+  static int counter = 0;
+
+  if (first) {
+    first = false;
+    for (size_t i=0; i<streams.size(); ++i)
+      cudaStreamCreate ( &streams[i] );
+  }
+
   int H = data.getRows(),
       W = data.getCols(),
       kH = kernel.getRows(),
       kW = kernel.getCols();
 
-  Size s = get_convn_size(data, kernel, type);
+  SIZE s = get_convn_size(data, kernel, type);
   mat output(s.m, s.n);
 
   ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
 
+  cudaStream_t& stream = streams[counter];
+  counter = (counter + 1) % N_STREAM;
+
   if (type == "same") {
-    convn_same_kernel<<<grids, threads>>>(
+    convn_same_kernel<<< grids, threads, 0, stream >>>(
 	output.getData(),
 	data.getData(),
 	kernel.getData(),
 	H, W, kH, kW);
   }
   else if (type == "valid") {
-    convn_valid_kernel<<<grids, threads>>>(
+    convn_valid_kernel<<< grids, threads, 0, stream >>>(
 	output.getData(),
 	data.getData(),
 	kernel.getData(),
 	H, W, kH, kW);
   }
   else if (type == "full") {
-    convn_full_kernel<<<grids, threads>>>(
+    convn_full_kernel<<< grids, threads, 0, stream >>>(
 	output.getData(),
 	data.getData(),
 	kernel.getData(),

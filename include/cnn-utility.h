@@ -1,14 +1,19 @@
 #include <dnn-utility.h>
 
-struct Size {
+struct SIZE {
   size_t m, n;
-  Size(size_t m, size_t n): m(m), n(n) {}
+  SIZE(size_t m, size_t n): m(m), n(n) {}
 };
+
+vector<mat> reshapeVectors2Images(const mat& data, const SIZE s);
+mat reshapeImages2Vectors(const vector<mat>& images);
+
+SIZE parseInputDimension(const string &m_by_n);
 
 __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, int W);
 __global__ void upsample_kernel(float *dst, float *src, size_t scale, int H, int W);
 
-Size get_convn_size(const mat& data, const mat& kernel, string type = "full");
+SIZE get_convn_size(const mat& data, const mat& kernel, string type = "full");
 mat convn(const mat& data, const mat& kernel, string type = "full");
 mat xcorrn(const mat& data, const mat& kernel, string type = "full");
 

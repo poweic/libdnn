@@ -45,6 +45,34 @@ private:
   void cvtLabelsToZeroBased();
 
   size_t _dim;
+
+  /* ! /brief Memory Layout of _hx and _hy.
+   * _hx are training data, _hy are training labels.
+   * The memory layout is different from data provided by user.
+   * The memory layout of _hx :
+   *
+   *             .__ # of cols = the total number of training data
+   *             |
+   *  |<-------------------->|
+   *
+   *  o o o o o x x x x x... o  ___
+   *             .               ^ 
+   *             .               | 
+   *             .               |__ # of rows = dimension of each of
+   *  o o o o o x x x x x... o   |		 the training data
+   *  o o o o o x x x x x... o   | 
+   *  o o o o o x x x x x... o   | 
+   *  o o o o o x x x x x... o  _v_
+   *
+   *  |<----->| |<----->|
+   *      |         |_ batch #2
+   *      |
+   *      |_ batch # 1
+   *
+   *  Since the data is stored in column-major, the memory of data in each
+   *  batch are contiguous or coalescent. (That is, no jumps of memory address
+   *  in a single batch. This makes memcpy much easier and faster.)
+   */
   hmat _hx, _hy;
 };
 

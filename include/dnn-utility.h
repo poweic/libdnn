@@ -80,8 +80,23 @@ bool hasNAN(const host_matrix<T>& x) {
   return false;
 }
 
+/*! \brief Copy a block memory.
+ * Copy a block (of size h by w) of memory from src to dest.
+ * Both the number of rows of src and dest must be greater or equal to h.
+ * Both the number of cols of src and dest must be greater or equal to w.
+ *
+ * \param dest	destination device matrix.
+ * \param src	source device matrix.
+ * \param r0	source row id. (0-based)
+ * \param c0	source column id. (0-based)
+ * \param h	height of the block of memory to be copied.
+ * \param w	width of the block of memory to be copied.
+ * \param r1	destination row id. (0-based) i.e. the position to paste.
+ * \param c1	destination column id. (0-based) i.e. the position to paste.
+ * */
 template <typename T>
-void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src, size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {
+void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
+    size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {
 
   device_matrix<float>::cublas_geam(
       CUBLAS_OP_N, CUBLAS_OP_N,

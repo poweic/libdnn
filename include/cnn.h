@@ -1,6 +1,50 @@
+#include <utility.h>
 #include <cnn-utility.h>
 
-class ConvolutionalLayer {
+/* ! Multiple Input Multiple Output (MIMO)
+ *   Feature transformation
+ * */
+class MIMOFeatureTransform {
+public:
+
+  MIMOFeatureTransform() {}
+  virtual void feedForward(vector<mat>& fouts, const vector<mat>& fins) = 0;
+
+  virtual void backPropagate(vector<mat>& errors, const vector<mat>& fins,
+      const vector<mat>& fouts, float learning_rate) = 0;
+
+  virtual void status() const = 0;
+
+  void write(FILE* fid) const;
+  void read(FILE* fid);
+};
+
+class CNN {
+
+public:
+  CNN(SIZE img_size);
+  CNN(const string& model_fn);
+
+  void feedForward(mat& fout, const mat& fin);
+  void backPropagate(mat& error, const mat& fin, const mat& fout,
+      float learning_rate);
+
+  void feedBackward(mat& error, const mat& delta);
+
+  void init(const string &structure);
+  void read(const string &fn);
+  void save(const string &fn) const;
+
+  void status() const;
+private:
+  CNN();
+
+  SIZE _img_size;
+  std::vector<MIMOFeatureTransform*> _transforms;
+  std::vector<vector<mat> > _houts;
+};
+
+class ConvolutionalLayer : public MIMOFeatureTransform {
 
 public:
 
@@ -33,9 +77,13 @@ private:
   vector<float> _bias;
 };
 
-class SubSamplingLayer {
+class SubSamplingLayer : public MIMOFeatureTransform {
 public:
   SubSamplingLayer(size_t scale);
+
+  void status() const;
+
+  size_t getScale() const;
 
   void feedForward(vector<mat>& fouts, const vector<mat>& fins);
 

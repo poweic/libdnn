@@ -1,6 +1,16 @@
 #include <dataset.h>
 #include <dnn-utility.h>
 
+/*! /brief Get a batch of data. Because of the original ill-design,
+ *         the data fed into DNN need tranpose.
+ *
+ *	     |  Before Transposed  |  After Transposed    |
+ *           |                     | (the thing returned) |
+ * ----------+---------------------+----------------------+
+ * # of rows |  feature dimension  |  # of data in batch  |
+ * # of cols |  # of data in batch |  feature dimension   |
+ *
+ */
 mat getBatchData(const hmat& data, const Batches::Batch& b) {
   return ~mat(data.getData() + b.offset * data.getRows(), data.getRows(), b.nData);
 }
