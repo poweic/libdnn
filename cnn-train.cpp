@@ -12,8 +12,8 @@ void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
     size_t batchSize, ERROR_MEASURE errorMeasure);
 
 void playground() {
-  mat x = randn(48, 48),
-      h = randn(8, 8);
+  mat x = randn(128, 128),
+      h = randn(20, 20);
 
   perf::Timer timer;
   timer.start();
@@ -21,7 +21,7 @@ void playground() {
   
   mat z;
   for (int i=0; i<10000; ++i) {
-    z = convn(x, h, "valid", 4);
+    z = convn(x, h, "valid_shm", 4);
   }
 
   CCE(cudaDeviceSynchronize());
@@ -31,7 +31,9 @@ void playground() {
 
 int main(int argc, char* argv[]) {
 
+  // go_test();
   playground();
+  // benchmark();
   return 0;
 
   CmdParser cmd(argc, argv);

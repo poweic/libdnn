@@ -5,6 +5,8 @@ struct SIZE {
   SIZE(size_t m, size_t n): m(m), n(n) {}
 };
 
+void benchmark();
+
 vector<mat> reshapeVectors2Images(const mat& data, const SIZE s);
 mat reshapeImages2Vectors(const vector<mat>& images);
 

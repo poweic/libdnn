@@ -42,6 +42,59 @@ SIZE parseInputDimension(const string &m_by_n) {
   return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
 }
 
+__global__ void convn_valid_kernel_with_shm(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+  int tx = threadIdx.x;	  /* tx = 0 ~ 31 */
+  int ty = threadIdx.y;	  /* ty = 0 ~ 31 */
+
+  int x0 = blockIdx.x*blockDim.x;
+  int y0 = blockIdx.y*blockDim.y;
+  // Matrix index
+  int x = x0 + tx;	  /* x = x ~ x + 31 */
+  int y = y0 + ty;	  /* y = y ~ y + 31 */
+
+  extern __shared__ float K[];
+  float* D = K + kW * kH;
+
+  // Copy kernel in global memory to shared memory
+  if (tx < kW && ty < kH)
+    K[(kW - 1 - tx) * kH + (kH - 1 - ty)] = kernel[tx * kH + ty];
+
+  // Copy data in global memory to shared memory
+  int nThreads = blockDim.x * blockDim.y;
+  int w_step = blockDim.x + kW - 1,
+      h_step = blockDim.y + kH - 1;
+
+  int nTotal	=  w_step * h_step;
+  int avgToLoad = nTotal / nThreads + 1;
+
+  int tid = tx * blockDim.y + ty;
+
+  // Move data to (x0, y0)
+  data += x0 * H + y0;
+
+  for (int i=0; i<avgToLoad; ++i) {
+    int id = tid + i * nThreads;
+
+    if (id >= nTotal) break;
+
+    int xx = id / h_step,
+	yy = id - xx * h_step; /* OR yy = id % h_step */
+
+    D[id] = data[ xx * H + yy ];
+  }
+  __syncthreads();
+
+  float sum = 0;
+  for (int i = 0; i < kW; ++i)
+    for(int j = 0; j < kH; ++j)
+      sum += K[ i * kH + j ] * D[ (tx + i) * (blockDim.y + kH - 1) + (ty + j) ]; 
+
+  // vH, vW stands for valid H and valid W
+  const int vH = H - kH + 1, vW = W - kW + 1;
+  if (x < vW && y < vH)
+    output[ x * vH + y ] = sum;
+} 
+
 __global__ void convn_valid_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
   int tx = threadIdx.x;
   int ty = threadIdx.y;
@@ -139,12 +192,56 @@ SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
 
   if (type == "same")
     return SIZE(H, W);
-  else if (type == "valid")
+  else if (type == "valid" || type == "valid_shm")
     return SIZE(max(H - kH + 1, 0), max(W - kW + 1, 0));
   else if (type == "full")
     return SIZE(H + kH - 1, W + kW - 1);
   else
     throw std::runtime_error("No such type of convolution");
+}
+
+void benchmark() {
+
+  size_t M[] = {32, 64, 128, 256, 384, 512};
+  size_t N[] = {3, 6, 9, 12};
+
+  perf::Timer timer;
+  const size_t N_TIMES = 200;
+
+  printf("          |");
+  for (int j=0; j<sizeof(N) / sizeof(size_t) ; ++j)
+    printf("         %3lu x %-3lu          |", N[j], N[j]);
+  printf("\n----------+");
+  for (int j=0; j<sizeof(N) / sizeof(size_t); ++j)
+    printf("----------------------------+");
+  printf("\n");
+
+  for (int i=0; i< sizeof(M) / sizeof(size_t) ; ++i) {
+    mat x = randn(M[i], M[i]);
+
+    printf("%3lu x %-3lu | ", M[i], M[i]);
+    for (int j=0; j<sizeof(N) / sizeof(size_t); ++j) {
+      mat kernel = randn(N[j], N[j]);
+
+      timer.start();
+      for (int k = 1; k < N_TIMES; ++k) {
+	mat z1 = convn(x, kernel, "valid");
+      }
+      float t1 = timer.getTime();
+      timer.reset();
+
+      timer.start();
+      for (int k = 1; k < N_TIMES; ++k) {
+	mat z2 = convn(x, kernel, "valid_shm");
+      }
+      float t2 = timer.getTime();
+      printf("%7.2f , %7.2f \33[34m->\33[0m %4.1fx", t1, t2, t1 / t2);
+      timer.reset();
+
+      printf(" | ");
+    }
+    printf("\n");
+  }
 }
 
 mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
@@ -174,30 +271,42 @@ mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
 
   ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
 
-  // for (int i=0; i<100; ++i) {
+  if (type == "same") {
+    convn_same_kernel<<< grids, threads, 0, stream >>>(
+	output.getData(),
+	data.getData(),
+	kernel.getData(),
+	H, W, kH, kW);
+  }
+  else if (type == "valid") {
+    convn_valid_kernel<<< grids, threads, 0, stream >>>(
+	output.getData(),
+	data.getData(),
+	kernel.getData(),
+	H, W, kH, kW);
+  }
+  else if (type == "valid_shm") {
+    /* For a data of size 48 x 48 and kernel of size 8 x 8, using shared memory
+       can speed up to 4x */
 
-    if (type == "same") {
-      convn_same_kernel<<< grids, threads, 0, stream >>>(
-	  output.getData(),
-	  data.getData(),
-	  kernel.getData(),
-	  H, W, kH, kW);
-    }
-    else if (type == "valid") {
-      convn_valid_kernel<<< grids, threads, 0, stream >>>(
-	  output.getData(),
-	  data.getData(),
-	  kernel.getData(),
-	  H, W, kH, kW);
-    }
-    else if (type == "full") {
-      convn_full_kernel<<< grids, threads, 0, stream >>>(
-	  output.getData(),
-	  data.getData(),
-	  kernel.getData(),
-	  H, W, kH, kW);
-    }
-  // }
+    size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+    if (SHM_SIZE > 16 * 1024)
+      clog << "\33[35m[Warning]\33[0m Potential excess of Maximum shared memory" << endl;
+    // printf("Shared memory size = %lu Bytes (i.e. %f KBytes)\n", SHM_SIZE, (float) SHM_SIZE / 1024);
+
+    convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, stream >>>(
+	output.getData(),
+	data.getData(),
+	kernel.getData(),
+	H, W, kH, kW);
+  }
+  else if (type == "full") {
+    convn_full_kernel<<< grids, threads, 0, stream >>>(
+	output.getData(),
+	data.getData(),
+	kernel.getData(),
+	H, W, kH, kW);
+  }
   
   return output;
 }
@@ -369,3 +478,29 @@ void test_convn(string type, int N) {
 
   plotL2normInSemilogy();
 }
+
+void go_test() {
+  mat x = randn(48, 48),
+      k = randn(8, 8);
+
+  x *= 100;
+  k *= 100;
+
+  perf::Timer timer;
+  timer.start();
+
+  mat z_gold = convn(x, k, "valid");
+
+  timer.elapsed();
+  timer.reset();
+  timer.start();
+
+  mat z = convn(x, k, "valid_shm");
+
+  timer.elapsed();
+
+  float L2norm = nrm2(z - z_gold) / nrm2(z_gold);
+  printf("\nL2norm = %.7e ... %s\n", L2norm,
+      (L2norm < 1e-6) ? "\33[32m[Passed]\33[0m" : "\33[31m[Failed]\33[0m");
+}
+
