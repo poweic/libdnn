@@ -28,7 +28,6 @@ int main (int argc, char* argv[]) {
 	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
 
   cmd.addGroup("Training options: ")
-     .add("--rp", "perform random permutation at the start of each epoch", "false")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "100000")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
@@ -57,7 +56,6 @@ int main (int argc, char* argv[]) {
   float variance      = cmd["--variance"];
   float minValidAcc   = cmd["--min-acc"];
   size_t maxEpoch     = cmd["--max-epoch"];
-  bool randperm	      = cmd["--rp"];
 
   // Set configurations
   Config config;

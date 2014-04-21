@@ -51,7 +51,6 @@ int main (int argc, char* argv[]) {
   size_t output_dim = cmd["--output-dim"];
 
   RBM_UNIT_TYPE type  = RBM_UNIT_TYPE ((int) cmd["--type"]);
-  size_t batchSize    = cmd["--batch-size"];
   float slopeThres    = cmd["--slope-thres"];
   float learning_rate = cmd["--learning-rate"];
 
