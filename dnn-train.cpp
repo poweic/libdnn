@@ -99,7 +99,7 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 
   vector<mat> O(dnn.getNLayer());
 
-  size_t Ein;
+  size_t Ein = 1;
   size_t MAX_EPOCH = dnn.getConfig().maxEpoch, epoch;
   std::vector<size_t> Eout;
   Eout.reserve(MAX_EPOCH);

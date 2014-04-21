@@ -1,7 +1,7 @@
 CC=gcc
 CXX=g++-4.6
 CFLAGS=
-NVCC=nvcc -arch=sm_21 -w
+NVCC=nvcc -arch=sm_21 -w 
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
@@ -26,13 +26,15 @@ SOURCES=cnn-utility.cu\
 	config.cpp
 
 EXECUTABLES=dnn-train dnn-predict dnn-init cnn-train
-.PHONY: debug all o3 ctags
+.PHONY: debug all o3 ctags dump_nrv
 all: $(EXECUTABLES) ctags
 
 o3: CFLAGS+=-O3
 o3: all
 debug: CFLAGS+=-g -DDEBUG
 debug: all
+dump_nrv: NVCC+=-Xcompiler "-fdump-tree-nrv" all
+dump_nrv: all
 
 vpath %.h include/
 vpath %.cpp src/
@@ -45,7 +47,7 @@ CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 
 $(EXECUTABLES): % : obj/%.o $(OBJ)
-	$(CXX) $(CFLAGS) -std=c++0x $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
+	$(CXX) -o $@ $(CFLAGS) -std=c++0x $(INCLUDE) $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
 
 #%.o: %.cpp
 #	$(CXX) $(CFLAGS) -std=c++0x $(INCLUDE) -o $@ -c $^

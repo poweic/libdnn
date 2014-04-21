@@ -1,3 +1,5 @@
+#include <cuda_profiler_api.h>
+
 #include <cmdparser.h>
 #include <pbar.h>
 
@@ -9,7 +11,28 @@ SIZE parseInputDimension(const string &m_by_n);
 void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
     size_t batchSize, ERROR_MEASURE errorMeasure);
 
+void playground() {
+  mat x = randn(48, 48),
+      h = randn(8, 8);
+
+  perf::Timer timer;
+  timer.start();
+  cudaProfilerStart(); 
+  
+  mat z;
+  for (int i=0; i<10000; ++i) {
+    z = convn(x, h, "valid", 4);
+  }
+
+  CCE(cudaDeviceSynchronize());
+  cudaProfilerStop();
+  timer.elapsed();
+}
+
 int main(int argc, char* argv[]) {
+
+  playground();
+  return 0;
 
   CmdParser cmd(argc, argv);
 
@@ -91,9 +114,9 @@ void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
   perf::Timer timer;
   timer.start();
 
-  const size_t MAX_EPOCH = 128;
-  size_t nTrain = train.size(),
-	 nValid = valid.size();
+  const size_t MAX_EPOCH = 1;
+  size_t nTrain = train.size();
+	 /*nValid = valid.size();*/
 
   mat fout;
 

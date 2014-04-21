@@ -1,4 +1,5 @@
 #include <cnn-utility.h>
+#include <cuda_profiler_api.h>
 
 /*! Convert each row to a 2D image
  * \param data Each row in data is a feature vector. The number of rows in data
@@ -146,9 +147,8 @@ SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
     throw std::runtime_error("No such type of convolution");
 }
 
-mat convn(const mat& data, const mat& kernel, string type) {
+mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
 
-  const int N_STREAM = 4;
   static vector<cudaStream_t> streams(N_STREAM);
   static bool first = true;
   static int counter = 0;
@@ -159,42 +159,45 @@ mat convn(const mat& data, const mat& kernel, string type) {
       cudaStreamCreate ( &streams[i] );
   }
 
+  cudaStream_t& stream = streams[counter];
+  counter = (counter + 1) % N_STREAM;
+  // mat::setCudaStream(stream);
+
   int H = data.getRows(),
       W = data.getCols(),
       kH = kernel.getRows(),
       kW = kernel.getCols();
 
   SIZE s = get_convn_size(data, kernel, type);
+
   mat output(s.m, s.n);
 
   ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
 
-  cudaStream_t& stream = streams[counter];
-  counter = (counter + 1) % N_STREAM;
+  // for (int i=0; i<100; ++i) {
 
-  if (type == "same") {
-    convn_same_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "valid") {
-    convn_valid_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "full") {
-    convn_full_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-
-  CCE(cudaDeviceSynchronize());
+    if (type == "same") {
+      convn_same_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+    }
+    else if (type == "valid") {
+      convn_valid_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+    }
+    else if (type == "full") {
+      convn_full_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+    }
+  // }
   
   return output;
 }
@@ -293,7 +296,7 @@ mat rot180(const mat& x) {
 float sum_all(const mat& x) {
   int r = x.getRows(),
       c = x.getCols();
-  mat d_s = (mat(1, r) += 1) * x * (mat(c, 1) += 1);
+  mat d_s = mat(1, r, 1) * x * mat(c, 1, 1);
 
   float s;
   CCE(cudaMemcpy(&s, d_s.getData(), sizeof(float), cudaMemcpyDeviceToHost));

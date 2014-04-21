@@ -14,7 +14,7 @@ __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, i
 __global__ void upsample_kernel(float *dst, float *src, size_t scale, int H, int W);
 
 SIZE get_convn_size(const mat& data, const mat& kernel, string type = "full");
-mat convn(const mat& data, const mat& kernel, string type = "full");
+mat convn(const mat& data, const mat& kernel, string type = "full", int N_STREAM = 4);
 mat xcorrn(const mat& data, const mat& kernel, string type = "full");
 
 mat downsample(const mat& x, size_t scale);

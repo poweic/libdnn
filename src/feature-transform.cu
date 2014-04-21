@@ -22,7 +22,7 @@ void FeatureTransform::print(FILE* fid, const host_matrix<float>& data, string t
 }
 
 mat rowSum(mat& m) {
-  return m * (mat(m.getCols(), m.getCols()) += 1);
+  return m * mat(m.getCols(), m.getCols(), 1);
 }
 
 // convert a linear index to a row index
@@ -185,7 +185,7 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
   thrust::device_ptr<float> pPtr(p.getData());
   thrust::transform(xPtr, xPtr + x.size(), pPtr, func::exp<float>());
 
-  mat sumOfProb = p * (mat(p.getCols(), p.getCols()) += 1);
+  mat sumOfProb = p * mat(p.getCols(), p.getCols(), 1);
 
   fout.resize(p.getRows(), p.getCols() + 1);
   thrust::device_ptr<float> foutPtr(fout.getData());

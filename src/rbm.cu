@@ -142,8 +142,8 @@ float calcAverageStandardDeviation(const mat& x) {
   size_t rows = x.getRows(),
 	 cols = x.getCols();
 
-  mat x_minus_mean = x - ((mat(rows, rows) += 1) * x) / rows;
-  mat sum_of_squares = (mat(1, rows) += 1) * (x_minus_mean & x_minus_mean);
+  mat x_minus_mean = x - (mat(rows, rows, 1) * x) / rows;
+  mat sum_of_squares = mat(1, rows, 1) * (x_minus_mean & x_minus_mean);
 
   hmat squares(1, cols);
   CCE(cudaMemcpy(squares.getData(), sum_of_squares.getData(), sizeof(float) * squares.size(), cudaMemcpyDeviceToHost));
@@ -218,8 +218,8 @@ float getFreeEnergy(const mat& visible, const mat& W) {
 
   transform(hidden, func::log_of_one_plus_exp<float>());
 
-  mat e = hidden * (mat(hidden.getCols(), 1) += 1) + va;
-  mat sum_of_e = (mat(1, N) += 1) * e;
+  mat e = hidden * mat(hidden.getCols(), 1, 1) + va;
+  mat sum_of_e = mat(1, N, 1) * e;
 
   float free_energy = 0;
   CCE(cudaMemcpy(&free_energy, sum_of_e.getData(), sizeof(float), cudaMemcpyDeviceToHost));
@@ -411,7 +411,7 @@ float getAsymptoticBound(const std::vector<float> &error, size_t epoch, size_t m
 
 /*mat sum(mat& m, size_t dimension = 1) {
   if (dimension == 1)
-    return (mat(1, m.getRows()) += 1) * m;
+    return mat(1, m.getRows(), 1) * m;
   else
-    return m * (mat(m.getCols(), 1) += 1);
+    return m * mat(m.getCols(), 1, 1);
 } */
