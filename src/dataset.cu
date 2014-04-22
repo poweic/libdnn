@@ -27,14 +27,14 @@ void DataSet::normalizeToStandardScore(const hmat& mean, const hmat& deviation) 
 
   size_t nData = data.getCols();
 
-  for (int i=0; i<_dim; ++i) {
-    for (int j=0; j<nData; ++j)
+  for (size_t i=0; i<_dim; ++i) {
+    for (size_t j=0; j<nData; ++j)
       data(i, j) -= mean[i];
     
     if (deviation[i] == 0)
       continue;
 
-    for (int j=0; j<nData; ++j)
+    for (size_t j=0; j<nData; ++j)
       data(i, j) /= deviation[i];
   }
 }
@@ -43,20 +43,20 @@ void DataSet::normalizeToStandardScore() {
   hmat& data = _hx;
   size_t nData = data.getCols();
 
-  for (int i=0; i<_dim; ++i) {
+  for (size_t i=0; i<_dim; ++i) {
     float mean = 0;
-    for (int j=0; j<nData; ++j)
+    for (size_t j=0; j<nData; ++j)
       mean += data(i, j);
     mean /= nData;
 
-    for (int j=0; j<nData; ++j)
+    for (size_t j=0; j<nData; ++j)
       data(i, j) -= mean;
 
     if (nData <= 1)
       continue;
 
     float deviation = 0;
-    for (int j=0; j<nData; ++j)
+    for (size_t j=0; j<nData; ++j)
       deviation += pow(data(i, j), 2.0f);
     deviation = sqrt(deviation / (nData - 1));
 
@@ -65,7 +65,7 @@ void DataSet::normalizeToStandardScore() {
     if (deviation == 0)
       continue;
 
-    for (int j=0; j<nData; ++j)
+    for (size_t j=0; j<nData; ++j)
       data(i, j) /= deviation;
   }
 }
@@ -104,7 +104,7 @@ void DataSet::normalize(const string &type) {
       }
     }
     else if (_dim == statistics.getCols()) {
-      for (int i=0; i<_dim; ++i) {
+      for (size_t i=0; i<_dim; ++i) {
 	mean[i] = statistics(0, i);
 	deviation[i] = statistics(1, i);
       }

@@ -1,7 +1,7 @@
 CC=gcc
 CXX=g++-4.6
 CFLAGS=
-NVCC=nvcc -arch=sm_21 -w 
+NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/

@@ -50,7 +50,7 @@ private:
   curandState* _states;
 };
 
-typedef __device__ void (*Operation)(float&, curandState*);
+typedef void (*Operation)(float&, curandState*);
 __global__ void setupCuRandState( curandState * state, unsigned long seed );
 
 mat randn(int m, int n);

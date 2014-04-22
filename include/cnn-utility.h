@@ -6,6 +6,8 @@ struct SIZE {
   SIZE(): m(0), n(0) {}
   SIZE(size_t m, size_t n): m(m), n(n) {}
 
+  bool operator == (const SIZE& rhs) const { return m == rhs.m && n == rhs.n; }
+
   SIZE operator + (const SIZE& rhs) const { return SIZE(m - rhs.m, n - rhs.n); }
   SIZE operator - (const SIZE& rhs) const { return SIZE(m - rhs.m, n - rhs.n); }
 
@@ -41,7 +43,7 @@ mat convn(const mat& data, const mat& kernel, string type = "full", int N_STREAM
 mat xcorrn(const mat& data, const mat& kernel, string type = "full");
 
 mat downsample(const mat& x, size_t scale);
-mat upsample(const mat& x, size_t scale);
+mat upsample(const mat& x, size_t scale, SIZE s = SIZE(0,0) );
 
 mat rot180(const mat& x);
 float sum_all(const mat& x);

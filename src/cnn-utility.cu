@@ -8,7 +8,7 @@
  */
 vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
 
-  int nData = data.getCols();
+  size_t nData = data.getCols();
   vector<mat> images(nData);
 
   for (size_t i=0; i<nData; ++i) {
@@ -218,29 +218,29 @@ void benchmark() {
   const size_t N_TIMES = 200;
 
   printf("          |");
-  for (int j=0; j<sizeof(N) / sizeof(size_t) ; ++j)
+  for (size_t j=0; j<sizeof(N) / sizeof(size_t) ; ++j)
     printf("         %3lu x %-3lu          |", N[j], N[j]);
   printf("\n----------+");
-  for (int j=0; j<sizeof(N) / sizeof(size_t); ++j)
+  for (size_t j=0; j<sizeof(N) / sizeof(size_t); ++j)
     printf("----------------------------+");
   printf("\n");
 
-  for (int i=0; i< sizeof(M) / sizeof(size_t) ; ++i) {
+  for (size_t i=0; i< sizeof(M) / sizeof(size_t) ; ++i) {
     mat x = randn(M[i], M[i]);
 
     printf("%3lu x %-3lu | ", M[i], M[i]);
-    for (int j=0; j<sizeof(N) / sizeof(size_t); ++j) {
+    for (size_t j=0; j<sizeof(N) / sizeof(size_t); ++j) {
       mat kernel = randn(N[j], N[j]);
 
       timer.start();
-      for (int k = 1; k < N_TIMES; ++k) {
+      for (size_t k = 1; k < N_TIMES; ++k) {
 	mat z1 = convn(x, kernel, "valid");
       }
       float t1 = timer.getTime();
       timer.reset();
 
       timer.start();
-      for (int k = 1; k < N_TIMES; ++k) {
+      for (size_t k = 1; k < N_TIMES; ++k) {
 	mat z2 = convn(x, kernel, "valid_shm");
       }
       float t2 = timer.getTime();
@@ -316,6 +316,8 @@ mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
 	kernel.getData(),
 	H, W, kH, kW);
   }
+
+  CCE(cudaDeviceSynchronize());
   
   return output;
 }
@@ -384,8 +386,13 @@ mat downsample(const mat& x, size_t scale) {
   return output;
 }
 
-mat upsample(const mat& x, size_t scale) {
-  mat output(x.getRows() * scale, x.getCols() * scale);
+mat upsample(const mat& x, size_t scale, SIZE s) {
+  mat output;
+
+  if (s == SIZE(0, 0))
+    output.resize(x.getRows() * scale, x.getCols() * scale);
+  else
+    output.resize(s.m, s.n);
 
   ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
 
@@ -418,6 +425,7 @@ float sum_all(const mat& x) {
 
   float s;
   CCE(cudaMemcpy(&s, d_s.getData(), sizeof(float), cudaMemcpyDeviceToHost));
+  CCE(cudaDeviceSynchronize());
   return s;
 }
 

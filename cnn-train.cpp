@@ -108,11 +108,14 @@ void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
       mat fin = train.getX(*itr);
       cnn.feedForward(fout, fin);
+
+      mat error(fout);
+      cnn.backPropagate(error, fin, fout, 0.01);
     }
 
     char status[100];
     sprintf(status, " epoch #%lu", epoch);
-    pbar.refresh(0, MAX_EPOCH, status);
+    pbar.refresh(epoch, MAX_EPOCH, status);
   }
 
   timer.elapsed();

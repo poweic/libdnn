@@ -7,26 +7,26 @@
 class MIMOFeatureTransform {
 public:
 
-  MIMOFeatureTransform() {}
+  MIMOFeatureTransform(size_t n, size_t m):
+    _n_input_maps(n), _n_output_maps(m) {}
+
   virtual void feedForward(vector<mat>& fouts, const vector<mat>& fins) = 0;
+  virtual void feedBackward(vector<mat>& errors, const vector<mat>& deltas) = 0;
 
   virtual void backPropagate(vector<mat>& errors, const vector<mat>& fins,
       const vector<mat>& fouts, float learning_rate) = 0;
-
-  void set_input_img_size(const SIZE& s) {
-    _input_img_size = s;
-  }
-
-  SIZE get_input_img_size() const {
-    return _input_img_size;
-  }
 
   friend ostream& operator << (ostream& os, const MIMOFeatureTransform *ft) {
     os << ft->get_input_img_size() << " => " << ft->get_output_img_size();
     return os;
   }
 
+  void set_input_img_size(const SIZE& s) { _input_img_size = s; }
+  SIZE get_input_img_size() const { return _input_img_size; }
   virtual SIZE get_output_img_size() const = 0;
+
+  size_t getNumInputMaps() const { return _n_input_maps; }
+  size_t getNumOutputMaps() const { return _n_output_maps; }
 
   virtual void status() const = 0;
 
@@ -34,6 +34,8 @@ public:
   void read(FILE* fid);
 protected:
   SIZE _input_img_size;
+  size_t _n_input_maps;
+  size_t _n_output_maps;
 };
 
 class CNN {
@@ -41,6 +43,7 @@ public:
 
   CNN();
   CNN(const string& model_fn);
+  ~CNN();
 
   void feedForward(mat& fout, const mat& fin);
   void backPropagate(mat& error, const mat& fin, const mat& fout,
@@ -71,9 +74,10 @@ public:
    * \param w width of convolutional kernels. w = h if not w is not provided.
    * Creates and initialize n x m kernels, each of the size h x w.
    * */
-  ConvolutionalLayer(size_t n, size_t m, size_t h, size_t w = -1);
+  ConvolutionalLayer(size_t n, size_t m, int h, int w = -1);
 
   void feedForward(vector<mat>& fouts, const vector<mat>& fins);
+  void feedBackward(vector<mat>& errors, const vector<mat>& deltas);
 
   void backPropagate(vector<mat>& errors, const vector<mat>& fins,
       const vector<mat>& fouts, float learning_rate);
@@ -84,9 +88,9 @@ public:
 
   size_t getKernelHeight() const;
 
-  size_t getNumInputMaps() const;
+  /*size_t getNumInputMaps() const;
 
-  size_t getNumOutputMaps() const;
+  size_t getNumOutputMaps() const;*/
 
   SIZE get_output_img_size() const {
     SIZE kernel(getKernelHeight(), getKernelWidth());
@@ -106,7 +110,7 @@ private:
 
 class SubSamplingLayer : public MIMOFeatureTransform {
 public:
-  SubSamplingLayer(size_t scale);
+  SubSamplingLayer(size_t n, size_t m, size_t scale);
 
   void status() const;
 
@@ -117,6 +121,7 @@ public:
   }
 
   void feedForward(vector<mat>& fouts, const vector<mat>& fins);
+  void feedBackward(vector<mat>& errors, const vector<mat>& deltas);
 
   void backPropagate(vector<mat>& errors, const vector<mat>& fins,
       const vector<mat>& fouts, float learning_rate);

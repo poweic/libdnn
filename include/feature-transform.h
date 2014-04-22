@@ -27,7 +27,7 @@ protected:
   mat _w;
 
 private:
-  virtual FeatureTransform& operator = (const FeatureTransform& rhs) { return *this; }
+  virtual FeatureTransform& operator = (const FeatureTransform& rhs) { return *this; };
 };
 
 // sigmoid mapping
@@ -56,7 +56,7 @@ public:
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
 private:
-  virtual Sigmoid& operator = (Sigmoid rhs) { return *this; }
+  virtual Sigmoid& operator = (const Sigmoid& rhs) { return *this; }
 };
 
 class Softmax : public FeatureTransform {
@@ -70,7 +70,7 @@ public:
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
 private:
-  virtual Softmax& operator = (Softmax rhs) { return *this; }
+  virtual Softmax& operator = (const Softmax& rhs) { return *this; }
 };
 
 #endif // _FEATURE_TRANSFORM_H_
