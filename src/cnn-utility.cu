@@ -2,20 +2,20 @@
 #include <cuda_profiler_api.h>
 
 /*! Convert each row to a 2D image
- * \param data Each row in data is a feature vector. The number of rows in data
- *  is the number of feature vectors. The number of columns in data is the
- *  dimension of the feature vector.
+ * \param data Each col in data is a feature vector. # of cols = # of data
+						     # of rows = image size
+ * \param s Size of the image. # of rows in data = s.m x s.n
  */
 vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
 
-  mat t_data = ~data;
-  vector<mat> images(data.getRows());
+  int nData = data.getCols();
+  vector<mat> images(nData);
 
-  for (size_t i=0; i<images.size(); ++i) {
+  for (size_t i=0; i<nData; ++i) {
     images[i].resize(s.m, s.n);
 
-    CCE(cudaMemcpy(images[i].getData(), t_data.getData() + i * t_data.getRows(),
-	  sizeof(float) * images[i].size(), cudaMemcpyDeviceToDevice));
+    CCE(cudaMemcpy(images[i].getData(), data.getData() + i * data.getRows(),
+	  sizeof(float) * s.m * s.n, cudaMemcpyDeviceToDevice));
   }
 
   return images;
@@ -24,16 +24,14 @@ vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
 mat reshapeImages2Vectors(const vector<mat>& images) {
   assert(images.size() > 0);
 
-  mat t_data(images[0].size(), images.size());
+  SIZE s(images[0].getRows(), images[0].getCols());
+  mat t_data(s.m * s.n, images.size());
 
-  int M = images[0].getRows(),
-      N = images[0].getCols();
-  
   for (size_t i=0; i<images.size(); ++i)
     CCE(cudaMemcpy(t_data.getData() + i * t_data.getRows(), images[i].getData(),
 	  sizeof(float) * images[i].size(), cudaMemcpyDeviceToDevice));
 
-  return ~t_data;
+  return t_data;
 }
 
 
@@ -181,6 +179,17 @@ __global__ void convn_full_kernel(float *output, float *data, float *kernel, int
   }
 
   output[ x * fH + y ] = sum;
+}
+
+SIZE get_convn_size(SIZE data, SIZE kernel, string type) {
+  if (type == "same")
+    return data;
+  else if (type == "valid" || type == "valid_shm")
+    return max(data - kernel + 1, SIZE(0, 0));
+  else if (type == "full")
+    return data + kernel - 1;
+  else
+    throw std::runtime_error("No such type of convolution");
 }
 
 SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
@@ -502,5 +511,24 @@ void go_test() {
   float L2norm = nrm2(z - z_gold) / nrm2(z_gold);
   printf("\nL2norm = %.7e ... %s\n", L2norm,
       (L2norm < 1e-6) ? "\33[32m[Passed]\33[0m" : "\33[31m[Failed]\33[0m");
+}
+
+// Unit-testing codes for reshapeImages2Vectors & reshapeVectors2Images
+void test_reshape() {
+  int batch_size = 12;
+  SIZE img(4, 5);
+  mat x = randn(img.m * img.n, batch_size);
+
+  vector<mat> images = reshapeVectors2Images(x, img);
+
+  for (size_t i=0; i<images.size(); ++i)
+    matlog(images[i]);
+
+  mat y = reshapeImages2Vectors(images);
+
+  matlog(x);
+  matlog(y);
+
+  matlog(x-y);
 }
 

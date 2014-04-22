@@ -11,30 +11,9 @@ SIZE parseInputDimension(const string &m_by_n);
 void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
     size_t batchSize, ERROR_MEASURE errorMeasure);
 
-void playground() {
-  mat x = randn(128, 128),
-      h = randn(20, 20);
-
-  perf::Timer timer;
-  timer.start();
-  cudaProfilerStart(); 
-  
-  mat z;
-  for (int i=0; i<10000; ++i) {
-    z = convn(x, h, "valid_shm", 4);
-  }
-
-  CCE(cudaDeviceSynchronize());
-  cudaProfilerStop();
-  timer.elapsed();
-}
+void cuda_profiling_ground();
 
 int main(int argc, char* argv[]) {
-
-  // go_test();
-  playground();
-  // benchmark();
-  return 0;
 
   CmdParser cmd(argc, argv);
 
@@ -59,7 +38,7 @@ int main(int argc, char* argv[]) {
 
   cmd.addGroup("Training options:")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
-     .add("--batch-size", "number of data per mini-batch", "1");
+     .add("--batch-size", "number of data per mini-batch", "32");
 
   cmd.addGroup("Example usage: cnn-train data/train3.dat --struct=12x5x5-2-8x3x3-2");
   
@@ -93,9 +72,9 @@ int main(int argc, char* argv[]) {
   parseNetworkStructure(structure, cnn_struct, nn_struct);
 
   // Initialize CNN
-  CNN cnn(imgSize);
+  CNN cnn;
   if (model_in.empty())
-    cnn.init(cnn_struct);
+    cnn.init(cnn_struct, imgSize);
   else
     cnn.read(model_in);
 
@@ -116,7 +95,7 @@ void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
   perf::Timer timer;
   timer.start();
 
-  const size_t MAX_EPOCH = 1;
+  const size_t MAX_EPOCH = 10;
   size_t nTrain = train.size();
 	 /*nValid = valid.size();*/
 
@@ -136,6 +115,26 @@ void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
     pbar.refresh(0, MAX_EPOCH, status);
   }
 
+  timer.elapsed();
+  printf("# of total epoch = %lu\n", MAX_EPOCH);
+}
+
+
+void cuda_profiling_ground() {
+  mat x = randn(128, 128),
+      h = randn(20, 20);
+
+  perf::Timer timer;
+  timer.start();
+  cudaProfilerStart(); 
+  
+  mat z;
+  for (int i=0; i<10000; ++i) {
+    z = convn(x, h, "valid_shm", 4);
+  }
+
+  CCE(cudaDeviceSynchronize());
+  cudaProfilerStop();
   timer.elapsed();
 }
 

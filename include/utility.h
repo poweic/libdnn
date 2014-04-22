@@ -19,7 +19,7 @@ typedef device_matrix<float> mat;
 #ifdef DEBUG
 #define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }
 // #define matlog(x) { printf("\33[34m"#x"\33[0m = [\n"); x.print(); printf("];\n"); }
-#define matlog(x) { printf(#x" = [\n"); x.print(); printf("];\n"); }
+#define matlog(x) { printf(#x" = [\n"); (x).print(); printf("];\n"); }
 #define mylog(x) { cout << #x << " = " << x << endl; }
 #else
 #define PAUSE {}

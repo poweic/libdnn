@@ -102,14 +102,14 @@ public:
     std::fill(_data, _data + size(), value);
   }
 
-  void print() const {
+  void print(FILE* fid = stdout) const {
     for (size_t i=0; i<_rows; ++i) {
       for (size_t j=0; j<_cols; ++j)
-	printf("%.4e ", _data[j * _rows + i]);
-      printf("\n");
+	fprintf(fid, "%.4e ", _data[j * _rows + i]);
+      fprintf(fid, "\n");
     }
 
-    printf("rows = %lu, cols = %lu, capacity = %lu\n", _rows, _cols, _capacity);
+    fprintf(fid, "rows = %lu, cols = %lu, capacity = %lu\n", _rows, _cols, _capacity);
   }
 
   size_t size() const { return _rows * _cols; }

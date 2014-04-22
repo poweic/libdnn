@@ -44,12 +44,16 @@ void DataSet::normalizeToStandardScore() {
       deviation += pow(data(i, j), 2.0f);
     deviation = sqrt(deviation / (nData - 1));
 
+    printf("mean = %.7e, deviation = %.7e\n", mean, deviation);
+
     if (deviation == 0)
       continue;
 
     for (int j=0; j<nData; ++j)
       data(i, j) /= deviation;
   }
+
+  exit(-1);
 }
 
 void DataSet::normalize(int type) {

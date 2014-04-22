@@ -7,40 +7,59 @@
  * Implementation of CNN goes here.
  */
 
-CNN::CNN() : _img_size(-1, -1), _transforms() {
+CNN::CNN(): _transforms() {
 
 }
 
-CNN::CNN(SIZE img_size): _img_size(img_size), _transforms() {
-
-}
-
-CNN::CNN(const string& model_fn) : _img_size(-1, -1), _transforms() {
+CNN::CNN(const string& model_fn) : _transforms() {
   this->read(model_fn);
+}
+
+mat concat(const vector<mat>& feature_maps) {
+  int nFeatures = feature_maps.size(),
+      img_size  = feature_maps[0].getRows(),
+      batchSize = feature_maps[0].getCols();
+
+  mat result(img_size * nFeatures, batchSize);
+
+  // TODO
+
+  return result;
 }
 
 void CNN::feedForward(mat& fout, const mat& fin) {
 
-  vector<mat> fins = reshapeVectors2Images(fin, _img_size);
+  // First 1st layer of CNN MUST have only 1 input feature map
+  vector<mat> fins;
+
+  // Transpose the input feature (fin) so that rows = feature dimension, cols =
+  // the number of data in a single batch.
+  fins.push_back(~fin);
 
   // FIXME SubSamplingLayer does NOT need temporary buffer.
   // MAYBE just reserve those for ConvolutionalLayer.
   _houts.resize(_transforms.size());
 
+  cout << "======================================" << endl;
+  cout << "Layer 0: " << _transforms[0] << endl;
   _transforms[0]->feedForward(_houts[0], fins);
 
-  for (size_t i=1; i<_transforms.size(); ++i)
+  for (size_t i=1; i<_transforms.size(); ++i) {
+    cout << "Layer " << i << ": " << _transforms[i] << endl;
     _transforms[i]->feedForward(_houts[i], _houts[i-1]);
+  }
 
-  fout = reshapeImages2Vectors(_houts.back());
+  // Concatenate
+  fout = ~concat(_houts.back());
 }
 
 void CNN::backPropagate(mat& error, const mat& fin, const mat& fout,
     float learning_rate) {
 
-  vector<mat> fins = reshapeVectors2Images(fin, _img_size);
-  vector<mat> fouts  = reshapeVectors2Images(fout, _img_size);
-  vector<mat> errors = reshapeVectors2Images(error, _img_size);
+  vector<mat> fouts, errors, fins;
+  fouts.push_back(~fout);
+  errors.push_back(~error);
+  fins.push_back(~fin);
 
   _transforms.back()->backPropagate(errors, _houts.back(), fouts, learning_rate);
 
@@ -49,14 +68,15 @@ void CNN::backPropagate(mat& error, const mat& fin, const mat& fout,
 
   _transforms[0]->backPropagate(errors, fins, _houts[0], learning_rate);
 
-  error = reshapeImages2Vectors(errors);
+  // Concatenate
+  error = ~concat(errors);
 }
 
 void CNN::feedBackward(mat& error, const mat& delta) {
   // TODO
 }
 
-void CNN::init(const string &structure) {
+void CNN::init(const string &structure, SIZE img_size) {
 
   vector<string> layers = split(structure, '-');
 
@@ -66,7 +86,13 @@ void CNN::init(const string &structure) {
 
     if (layers[i].find("s") != string::npos) {
       size_t scale = str2int(layers[i].substr(0, layers[i].size() - 1));
-      _transforms.push_back(new SubSamplingLayer(scale));
+
+      MIMOFeatureTransform* t = new SubSamplingLayer(scale);
+      t->set_input_img_size(img_size);
+      _transforms.push_back(t);
+
+      // Set the input img_size of next layer to be the output img_size of current layer.
+      img_size = t->get_output_img_size();
     }
     else if (layers[i].find("x") != string::npos) {
 
@@ -76,9 +102,15 @@ void CNN::init(const string &structure) {
 	     kernel_width  = str2int(dims[1]),
 	     kernel_height = str2int(dims[2]);
 
-      _transforms.push_back(new ConvolutionalLayer(
-	    nInputMaps, nOutputMaps, kernel_height, kernel_width));
+      MIMOFeatureTransform* t =
+	new ConvolutionalLayer( nInputMaps, nOutputMaps, kernel_height, kernel_width);
 
+      t->set_input_img_size(img_size);
+
+      _transforms.push_back(t);
+
+      // Set the input img_size of next layer to be the output img_size of current layer.
+      img_size = t->get_output_img_size();
       nInputMaps = nOutputMaps;
     }
     else
@@ -153,15 +185,61 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
 	+ to_string(fins.size()) + ") does not match number of kernels ( = "
 	+ to_string(nInputs) + ").");
 
-  fouts.resize(nOutputs);
+  int batch_size = fins[0].getCols();
 
-  for (int j=0; j<nOutputs; j++) {
-    SIZE s = get_convn_size(fins[0], _kernels[0][j], "valid");
-    fouts[j].resize(s.m, s.n);
-    for (int i=0; i<nInputs; ++i)
-      fouts[j] += convn(fins[i], _kernels[i][j], "valid");
-    fouts[j] = sigmoid(fouts[j] + _bias[j]);
+  vector<vector<mat> > iImgs(nInputs), oImgs(nOutputs);
+
+  SIZE s = get_output_img_size();
+
+  for (int i=0; i<nInputs; ++i)
+    iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
+
+  // Allocate memory and initialize with value 0
+  for (int j=0; j<nOutputs; ++j) {
+    oImgs[j].resize(batch_size);
+
+    for (int k=0; k<batch_size; ++k)
+      oImgs[j][k].resize(s.m, s.n, 0);
   }
+
+  for (int k=0; k<batch_size; ++k) {
+    for (int j=0; j<nOutputs; ++j) {
+      for (int i=0; i<nInputs; ++i)
+	oImgs[j][k] += convn(iImgs[i][k], _kernels[i][j], "valid_shm");
+      oImgs[j][k] = sigmoid(oImgs[j][k] + _bias[j]);
+    }
+  }
+
+  if (fouts.size() != nOutputs)
+    fouts.resize(nOutputs);
+
+  for (int j=0; j<nOutputs; ++j)
+    fouts[j] = reshapeImages2Vectors(oImgs[j]);
+
+  /*for (int i=0; i<nInputs; ++i)
+    iImgs[i] = reshapeVectors2Images(fins[i]);
+
+  SIZE s = get_convn_size(iImgs[0][0], _kernels[0][0], "valid");
+
+  for (int j=0; j<nOutputs; ++j) {
+    oImgs[j].resize(batch_size);
+    for (int k=0; k<batch_size; ++k)
+      oImgs[j][k].resize(s.m, s.n, 0);
+  }
+
+  for (int b=0; b<batch_size; ++b) {
+    for (int j=0; j<nOutputs; j++) {
+      for (int i=0; i<nInputs; ++i)
+	oImgs[j][b] += convn(iImgs[i][b], _kernels[i][j], "valid");
+      oImgs[j][b] = sigmoid(oImgs[j][b] + _bias[j]);
+    }
+  }
+
+  if (fouts.size() != nOutputs)
+    fouts.resize(nOutputs);
+
+  for (int j=0; j<nOutputs; ++j)
+    fouts[j] = reshapeImages2Vectors(all_fouts[j]);*/
 }
 
 // NOTE: in MATLAB
@@ -246,10 +324,28 @@ size_t SubSamplingLayer::getScale() const {
 }
 
 void SubSamplingLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) {
+
   fouts.resize(fins.size());
 
-  for (size_t i=0; i<fins.size(); ++i)
-    fouts[i] = downsample(fins[i], _scale);
+  // Since nInputs == nOutputs for subsampling layer, I just use N.
+  int N = fins.size();
+  int batch_size = fins[0].getCols();
+
+  vector<vector<mat> > iImgs(N), oImgs(N);
+  for (int i=0; i<N; ++i)
+    iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
+
+  for (size_t i=0; i<N; ++i) {
+    oImgs[i].resize(batch_size);
+    for (int k=0; k<batch_size; ++k)
+      oImgs[i][k] = downsample(iImgs[i][k], _scale);
+  }
+
+  if (fouts.size() != N)
+    fouts.resize(N);
+
+  for (int j=0; j<N; ++j)
+    fouts[j] = reshapeImages2Vectors(oImgs[j]);
 }
 
 void SubSamplingLayer::backPropagate(vector<mat>& errors, const vector<mat>& fins,
