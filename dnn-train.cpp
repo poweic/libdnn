@@ -48,7 +48,7 @@ int main (int argc, char* argv[]) {
   string model_out    = cmd[3];
 
   size_t input_dim    = cmd["--input-dim"];
-  int n_type	      = cmd["--normalize"];
+  string n_type	      = cmd["--normalize"];
 
   int ratio	      = cmd["-v"];
   size_t batchSize    = cmd["--batch-size"];
@@ -63,7 +63,6 @@ int main (int argc, char* argv[]) {
   config.learningRate = learningRate;
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
-  config.print();
 
   // Load model
   DNN dnn(model_in);
@@ -77,6 +76,7 @@ int main (int argc, char* argv[]) {
 
   DataSet train, valid;
   data.splitIntoTrainAndValidSet(train, valid, ratio);
+  config.print();
 
   // Start Training
   ERROR_MEASURE err = CROSS_ENTROPY;

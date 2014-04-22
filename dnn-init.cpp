@@ -19,7 +19,8 @@ int main (int argc, char* argv[]) {
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+	"2 -- Normalize to standard score. z = (x-u)/sigma ."
+	"filename -- Read mean and variance from file", "0");
 
   cmd.addGroup("Structure of Neural Network: ")
      .add("--nodes", "specify the width(nodes) of each hidden layer seperated by \"-\":\n"
@@ -45,7 +46,7 @@ int main (int argc, char* argv[]) {
   string model_fn   = cmd[2];
 
   size_t input_dim  = cmd["--input-dim"];
-  int n_type	    = cmd["--normalize"];
+  string n_type	    = cmd["--normalize"];
 
   string structure  = cmd["--nodes"];
   size_t output_dim = cmd["--output-dim"];

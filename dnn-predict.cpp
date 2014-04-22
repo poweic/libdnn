@@ -42,7 +42,7 @@ int main (int argc, char* argv[]) {
   string output_fn  = cmd[3];
 
   size_t input_dim  = cmd["--input-dim"];
-  int n_type	    = cmd["--normalize"];
+  string n_type	    = cmd["--normalize"];
 
   int output_type   = cmd["--prob"];
   bool silent	    = cmd["--silent"];

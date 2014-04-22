@@ -23,6 +23,23 @@ DataSet::DataSet(const string &fn, size_t dim): _dim(dim) {
   this->cvtLabelsToZeroBased();
 }
 
+void DataSet::normalizeToStandardScore(const hmat& mean, const hmat& deviation) {
+  hmat& data = _hx;
+
+  size_t nData = data.getCols();
+
+  for (int i=0; i<_dim; ++i) {
+    for (int j=0; j<nData; ++j)
+      data(i, j) -= mean[i];
+    
+    if (deviation[i] == 0)
+      continue;
+
+    for (int j=0; j<nData; ++j)
+      data(i, j) /= deviation[i];
+  }
+}
+
 void DataSet::normalizeToStandardScore() {
   hmat& data = _hx;
   size_t nData = data.getCols();
@@ -44,7 +61,7 @@ void DataSet::normalizeToStandardScore() {
       deviation += pow(data(i, j), 2.0f);
     deviation = sqrt(deviation / (nData - 1));
 
-    printf("mean = %.7e, deviation = %.7e\n", mean, deviation);
+    // printf("mean = %.7e, deviation = %.7e\n", mean, deviation);
 
     if (deviation == 0)
       continue;
@@ -52,25 +69,47 @@ void DataSet::normalizeToStandardScore() {
     for (int j=0; j<nData; ++j)
       data(i, j) /= deviation;
   }
-
-  exit(-1);
 }
 
-void DataSet::normalize(int type) {
+void DataSet::normalize(const string &type) {
 
-  switch (type) {
-    case 0: // Do not normalize
-      break;
+  if (type == "0") {
+    return;
+  }
+  else if (type == "1") {
+    // Rescale each dimension to [0, 1] (for Bernoulli-Bernoulli RBM)
+    //printf("\33[33m[Info]\33[0m Rescale each dimension to [0, 1]\n");
+    linearScaling(0, 1);
+  }
+  else if (type == "2") {
+    // Normalize to standard score z = (x-u)/sigma (i.e. CMVN in speech)
+    //printf("\33[33m[Info]\33[0m Normalize each dimension to standard score\n");
+    normalizeToStandardScore();
+  }
+  else {
+    string fn = type;
 
-    case 1: // Rescale each dimension to [0, 1] (for Bernoulli-Bernoulli RBM)
-      //printf("\33[33m[Info]\33[0m Rescale each dimension to [0, 1]\n");
-      linearScaling(0, 1);
-      break;
+    mat ss(fn);
+    hmat statistics(ss);
+    hmat mean(_dim, 1);
+    hmat deviation(_dim, 1);
 
-    case 2: // Normalize to standard score z = (x-u)/sigma (i.e. CMVN in speech)
-      //printf("\33[33m[Info]\33[0m Normalize each dimension to standard score\n");
-      normalizeToStandardScore();
-      break;
+    if (_dim == statistics.getRows()) {
+      for (size_t i=0; i<_dim; ++i) {
+	mean[i] = statistics(i, 0);
+	deviation[i] = statistics(i, 1);
+      }
+    }
+    else if (_dim == statistics.getCols()) {
+      for (int i=0; i<_dim; ++i) {
+	mean[i] = statistics(0, i);
+	deviation[i] = statistics(1, i);
+      }
+    }
+    else
+      throw runtime_error("ERROR: dimension mismatch");
+
+    normalizeToStandardScore(mean, deviation);
   }
 }
 
