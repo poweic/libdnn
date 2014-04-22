@@ -25,7 +25,8 @@ int main (int argc, char* argv[]) {
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+     .add("--base", "Label id starts from 0 or 1 ?", "0");
 
   cmd.addGroup("Training options: ")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
@@ -49,6 +50,7 @@ int main (int argc, char* argv[]) {
 
   size_t input_dim    = cmd["--input-dim"];
   string n_type	      = cmd["--normalize"];
+  int base	      = cmd["--base"];
 
   int ratio	      = cmd["-v"];
   size_t batchSize    = cmd["--batch-size"];
@@ -71,6 +73,7 @@ int main (int argc, char* argv[]) {
   // Load data
   DataSet data(train_fn, input_dim);
   data.normalize(n_type);
+  data.checkLabelBase(base);
   data.shuffle();
   data.showSummary();
 

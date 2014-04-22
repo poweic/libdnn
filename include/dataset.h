@@ -15,6 +15,7 @@ public:
   DataSet(const string &fn, size_t dim = 0);
 
   void normalize(const string &type);
+  void checkLabelBase(int base);
 
   size_t getFeatureDimension() const;
   size_t getClassNumber() const;
@@ -42,8 +43,6 @@ private:
   void linearScaling(float lower = 0, float upper = 1);
   void normalizeToStandardScore();
   void normalizeToStandardScore(const hmat& mean, const hmat& deviation);
-
-  void cvtLabelsToZeroBased();
 
   size_t _dim;
 

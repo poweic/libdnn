@@ -130,7 +130,8 @@ __global__ void dcrossentropy_kernel(float* error, float* const target, float* c
 
   int i = x * rows + y;
 
-  error[i] = output[i] - (float) (target[y] - 1 == x);
+  // target[y] need to be 0-based 
+  error[i] = output[i] - (float) (target[y] == x);
 
   __syncthreads();
 }
@@ -191,7 +192,7 @@ mat posteriorProb2Label(const mat& prob) {
       }
     }
 
-    h_labels[i] = maxIdx + 1;
+    h_labels[i] = maxIdx;
   }
 
   mat labels(h_labels, rows, 1);

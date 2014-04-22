@@ -6,7 +6,7 @@
 #include <batch.h>
 using namespace std;
 
-void printLabels(const mat& prob, FILE* fid);
+void printLabels(const mat& prob, FILE* fid, int base);
 FILE* openFileOrStdout(const string& filename);
 
 int main (int argc, char* argv[]) {
@@ -23,7 +23,8 @@ int main (int argc, char* argv[]) {
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+     .add("--base", "Label id starts from 0 or 1 ?", "0");
 
   cmd.addGroup("Options:")
     .add("--prob", "output posterior probabilities if true\n"
@@ -43,6 +44,7 @@ int main (int argc, char* argv[]) {
 
   size_t input_dim  = cmd["--input-dim"];
   string n_type	    = cmd["--normalize"];
+  int base	    = cmd["--base"];
 
   int output_type   = cmd["--prob"];
   bool silent	    = cmd["--silent"];
@@ -51,6 +53,8 @@ int main (int argc, char* argv[]) {
   test.normalize(n_type);
 
   bool hasAnswer = test.isLabeled();
+  if (hasAnswer)
+    test.checkLabelBase(base);
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
@@ -71,8 +75,8 @@ int main (int argc, char* argv[]) {
       continue;
 
     switch (output_type) {
-      case 0: prob.print(fid);	      break;
-      case 1: printLabels(prob, fid); break;
+      case 0: printLabels(prob, fid, base); break;
+      case 1: prob.print(fid);	      break;
       case 2: log(prob).print(fid);   break;
     }
   }
@@ -88,10 +92,10 @@ int main (int argc, char* argv[]) {
 
 // DO NOT USE device_matrix::print()
 // (since labels should be printed as integer)
-void printLabels(const mat& prob, FILE* fid) {
+void printLabels(const mat& prob, FILE* fid, int base) {
   auto h_labels = copyToHost(posteriorProb2Label(prob));
   for (size_t i=0; i<h_labels.size(); ++i)
-    cout << (int) h_labels[i] << endl;
+    fprintf(fid, "%d\n", (int) h_labels[i] + base);
 }
 
 FILE* openFileOrStdout(const string& filename) {

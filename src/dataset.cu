@@ -20,7 +20,6 @@ DataSet::DataSet(): _dim(0) {
 
 DataSet::DataSet(const string &fn, size_t dim): _dim(dim) {
   this->read(fn);
-  this->cvtLabelsToZeroBased();
 }
 
 void DataSet::normalizeToStandardScore(const hmat& mean, const hmat& deviation) {
@@ -77,17 +76,21 @@ void DataSet::normalize(const string &type) {
     return;
   }
   else if (type == "1") {
+    clog << "\33[34m[Info]\33[0m Rescale to [0, 1] linearly" << endl;
     // Rescale each dimension to [0, 1] (for Bernoulli-Bernoulli RBM)
     //printf("\33[33m[Info]\33[0m Rescale each dimension to [0, 1]\n");
     linearScaling(0, 1);
   }
-  else if (type == "2") {
+  else if (type == "2")  {
+    clog << "\33[34m[Info]\33[0m Normalize to standard score" << endl;
     // Normalize to standard score z = (x-u)/sigma (i.e. CMVN in speech)
     //printf("\33[33m[Info]\33[0m Normalize each dimension to standard score\n");
     normalizeToStandardScore();
   }
   else {
     string fn = type;
+
+    clog << "\33[34m[Info]\33[0m Normalize using \"" << fn << "\"" << endl;
 
     mat ss(fn);
     hmat statistics(ss);
@@ -288,13 +291,22 @@ void DataSet::linearScaling(float lower, float upper) {
   }
 }
 
-void DataSet::cvtLabelsToZeroBased() {
+void DataSet::checkLabelBase(int base) {
   assert(_hy.getRows() == 1);
 
-  // Replace labels to 1, 2, 3, N, using mapping
-  map<int, int> classes = getLabelMapping(_hy);
+  int min_idx = _hy[0];
   for (size_t i=0; i<_hy.size(); ++i)
-    _hy[i] = classes[_hy[i]];
+    min_idx = min(min_idx, (int) _hy[i]);
+
+  if (min_idx != base)
+    clog << "\33[33m[Warning]\33[0m The array is told to be " << base << "-based."
+      "However, the minimum class id is " << min_idx << "." << endl;
+
+  // This is IMPORTANT
+  // Change to 0-based if it's 1-based originally.
+  for (size_t i=0; i<_hy.size(); ++i)
+    _hy[i] -= base;
+
 }
 
 void DataSet::shuffle() {
