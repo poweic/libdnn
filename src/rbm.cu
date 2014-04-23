@@ -247,23 +247,22 @@ mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_UNIT_TY
   // orders of magnitude smaller than when using binary visible units.
   // Otherwise value will explode very quickly and get NaN.
   // [cf. A Practical Guide to Training Restricted Boltzmann Machines]
-  // FIXME 為什麼當data量增加到某個程度時，相同的learning-rate會導致 W 爆掉??
-  // 照理說應該不會影響。因為data增加應該只相當於多跑幾個epoch，怎麼會讓 W 爆掉??
+
   if (vis_type == GAUSSIAN) learning_rate *= 0.01;
   if (hid_type == GAUSSIAN) learning_rate *= 0.01;
   cout << "Training \33[34m" << vis_type << " - " << hid_type << "\33[0m RBM ..." << endl;
 
   const float initial_momentum = 0.5, final_momentum = 0.9, L2_penalty = 0.0002;
 
-  size_t batch_size = 1024;
   size_t input_dim = data.getRows();
   size_t nData = data.getCols();
+  size_t batch_size = nData < 1024 ? (nData / 10) : 1024;
 
   mat W(input_dim, nHiddenUnits + 1);
   mat dW(W.getRows(), W.getCols());
   ext::randn(W, 0, 0.1 / W.getCols());
 
-  size_t minEpoch = 5, maxEpoch = 64;
+  size_t minEpoch = 5, maxEpoch = 32;
 
   std::vector<float> errors;
 

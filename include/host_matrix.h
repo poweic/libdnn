@@ -20,6 +20,7 @@ public:
 
     _data = new T[_capacity];
     CCE(cudaMemcpy(_data, source.getData(), sizeof(float) * size(), cudaMemcpyDeviceToHost));
+    CCE(cudaDeviceSynchronize());
   }
 
   ~host_matrix() {
@@ -30,6 +31,7 @@ public:
   operator device_matrix<T> () const {
     device_matrix<T> d(_rows, _cols);
     CCE(cudaMemcpy(d.getData(), _data, sizeof(float) * size(), cudaMemcpyHostToDevice));
+    CCE(cudaDeviceSynchronize());
     return d;
   }
 

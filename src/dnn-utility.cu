@@ -3,6 +3,7 @@
 CURAND_STATE::CURAND_STATE(unsigned seed, int N): _states(NULL) {
   cudaMalloc ( &_states, N * N * sizeof( curandState ) );
   setupCuRandState <<< 1, N * N >>> ( _states, seed );
+  CCE(cudaDeviceSynchronize());
 }
 
 curandState* CURAND_STATE::get() const {
@@ -40,7 +41,7 @@ __global__ void rand_kernel(float* const data, curandState* globalState, unsigne
 
   int i = x * rows + y;
   int j = tx * blockDim.y + ty;
-  op(data[i], globalState +j);
+  op(data[i], globalState + j);
   __syncthreads();
 }
 
@@ -179,6 +180,7 @@ mat posteriorProb2Label(const mat& prob) {
   float* h_prob = new float[prob.size()];
   float* h_labels  = new float[rows];
   CCE(cudaMemcpy(h_prob, prob.getData(), sizeof(float) * prob.size(), cudaMemcpyDeviceToHost));
+  CCE(cudaDeviceSynchronize());
 
   for (size_t i=0; i<rows; ++i) {
 

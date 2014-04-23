@@ -45,6 +45,7 @@ public:
   CNN(const string& model_fn);
   ~CNN();
 
+  // mat feedForward(const mat& fin) const;
   void feedForward(mat& fout, const mat& fin);
   void backPropagate(mat& error, const mat& fin, const mat& fout,
       float learning_rate);
@@ -54,6 +55,9 @@ public:
   void init(const string &structure, SIZE img_size);
   void read(const string &fn);
   void save(const string &fn) const;
+
+  size_t getInputDimension() const;
+  size_t getOutputDimension() const;
 
   void status() const;
 

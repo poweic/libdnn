@@ -49,7 +49,6 @@ void substractMaxPerRow(mat& x) {
   mat rmax = getRowMax(x);
 
   ALLOCATE_GRIDS_AND_THREADS(x.getRows(), x.getCols());
-
   substract_max_per_row<<< grids, threads >>>(x.getData(), rmax.getData(), x.getRows(), x.getCols());
   CCE(cudaDeviceSynchronize());
 }

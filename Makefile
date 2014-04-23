@@ -42,6 +42,9 @@ vpath %.cu src/
 
 OBJ:=$(addprefix obj/, $(addsuffix .o,$(basename $(SOURCES))))
 
+test:
+	g++ -o test test.cpp -lopencv_core -lopencv_highgui -lcudart -lnpp -L /share/cuda-5.0/lib64/
+
 LIBRARY=-lpbar -lcumatrix
 CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64

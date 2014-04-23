@@ -1,6 +1,34 @@
 #include <cnn-utility.h>
 #include <cuda_profiler_api.h>
 
+void gogo() {
+
+  mat x("sheep.mat");
+  mat gk = gaussian_kernel(5, 5);
+
+  showImage(x);
+  showImage(gk);
+
+  mat y = convn(x, gk, "valid");
+
+  printf("\n\n\n");
+  showImage(y);
+
+  y = (y - 0.5f) * 5;
+  y = sigmoid(y);
+  showImage(y);
+
+  mat z = downsample(y, 2);
+  showImage(z);
+
+  mat a = upsample(z, 2);
+  showImage(a);
+
+  mat b = upsample(a, 2);
+  showImage(b);
+}
+
+
 /*! Convert each row to a 2D image
  * \param data Each col in data is a feature vector. # of cols = # of data
 						     # of rows = image size
@@ -17,6 +45,7 @@ vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
     CCE(cudaMemcpy(images[i].getData(), data.getData() + i * data.getRows(),
 	  sizeof(float) * s.m * s.n, cudaMemcpyDeviceToDevice));
   }
+  CCE(cudaDeviceSynchronize());
 
   return images;
 }
@@ -27,18 +56,49 @@ mat reshapeImages2Vectors(const vector<mat>& images) {
   SIZE s(images[0].getRows(), images[0].getCols());
   mat t_data(s.m * s.n, images.size());
 
-  for (size_t i=0; i<images.size(); ++i)
+  for (size_t i=0; i<images.size(); ++i) {
     CCE(cudaMemcpy(t_data.getData() + i * t_data.getRows(), images[i].getData(),
 	  sizeof(float) * images[i].size(), cudaMemcpyDeviceToDevice));
+  }
+  CCE(cudaDeviceSynchronize());
 
   return t_data;
 }
 
+string getColorCode(float n) {
+  int x = 232 + n * (256-232);
+  return "\33[38;5;" + to_string(x) + "m";
+}
+
+mat gaussian_kernel(int h, int w) {
+  static mat gk("gk.mat");
+  if (h != 5 || w != 5)
+    throw std::runtime_error("NO SUCH Gaussian Kernel");
+
+  return gk / 273.f;
+}
+
+void showImage(const mat& x) {
+
+  int rows = x.getRows(),
+      cols = x.getCols();
+
+  hmat h_x(x);
+
+  for (size_t i=0; i<rows; ++i) {
+    for (size_t j=0; j<cols; ++j)
+      cout << getColorCode(h_x(i, j)) << "◼" << " ";
+    cout << endl;
+  }
+  cout << "\33[0m" << endl;
+}
 
 SIZE parseInputDimension(const string &m_by_n) {
   size_t pos = m_by_n.find("x");
   return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
 }
+
+#define OUT_OF_BOUNDARY { printf("\33[31mACCESS OUT OF BOUNDARY\33[0m\n"); }
 
 __global__ void convn_valid_kernel_with_shm(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
   int tx = threadIdx.x;	  /* tx = 0 ~ 31 */
@@ -67,16 +127,16 @@ __global__ void convn_valid_kernel_with_shm(float *output, float *data, float *k
 
   int tid = tx * blockDim.y + ty;
 
-  // Move data to (x0, y0)
-  data += x0 * H + y0;
-
   for (int i=0; i<avgToLoad; ++i) {
     int id = tid + i * nThreads;
 
     if (id >= nTotal) break;
 
-    int xx = id / h_step,
-	yy = id - xx * h_step; /* OR yy = id % h_step */
+    int xx = id / h_step + x0,
+	yy = id % h_step + y0;
+
+    if (xx >= W || yy >= H)
+      continue;
 
     D[id] = data[ xx * H + yy ];
   }
@@ -85,7 +145,7 @@ __global__ void convn_valid_kernel_with_shm(float *output, float *data, float *k
   float sum = 0;
   for (int i = 0; i < kW; ++i)
     for(int j = 0; j < kH; ++j)
-      sum += K[ i * kH + j ] * D[ (tx + i) * (blockDim.y + kH - 1) + (ty + j) ]; 
+      sum += K[ i * kH + j ] * D[ (tx + i) * h_step + (ty + j) ]; 
 
   // vH, vW stands for valid H and valid W
   const int vH = H - kH + 1, vW = W - kW + 1;
@@ -209,52 +269,9 @@ SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
     throw std::runtime_error("No such type of convolution");
 }
 
-void benchmark() {
+mat convn(const mat& data, const mat& kernel, string type) {
 
-  size_t M[] = {32, 64, 128, 256, 384, 512};
-  size_t N[] = {3, 6, 9, 12};
-
-  perf::Timer timer;
-  const size_t N_TIMES = 200;
-
-  printf("          |");
-  for (size_t j=0; j<sizeof(N) / sizeof(size_t) ; ++j)
-    printf("         %3lu x %-3lu          |", N[j], N[j]);
-  printf("\n----------+");
-  for (size_t j=0; j<sizeof(N) / sizeof(size_t); ++j)
-    printf("----------------------------+");
-  printf("\n");
-
-  for (size_t i=0; i< sizeof(M) / sizeof(size_t) ; ++i) {
-    mat x = randn(M[i], M[i]);
-
-    printf("%3lu x %-3lu | ", M[i], M[i]);
-    for (size_t j=0; j<sizeof(N) / sizeof(size_t); ++j) {
-      mat kernel = randn(N[j], N[j]);
-
-      timer.start();
-      for (size_t k = 1; k < N_TIMES; ++k) {
-	mat z1 = convn(x, kernel, "valid");
-      }
-      float t1 = timer.getTime();
-      timer.reset();
-
-      timer.start();
-      for (size_t k = 1; k < N_TIMES; ++k) {
-	mat z2 = convn(x, kernel, "valid_shm");
-      }
-      float t2 = timer.getTime();
-      printf("%7.2f , %7.2f \33[34m->\33[0m %4.1fx", t1, t2, t1 / t2);
-      timer.reset();
-
-      printf(" | ");
-    }
-    printf("\n");
-  }
-}
-
-mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
-
+  const size_t N_STREAM = 4;
   static vector<cudaStream_t> streams(N_STREAM);
   static bool first = true;
   static int counter = 0;
@@ -265,9 +282,6 @@ mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
       cudaStreamCreate ( &streams[i] );
   }
 
-  cudaStream_t& stream = streams[counter];
-  counter = (counter + 1) % N_STREAM;
-  // mat::setCudaStream(stream);
 
   int H = data.getRows(),
       W = data.getCols(),
@@ -277,8 +291,15 @@ mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
   SIZE s = get_convn_size(data, kernel, type);
 
   mat output(s.m, s.n);
-
   ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
+
+  // printf("stream-id #%lu, grid: (%lu, %lu), threads: (%lu, %lu)\n", counter, grids.x, grids.y, threads.x, threads.y);
+
+  // cudaStream_t& stream = streams[counter];
+  cudaStream_t stream = 0;
+  counter = (counter + 1) % N_STREAM;
+
+  size_t SHM_SIZE;
 
   if (type == "same") {
     convn_same_kernel<<< grids, threads, 0, stream >>>(
@@ -298,10 +319,15 @@ mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
     /* For a data of size 48 x 48 and kernel of size 8 x 8, using shared memory
        can speed up to 4x */
 
-    size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+    // throw std::runtime_error(RED_ERROR + "This function is NOT good for some reason. \33[33mDO NOT USE IT\33[0m");
+
+    SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
     if (SHM_SIZE > 16 * 1024)
       clog << "\33[35m[Warning]\33[0m Potential excess of Maximum shared memory" << endl;
     // printf("Shared memory size = %lu Bytes (i.e. %f KBytes)\n", SHM_SIZE, (float) SHM_SIZE / 1024);
+
+    const int vH = H - kH + 1, vW = W - kW + 1;
+    assert(vH == output.getRows() && vW == output.getCols());
 
     convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, stream >>>(
 	output.getData(),
@@ -317,14 +343,72 @@ mat convn(const mat& data, const mat& kernel, string type, int N_STREAM) {
 	H, W, kH, kW);
   }
 
-  CCE(cudaDeviceSynchronize());
+  cudaError_t e = cudaDeviceSynchronize();
+  if (e != cudaSuccess) {
+
+    printf("type = %s\n", type.c_str());
+    printf("output: "); output.status();
+    printf("data: ");	data.status();
+    printf("kernel: "); kernel.status();
+
+    printf("H = %lu, W = %lu, kH = %lu, kW = %lu\n", H, W, kH, kW);
+    printf("SHM_SIZE = %lu\n", SHM_SIZE);
+
+    CCE(e);
+  }
   
   return output;
 }
 
-mat xcorrn(const mat& data, const mat& kernel, string type) {
+
+/*mat xcorrn(const mat& data, const mat& kernel, string type) {
   // TODO
   return mat();
+}*/
+
+// Perform the reverse of concat
+vector<mat> de_concat(const mat& big, int N) {
+
+  int batch_size = big.getCols();
+  vector<mat> smalls(N);
+
+  int MAP_SIZE = big.size() / N;
+
+  SIZE s(MAP_SIZE / batch_size, batch_size);
+  
+  for (int i=0; i<N; ++i) {
+    smalls[i].resize(s.m, s.n);
+    memcpy2D(smalls[i], big, i * s.m, 0, s.m, s.n, 0, 0);
+    /*CCE(cudaMemcpy(smalls[i].getData(),
+		   big.getData() + i * MAP_SIZE,
+	  	   sizeof(float) * MAP_SIZE,
+	  	   cudaMemcpyDeviceToDevice));*/
+  }
+  CCE(cudaDeviceSynchronize());
+
+  return smalls;
+}
+
+mat concat(const vector<mat>& smalls) {
+  int nFeatures = smalls.size(),
+      img_size  = smalls[0].getRows(),
+      batchSize = smalls[0].getCols();
+
+  mat big(img_size * nFeatures, batchSize);
+
+  int MAP_SIZE = smalls[0].size();
+
+  for (int i=0; i<nFeatures; ++i) {
+    memcpy2D(big, smalls[i], 0, 0, img_size, batchSize, i * img_size, 0);
+    /*CCE(cudaMemcpy(big.getData() + i * MAP_SIZE,
+		   smalls[i].getData(),
+		   sizeof(float) * MAP_SIZE,
+		   cudaMemcpyDeviceToDevice));*/
+  }
+
+  CCE(cudaDeviceSynchronize());
+
+  return big;
 }
 
 __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, int W) { 
@@ -352,7 +436,7 @@ __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, i
   dst[x * h + y] = sum / (scale * scale);
 }
 
-__global__ void upsample_kernel(float *dst, float *src, size_t scale, int h, int w) { 
+__global__ void upsample_kernel(float *dst, float *src, int h, int w, int H, int W) { 
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -360,13 +444,16 @@ __global__ void upsample_kernel(float *dst, float *src, size_t scale, int h, int
   int x = blockIdx.x*blockDim.x + tx;
   int y = blockIdx.y*blockDim.y + ty;
 
-  int H = h * scale,
-      W = w * scale;
+  int scale = H / h;
 
   if (x >= W || y >= H)
     return;
 
-  dst[x * H + y] = src[(x / scale) * h + (y / scale)];
+  int sx = x / scale, sy = y / scale;
+  if (sx == w) --sx;
+  if (sy == h) --sy;
+
+  dst[x * H + y] = src[sx * h + sy];
 }
 
 mat downsample(const mat& x, size_t scale) {
@@ -386,22 +473,22 @@ mat downsample(const mat& x, size_t scale) {
   return output;
 }
 
-mat upsample(const mat& x, size_t scale, SIZE s) {
-  mat output;
+mat upsample(const mat& x, size_t scale) {
+  return upsample(x, SIZE(x.getRows() * scale, x.getCols() * scale));
+}
 
-  if (s == SIZE(0, 0))
-    output.resize(x.getRows() * scale, x.getCols() * scale);
-  else
-    output.resize(s.m, s.n);
+mat upsample(const mat& x, SIZE s) {
+  mat output(s.m, s.n);
 
   ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
 
   upsample_kernel<<<grids, threads>>>(
       output.getData(),
       x.getData(),
-      scale,
       x.getRows(),
-      x.getCols());
+      x.getCols(),
+      output.getRows(),
+      output.getCols());
 
   CCE(cudaDeviceSynchronize());
 
@@ -409,8 +496,20 @@ mat upsample(const mat& x, size_t scale, SIZE s) {
 }
 
 mat rot180(const mat& x) {
-  // TODO ROTATE 180 degree (OR create another __global__ called cross_correlation
-  return x;
+  // FIXME 我偷懶。我先講求正確性，丟到host用double for loop轉，轉完再塞回device
+
+  int rows = x.getRows(),
+      cols = x.getCols();
+
+  hmat h_x(x), h_y(rows, cols);
+
+  for (size_t i=0; i<rows; ++i) {
+    for (size_t j=0; j<cols; ++j) {
+      h_y(i, j) = h_x(rows - 1 - i, cols - 1 - j);
+    }
+  }
+
+  return (mat) h_y;
 }
 
 /* ! \brief Sum all the elements in a matrix.
@@ -469,10 +568,12 @@ void test_downsample() {
   plotL2normInSemilogy();
 }
 
-void test_convn(string type, int N) {
+void test_convn(string type) {
 
 // #undef matlog
 // #define matlog(x) { printf(#x" = [\n"); x.print(); printf("];\n"); }
+
+  const int N = 10000;
 
   for (int i=0; i<N; ++i) {
     int W = rand() % 50 + 5,
@@ -496,33 +597,50 @@ void test_convn(string type, int N) {
   plotL2normInSemilogy();
 }
 
-void go_test() {
-  mat x = randn(48, 48),
-      k = randn(8, 8);
+void test_valid_shm_vs_valid() {
 
-  x *= 100;
-  k *= 100;
+  bool all_pass = true;
 
-  perf::Timer timer;
-  timer.start();
+  const size_t N = 10000;
+  for (int i=0; i<N; ++i) {
+    int W = rand() % 100 + 20,
+	H = rand() % 100 + 20,
+	kW = rand() % 10 + 1,
+	kH = rand() % 10 + 1;
 
-  mat z_gold = convn(x, k, "valid");
+    mat x = randn(H, W),
+	k = randn(kH, kW);
 
-  timer.elapsed();
-  timer.reset();
-  timer.start();
+    perf::Timer timer;
+    timer.start();
 
-  mat z = convn(x, k, "valid_shm");
+    mat z_gold = convn(x, k, "valid");
 
-  timer.elapsed();
+    timer.elapsed();
+    timer.reset();
+    timer.start();
 
-  float L2norm = nrm2(z - z_gold) / nrm2(z_gold);
-  printf("\nL2norm = %.7e ... %s\n", L2norm,
-      (L2norm < 1e-6) ? "\33[32m[Passed]\33[0m" : "\33[31m[Failed]\33[0m");
+    mat z = convn(x, k, "valid_shm");
+
+    timer.elapsed();
+
+    float L2norm = nrm2(z - z_gold) / nrm2(z_gold);
+    printf("L2norm = %.7e ...", L2norm);
+
+    if (L2norm < 1e-6)
+      printf("\33[32m[Passed]\33[0m\n");
+    else {
+      printf("\33[31m[Failed]\33[0m\n");
+      all_pass = false;
+    }
+  }
+
+  if (all_pass)
+    printf("\33[32m !!! Congrats! ALL %lu test cases PASSED !!! \33[0m\n", N);
 }
 
 // Unit-testing codes for reshapeImages2Vectors & reshapeVectors2Images
-void test_reshape() {
+void test_reshape_images_between_vectors() {
   int batch_size = 12;
   SIZE img(4, 5);
   mat x = randn(img.m * img.n, batch_size);
@@ -540,3 +658,47 @@ void test_reshape() {
   matlog(x-y);
 }
 
+
+void benchmark_valid_and_valid_shm() {
+
+  size_t M[] = {32, 64, 128, 256, 384, 512};
+  size_t N[] = {3, 6, 9, 12};
+
+  perf::Timer timer;
+  const size_t N_TIMES = 200;
+
+  printf("          |");
+  for (size_t j=0; j<sizeof(N) / sizeof(size_t) ; ++j)
+    printf("         %3lu x %-3lu          |", N[j], N[j]);
+  printf("\n----------+");
+  for (size_t j=0; j<sizeof(N) / sizeof(size_t); ++j)
+    printf("----------------------------+");
+  printf("\n");
+
+  for (size_t i=0; i< sizeof(M) / sizeof(size_t) ; ++i) {
+    mat x = randn(M[i], M[i]);
+
+    printf("%3lu x %-3lu | ", M[i], M[i]);
+    for (size_t j=0; j<sizeof(N) / sizeof(size_t); ++j) {
+      mat kernel = randn(N[j], N[j]);
+
+      timer.start();
+      for (size_t k = 1; k < N_TIMES; ++k) {
+	mat z1 = convn(x, kernel, "valid");
+      }
+      float t1 = timer.getTime();
+      timer.reset();
+
+      timer.start();
+      for (size_t k = 1; k < N_TIMES; ++k) {
+	mat z2 = convn(x, kernel, "valid_shm");
+      }
+      float t2 = timer.getTime();
+      printf("%7.2f , %7.2f \33[34m->\33[0m %4.1fx", t1, t2, t1 / t2);
+      timer.reset();
+
+      printf(" | ");
+    }
+    printf("\n");
+  }
+}

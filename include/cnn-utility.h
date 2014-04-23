@@ -1,5 +1,8 @@
 #include <dnn-utility.h>
 #include <iomanip>
+#define RED_ERROR (string("\33[31m[Error]\33[0m In function \"") \
+    + __func__ + string("\" (at ") + __FILE__ + string(":") \
+    + to_string(__LINE__) + string("): "))
 
 struct SIZE {
   size_t m, n;
@@ -26,8 +29,10 @@ struct SIZE {
   }
 };
 
-void benchmark();
-void playground();
+void gogo();
+
+mat gaussian_kernel(int h, int w);
+void showImage(const mat& x);
 
 vector<mat> reshapeVectors2Images(const mat& data, const SIZE s);
 mat reshapeImages2Vectors(const vector<mat>& images);
@@ -39,11 +44,16 @@ __global__ void upsample_kernel(float *dst, float *src, size_t scale, int H, int
 
 SIZE get_convn_size(SIZE data, SIZE kernel, string type = "full");
 SIZE get_convn_size(const mat& data, const mat& kernel, string type = "full");
-mat convn(const mat& data, const mat& kernel, string type = "full", int N_STREAM = 4);
-mat xcorrn(const mat& data, const mat& kernel, string type = "full");
+mat convn(const mat& data, const mat& kernel, string type = "full");
+// mat xcorrn(const mat& data, const mat& kernel, string type = "full");
+
+vector<mat> de_concat(const mat& concated_features, int n);
+mat concat(const vector<mat>& smalls);
 
 mat downsample(const mat& x, size_t scale);
-mat upsample(const mat& x, size_t scale, SIZE s = SIZE(0,0) );
+// mat upsample(const mat& x, size_t scale, SIZE s = SIZE(0,0) );
+mat upsample(const mat& x, size_t scale);
+mat upsample(const mat& x, SIZE s);
 
 mat rot180(const mat& x);
 float sum_all(const mat& x);
@@ -51,4 +61,7 @@ float sum_all(const mat& x);
 // Codes for unit-testing
 void plotL2normInSemilogy();
 void test_downsample();
-void test_convn(string type, int N);
+void test_convn(string type);
+void test_valid_shm_vs_valid();
+void test_reshape_images_between_vectors();
+void benchmark_valid_and_valid_shm();

@@ -4,11 +4,16 @@
 #include <pbar.h>
 
 #include <dataset.h>
+#include <dnn.h>
 #include <cnn.h>
 
 SIZE parseInputDimension(const string &m_by_n);
+vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim);
 
-void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
+size_t cnn_predict(const DNN& dnn, CNN& cnn, const DataSet& data,
+    ERROR_MEASURE errorMeasure);
+
+void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
     size_t batchSize, ERROR_MEASURE errorMeasure);
 
 void cuda_profiling_ground();
@@ -24,7 +29,13 @@ int main(int argc, char* argv[]) {
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
 	 "For example: --input-dim 39x9 \n"
-	 "0 for auto detection.", "0");
+	 "0 for auto detection.", "0")
+     .add("--normalize", "Feature normalization: \n"
+	"0 -- Do not normalize.\n"
+	"1 -- Rescale each dimension to [0, 1] respectively.\n"
+	"2 -- Normalize to standard score. z = (x-u)/sigma ."
+	"filename -- Read mean and variance from file", "0")
+     .add("--output-dim", "specify the output dimension (the # of class to predict).\n");
 
   cmd.addGroup("Network structure:")
      .add("--struct",
@@ -50,7 +61,9 @@ int main(int argc, char* argv[]) {
   string model_out  = cmd[2];
 
   string input_dim  = cmd["--input-dim"];
+  string n_type	    = cmd["--normalize"];
   string structure  = cmd["--struct"];
+  size_t output_dim = cmd["--output-dim"];
 
   int ratio	      = cmd["-v"];
   size_t batchSize    = cmd["--batch-size"];
@@ -61,6 +74,7 @@ int main(int argc, char* argv[]) {
 
   // Load dataset
   DataSet data(train_fn, imgSize.m * imgSize.n);
+  data.normalize(n_type);
   data.shuffle();
   data.showSummary();
 
@@ -78,50 +92,96 @@ int main(int argc, char* argv[]) {
   else
     cnn.read(model_in);
 
+  DNN dnn;
+  dnn.init(getRandWeights(cnn.getOutputDimension(), nn_struct, output_dim));
+  // dnn.init(getRandWeights(imgSize.m * imgSize.n, nn_struct, output_dim));
+
   // Show CNN status
   cnn.status();
 
-  cnn_train(cnn, train, valid, batchSize, CROSS_ENTROPY);
+  cnn_train(dnn, cnn, train, valid, batchSize, CROSS_ENTROPY);
 
   if (model_out.empty())
     model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
+  cout << "Leaving..." << endl;
+
   return 0;
 }
 
-void cnn_train(CNN& cnn, const DataSet& train, const DataSet& valid,
+vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim) {
+
+  auto dims = splitAsInt(structure, '-');
+  dims.push_back(output_dim);
+  dims.insert(dims.begin(), input_dim);
+  for (size_t i=0; i<dims.size(); ++i)
+    dims[i] += 1;
+
+  size_t nWeights = dims.size() - 1;
+  vector<mat> weights(nWeights);
+
+  for (size_t i=0; i<nWeights; ++i) {
+    weights[i] = randn(dims[i], dims[i+1]);
+    printf("Initialize a weights[%lu] using randn(%lu, %lu)\n", i, dims[i], dims[i+1]);
+  }
+
+  CCE(cudaDeviceSynchronize());
+  return weights;
+}
+
+void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
     size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   perf::Timer timer;
   timer.start();
 
-  const size_t MAX_EPOCH = 10;
-  size_t nTrain = train.size();
-	 /*nValid = valid.size();*/
+  const size_t MAX_EPOCH = 1024;
+  size_t nTrain = train.size(),
+	 nValid = valid.size();
 
-  mat fout;
-
-  ProgressBar pbar("Training...");
+  mat fmiddle, fout;
 
   for (size_t epoch=0; epoch<MAX_EPOCH; ++epoch) {
     Batches batches(batchSize, nTrain);
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
       mat fin = train.getX(*itr);
-      cnn.feedForward(fout, fin);
+      cnn.feedForward(fmiddle, fin);
+      dnn.feedForward(fout, fmiddle);
 
-      mat error(fout);
-      cnn.backPropagate(error, fin, fout, 0.01);
+      mat error = getError( train.getY(*itr), fout, errorMeasure);
+
+      dnn.backPropagate(error, fmiddle, fout, 0.1);
+      cnn.backPropagate(error, fin, fmiddle, 0.1);
     }
 
-    char status[100];
-    sprintf(status, " epoch #%lu", epoch);
-    pbar.refresh(epoch, MAX_EPOCH, status);
+    size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),
+	   Eout = cnn_predict(dnn, cnn, valid, errorMeasure);
+
+    float trainAcc = 1.0f - (float) Ein / nTrain;
+    float validAcc = 1.0f - (float) Eout / nValid;
+    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
+      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid); 
   }
 
   timer.elapsed();
   printf("# of total epoch = %lu\n", MAX_EPOCH);
 }
 
+size_t cnn_predict(const DNN& dnn, CNN& cnn, const DataSet& data,
+    ERROR_MEASURE errorMeasure) {
+
+  size_t nError = 0;
+
+  Batches batches(2048, data.size());
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    mat fmiddle;
+    cnn.feedForward(fmiddle, data.getX(*itr));
+    mat prob = dnn.feedForward(fmiddle);
+    nError += zeroOneError(prob, data.getY(*itr), errorMeasure);
+  }
+
+  return nError;
+}
 
 void cuda_profiling_ground() {
   mat x = randn(128, 128),
@@ -133,7 +193,7 @@ void cuda_profiling_ground() {
   
   mat z;
   for (int i=0; i<10000; ++i) {
-    z = convn(x, h, "valid_shm", 4);
+    z = convn(x, h, "valid_shm");
   }
 
   CCE(cudaDeviceSynchronize());

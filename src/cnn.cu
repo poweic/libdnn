@@ -1,7 +1,5 @@
 #include <cnn.h>
-#define RED_ERROR (string("\33[31m[Error]\33[0m In function \"") \
-    + __func__ + string("\" (at ") + __FILE__ + string(":") \
-    + to_string(__LINE__) + string("): "))
+#define matslog(x) { for (int i=0; i<x.size(); ++i) { printf(#x"[%d] = [\n", i); x[i].print(); printf("]\n"); } }
 
 /*! 
  * Implementation of CNN goes here.
@@ -18,49 +16,6 @@ CNN::CNN(const string& model_fn) : _transforms() {
 CNN::~CNN() {
   for (size_t i=0; i<_transforms.size(); ++i)
     delete _transforms[i];
-}
-
-// Perform the reverse of concat
-vector<mat> de_concat(const mat& concated_features, int N) {
-
-  int batch_size = concated_features.getCols();
-  vector<mat> smalls(N);
-
-  int MAP_SIZE = concated_features.size() / N;
-
-  SIZE s(MAP_SIZE / batch_size, batch_size);
-  
-  for (int i=0; i<N; ++i) {
-    smalls[i].resize(s.m, s.n);
-    CCE(cudaMemcpy(smalls[i].getData(),
-		   concated_features.getData() + i * MAP_SIZE,
-	  	   sizeof(float) * MAP_SIZE,
-	  	   cudaMemcpyDeviceToDevice));
-  }
-  CCE(cudaDeviceSynchronize());
-
-  return smalls;
-}
-
-mat concat(const vector<mat>& smalls) {
-  int nFeatures = smalls.size(),
-      img_size  = smalls[0].getRows(),
-      batchSize = smalls[0].getCols();
-
-  mat big(img_size * nFeatures, batchSize);
-
-  int MAP_SIZE = smalls[0].size();
-
-  for (int i=0; i<nFeatures; ++i) {
-    CCE(cudaMemcpy(big.getData() + i * MAP_SIZE,
-		   smalls[i].getData(),
-		   sizeof(float) * MAP_SIZE,
-		   cudaMemcpyDeviceToDevice));
-  }
-
-  CCE(cudaDeviceSynchronize());
-
-  return big;
 }
 
 void CNN::feedForward(mat& fout, const mat& fin) {
@@ -83,14 +38,23 @@ void CNN::feedForward(mat& fout, const mat& fin) {
 
   // Concatenate
   fout = ~concat(_houts.back());
+
+  // Reserve one more column for bias
+  fout.reserve(fout.size() + fout.getRows());
+  fout.resize(fout.getRows(), fout.getCols() + 1);
 }
 
 void CNN::backPropagate(mat& error, const mat& fin, const mat& fout,
     float learning_rate) {
 
+  // Remove last column, which is bias in DNN.
+  mat _fout(fout), _error(error);
+  _fout.resize(_fout.getRows(), _fout.getCols() - 1);
+  _error.resize(_error.getRows(), _error.getCols() - 1);
+
   int N = _transforms.back()->getNumOutputMaps();
-  vector<mat> fouts = de_concat(~fout, N),
-	      errors = de_concat(~error, N);
+  vector<mat> fouts = de_concat(~_fout, N),
+	      errors = de_concat(~_error, N);
 
   vector<mat> fins;
   fins.push_back(~fin);
@@ -164,6 +128,25 @@ void CNN::save(const string &fn) const {
   // TODO
 }
 
+size_t CNN::getInputDimension() const { 
+  if (_transforms.size() == 0)
+    throw std::runtime_error(RED_ERROR + "CNN not initialized. Don't know input dimension yet.");
+
+  SIZE s = _transforms[0]->get_input_img_size();
+  int nInputs = _transforms[0]->getNumInputMaps();
+  return nInputs * s.m * s.n;
+}
+
+size_t CNN::getOutputDimension() const { 
+
+  if (_transforms.size() == 0)
+    throw std::runtime_error(RED_ERROR + "CNN not initialized. Don't know output dimension yet.");
+
+  SIZE s = _transforms.back()->get_output_img_size();
+  int nOutputs = _transforms.back()->getNumOutputMaps();
+  return nOutputs * s.m * s.n;
+}
+
 void CNN::status() const {
 
   printf("+--------------+---------------+--------------+---------------+\n");
@@ -187,15 +170,18 @@ ConvolutionalLayer::ConvolutionalLayer(size_t n, size_t m, int h, int w)
 
   printf("Initializing %lu x %lu kernels of size %d x %d\n", n, m, h, w);
   _kernels.resize(n);
-  for (size_t i=0; i<n; ++i)
-    _kernels[i].assign(m, rand(h, w));
+  for (size_t i=0; i<n; ++i) {
+    _kernels[i].resize(m);
+    for (size_t j=0; j<m; ++j)
+      _kernels[i][j] = randn(h, w);
+  }
 
   _bias.resize(m);
   for (size_t j=0; j<m; ++j)
     _bias[j] = 0;
 }
 
-/* TODO If every element in fins is a single feature map, then only a data can
+/* FIXME If every element in fins is a single feature map, then only a data can
  *      be fed forward through this function.
  *      NOTE that fins.size()  == # of input feature maps
  *                             != # of data in a batch
@@ -239,8 +225,16 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
 
   for (size_t k=0; k<batch_size; ++k) {
     for (size_t j=0; j<nOutputs; ++j) {
-      for (size_t i=0; i<nInputs; ++i)
+      for (size_t i=0; i<nInputs; ++i) {
+	// DEBUG REGION
+	/*if (k == 0) {
+	  printf("iImgs[%lu][%lu]: \n", i, k); showImage(iImgs[i][k]);
+	  printf("_kernels[%lu][%lu]: \n", i, j); showImage(_kernels[i][j]);
+	  PAUSE;
+	}*/
+
 	oImgs[j][k] += convn(iImgs[i][k], _kernels[i][j], "valid_shm");
+      }
       oImgs[j][k] += _bias[j];
     }
   }
@@ -248,8 +242,17 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
   if (fouts.size() != nOutputs)
     fouts.resize(nOutputs);
 
-  for (size_t j=0; j<nOutputs; ++j)
+  for (size_t j=0; j<nOutputs; ++j) {
+    // DEBUG REGION
+    /*fouts[j] = reshapeImages2Vectors(oImgs[j]);
+    printf("\33[34m Before SIGMOID \33[0m\n");
+    matlog(fouts[j]);
+    fouts[j] = sigmoid(fouts[j]);
+    printf("\33[34m After SIGMOID \33[0m\n");
+    matlog(fouts[j]);
+    PAUSE;*/
     fouts[j] = sigmoid(reshapeImages2Vectors(oImgs[j]));
+  }
 
 }
 
@@ -320,8 +323,16 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
   // j : # of output features. j = 0 ~ nOutputs - 1
 
   vector<mat> deltas(nOutputs);
-  for (size_t j=0; j<nOutputs; ++j)
+  for (size_t j=0; j<nOutputs; ++j) {
     deltas[j] = fouts[j] & ( 1.0f - fouts[j] ) & errors[j];
+    /*if (j == 0) { // DEBUG REGION
+      printf("\33[34m ============================================= \33[0m\n");
+      matlog(fouts[j]);
+      matlog(1.0f - fouts[j]);
+      matlog(errors[j]);
+      printf("\33[34m ============================================= \33[0m\n");
+    }*/
+  }
 
   // iImgs represents the input images.
   // oImgs represents the output images. (Before sigmoid or any other activation function)
@@ -336,15 +347,33 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
   assert(learning_rate > 0);
   float lr = learning_rate / batch_size;
 
+  mat tmp(_kernels[0][0]);
+
+  /*printf("===== Before update ===== (lr = %f) \n", lr);
+  matlog(_kernels[0][0]);*/
+
   // Update kernels with learning rate
   for (size_t k=0; k<batch_size; ++k) {
     for (size_t j=0; j<nOutputs; ++j) {
-      for (size_t i=0; i<nInputs; ++i)
+
+      for (size_t i=0; i<nInputs; ++i) {
+	/*if (i == 0 && j == 0 && k == 0) { // DEBUG REGION
+	  matlog(iImgs[i][k]);
+	  matlog(oImgs[i][k]);
+	}*/
 	_kernels[i][j] -= convn(rot180(iImgs[i][k]), oImgs[j][k], "valid") * lr;
+      }
 
       _bias[j] -= sum_all(oImgs[j][k]) * lr;
     }
   }
+
+  /*printf("===== After update =====\n");
+  matlog(_kernels[0][0]);
+
+  float diff = nrm2(tmp - _kernels[0][0]);
+  printf("\33[33mdiff = %.7e\33[0m\n", diff);*/
+
   
   this->feedBackward(errors, deltas);
 }
@@ -430,7 +459,7 @@ void SubSamplingLayer::feedBackward(
   for (size_t i=0; i<N; ++i) {
     iImgs[i].resize(batch_size);
     for (size_t k=0; k<batch_size; ++k)
-      iImgs[i][k] = upsample(oImgs[i][k], _scale, _input_img_size);
+      iImgs[i][k] = upsample(oImgs[i][k], _input_img_size);
   }
 
   if (errors.size() != N)
