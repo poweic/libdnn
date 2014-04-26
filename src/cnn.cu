@@ -162,27 +162,30 @@ void CNN::status() const {
 /*! 
  * Implementation of ConvolutionalLayer goes here.
  */
-ConvolutionalLayer::ConvolutionalLayer(size_t n, size_t m, int h, int w)
-  : MIMOFeatureTransform(n, m) {
+ConvolutionalLayer::ConvolutionalLayer(size_t nInputs, size_t nOutputs, int h, int w)
+  : MIMOFeatureTransform(nInputs, nOutputs) {
   if (w == -1)
     w = h;
 
-  assert(n > 0 && m > 0 && h > 0 && w > 0);
+  assert(nInputs > 0 && nOutputs > 0 && h > 0 && w > 0);
 
   static int counter = 0;
 
-  printf("Initializing %lu x %lu kernels of size %d x %d\n", n, m, h, w);
-  _kernels.resize(n);
-  for (size_t i=0; i<n; ++i) {
-    _kernels[i].resize(m);
-    for (size_t j=0; j<m; ++j) {
-      // _kernels[i][j] = mat("k" + to_string(++counter) + ".mat");
-      _kernels[i][j] = randn(h, w);
-    }
+  printf("Initializing %lu x %lu kernels of size %d x %d\n", nInputs, nOutputs, h, w);
+
+  size_t fan_in = nInputs * w * h,
+	 fan_out = nOutputs * w * h;
+  float coeff = 2 * sqrt(6.0f / (fan_in + fan_out));
+
+  _kernels.resize(nInputs);
+  for (size_t i=0; i<nInputs; ++i) {
+    _kernels[i].resize(nOutputs);
+    for (size_t j=0; j<nOutputs; ++j)
+      _kernels[i][j] = (rand(h, w) - 0.5f) * coeff;
   }
 
-  _bias.resize(m);
-  for (size_t j=0; j<m; ++j)
+  _bias.resize(nOutputs);
+  for (size_t j=0; j<nOutputs; ++j)
     _bias[j] = 0;
 }
 

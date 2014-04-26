@@ -110,6 +110,51 @@ int main(int argc, char* argv[]) {
   return 0;
 }
 
+void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
+    size_t batchSize, ERROR_MEASURE errorMeasure) {
+
+  perf::Timer timer;
+  timer.start();
+
+  const size_t MAX_EPOCH = 1024;
+  size_t nTrain = train.size(),
+	 nValid = valid.size();
+
+  mat fmiddle, fout;
+
+  for (size_t epoch=0; epoch<MAX_EPOCH; ++epoch) {
+    Batches batches(batchSize, nTrain);
+    for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
+      mat fin = train.getX(*itr);
+
+      cnn.feedForward(fmiddle, fin);
+      dnn.feedForward(fout, fmiddle);
+
+      // matlog(fmiddle);
+      // matlog(fout);
+      mat error = getError( train.getY(*itr), fout, errorMeasure);
+      // matlog(error);
+
+      dnn.backPropagate(error, fmiddle, fout, 1.0f / itr->nData );
+      // matlog(error);
+      cnn.backPropagate(error, fin, fmiddle, 1);
+      // matlog(error);
+      // exit(-1);
+    }
+
+    size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),
+	   Eout = cnn_predict(dnn, cnn, valid, errorMeasure);
+
+    float trainAcc = 1.0f - (float) Ein / nTrain;
+    float validAcc = 1.0f - (float) Eout / nValid;
+    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
+      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid); 
+  }
+
+  timer.elapsed();
+  printf("# of total epoch = %lu\n", MAX_EPOCH);
+}
+
 vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim) {
 
   auto dims = splitAsInt(structure, '-');
@@ -128,45 +173,6 @@ vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim
 
   CCE(cudaDeviceSynchronize());
   return weights;
-}
-
-void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
-    size_t batchSize, ERROR_MEASURE errorMeasure) {
-
-  perf::Timer timer;
-  timer.start();
-
-  const size_t MAX_EPOCH = 10;
-  size_t nTrain = train.size(),
-	 nValid = valid.size();
-
-  mat fmiddle, fout;
-
-  for (size_t epoch=0; epoch<MAX_EPOCH; ++epoch) {
-    Batches batches(batchSize, nTrain);
-    for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
-      mat fin = train.getX(*itr);
-      cnn.feedForward(fmiddle, fin);
-
-      dnn.feedForward(fout, fmiddle);
-
-      mat error = getError( train.getY(*itr), fout, errorMeasure);
-
-      dnn.backPropagate(error, fmiddle, fout, 1.0f / itr->nData );
-      cnn.backPropagate(error, fin, fmiddle, 1);
-    }
-
-    size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),
-	   Eout = cnn_predict(dnn, cnn, valid, errorMeasure);
-
-    float trainAcc = 1.0f - (float) Ein / nTrain;
-    float validAcc = 1.0f - (float) Eout / nValid;
-    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
-      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid); 
-  }
-
-  timer.elapsed();
-  printf("# of total epoch = %lu\n", MAX_EPOCH);
 }
 
 size_t cnn_predict(const DNN& dnn, CNN& cnn, const DataSet& data,

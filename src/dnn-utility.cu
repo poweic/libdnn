@@ -46,7 +46,13 @@ __global__ void rand_kernel(float* const data, curandState* globalState, unsigne
 }
 
 mat randn(int m, int n) {
-  static CURAND_STATE state(0);
+
+  // Use ext::randn (which is set to seed 0) to debug.
+  mat x(m, n);
+  ext::randn(x);
+  return x;
+
+  /*static CURAND_STATE state();
 
   mat x(m, n);
 
@@ -54,11 +60,17 @@ mat randn(int m, int n) {
   rand_kernel<get_curand_normal><<<grids, threads>>>(x.getData(), state.get(), m, n);
   CCE(cudaDeviceSynchronize());
 
-  return x;
+  return x;*/
 }
 
 mat rand(int m, int n) {
-  static CURAND_STATE state;
+
+  // Use ext::rand (which is set to seed 0) to debug.
+  mat x(m, n);
+  ext::rand(x);
+  return x;
+
+  /*static CURAND_STATE state();
 
   mat x(m, n);
 
@@ -66,7 +78,7 @@ mat rand(int m, int n) {
   rand_kernel<get_curand_uniform><<<grids, threads>>>(x.getData(), state.get(), m, n);
   CCE(cudaDeviceSynchronize());
 
-  return x;
+  return x;*/
 }
 
 

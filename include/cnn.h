@@ -7,8 +7,8 @@
 class MIMOFeatureTransform {
 public:
 
-  MIMOFeatureTransform(size_t n, size_t m):
-    _n_input_maps(n), _n_output_maps(m) {}
+  MIMOFeatureTransform(size_t n_input_maps, size_t n_output_maps):
+    _n_input_maps(n_input_maps), _n_output_maps(n_output_maps) {}
 
   virtual void feedForward(vector<mat>& fouts, const vector<mat>& fins) = 0;
   virtual void feedBackward(vector<mat>& errors, const vector<mat>& deltas) = 0;
