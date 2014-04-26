@@ -46,7 +46,7 @@ __global__ void rand_kernel(float* const data, curandState* globalState, unsigne
 }
 
 mat randn(int m, int n) {
-  static CURAND_STATE state;
+  static CURAND_STATE state(0);
 
   mat x(m, n);
 
@@ -139,16 +139,20 @@ __global__ void dcrossentropy_kernel(float* error, float* const target, float* c
 
 void dCrossEntropy(mat& error, const mat &target, const mat& output) {
 
-  ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
+  assert(error.getRows() == output.getRows() && error.getCols() == output.getCols());
 
-  dcrossentropy_kernel<<< grids, threads >>>(error.getData(), target.getData(), output.getData(), output.getRows(), output.getCols());
+  ALLOCATE_GRIDS_AND_THREADS(error.getRows(), error.getCols());
+
+  dcrossentropy_kernel<<< grids, threads >>>(
+      error.getData(), target.getData(), output.getData(),
+      error.getRows(), error.getCols());
 
   CCE(cudaDeviceSynchronize());
 }
 
 mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
 
-  mat error;
+  mat error(output.getRows(), output.getCols());
 
   switch (errorMeasure) {
     case L2ERROR: 
@@ -159,8 +163,6 @@ mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
 
       break;
     case CROSS_ENTROPY:
-
-      error.resize(output.getRows(), output.getCols() + 1);
 
       dCrossEntropy(error, target, output);
 

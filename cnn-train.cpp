@@ -7,7 +7,6 @@
 #include <dnn.h>
 #include <cnn.h>
 
-SIZE parseInputDimension(const string &m_by_n);
 vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim);
 
 size_t cnn_predict(const DNN& dnn, CNN& cnn, const DataSet& data,
@@ -35,6 +34,7 @@ int main(int argc, char* argv[]) {
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
 	"2 -- Normalize to standard score. z = (x-u)/sigma ."
 	"filename -- Read mean and variance from file", "0")
+     .add("--base", "Label id starts from 0 or 1 ?", "0")
      .add("--output-dim", "specify the output dimension (the # of class to predict).\n");
 
   cmd.addGroup("Network structure:")
@@ -62,6 +62,7 @@ int main(int argc, char* argv[]) {
 
   string input_dim  = cmd["--input-dim"];
   string n_type	    = cmd["--normalize"];
+  int base	    = cmd["--base"];
   string structure  = cmd["--struct"];
   size_t output_dim = cmd["--output-dim"];
 
@@ -75,7 +76,8 @@ int main(int argc, char* argv[]) {
   // Load dataset
   DataSet data(train_fn, imgSize.m * imgSize.n);
   data.normalize(n_type);
-  data.shuffle();
+  data.checkLabelBase(base);
+  // data.shuffle();
   data.showSummary();
 
   DataSet train, valid;
@@ -99,7 +101,7 @@ int main(int argc, char* argv[]) {
   // Show CNN status
   cnn.status();
 
-  cnn_train(dnn, cnn, train, valid, batchSize, CROSS_ENTROPY);
+  cnn_train(dnn, cnn, data/*train*/, valid, batchSize, CROSS_ENTROPY);
 
   if (model_out.empty())
     model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
@@ -111,17 +113,22 @@ int main(int argc, char* argv[]) {
 
 vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim) {
 
+  cout << "structure = " << structure << endl;
+
   auto dims = splitAsInt(structure, '-');
   dims.push_back(output_dim);
   dims.insert(dims.begin(), input_dim);
   for (size_t i=0; i<dims.size(); ++i)
     dims[i] += 1;
 
+  for (size_t i=0; i<dims.size(); ++i)
+    printf("dims[%lu] = %lu\n", i, dims[i]);
+
   size_t nWeights = dims.size() - 1;
   vector<mat> weights(nWeights);
 
   for (size_t i=0; i<nWeights; ++i) {
-    weights[i] = randn(dims[i], dims[i+1]);
+    weights[i] = mat("w.mat");// randn(dims[i], dims[i+1]);
     printf("Initialize a weights[%lu] using randn(%lu, %lu)\n", i, dims[i], dims[i+1]);
   }
 
@@ -146,12 +153,13 @@ void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
       mat fin = train.getX(*itr);
       cnn.feedForward(fmiddle, fin);
+
       dnn.feedForward(fout, fmiddle);
 
       mat error = getError( train.getY(*itr), fout, errorMeasure);
 
-      dnn.backPropagate(error, fmiddle, fout, 0.1);
-      cnn.backPropagate(error, fin, fmiddle, 0.1);
+      dnn.backPropagate(error, fmiddle, fout, 1.0f / itr->nData );
+      cnn.backPropagate(error, fin, fmiddle, 1);
     }
 
     size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),

@@ -149,6 +149,7 @@ void Sigmoid::feedForward(mat& fout, const mat& fin) {
 }
 
 void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+
   mat delta = error & (1.0f - fout) & fout;
   this->feedBackward(error, delta);
   gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);

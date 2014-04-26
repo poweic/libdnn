@@ -16,7 +16,7 @@
 void parseNetworkStructure(const string &structure,
     string& cnn_struct, string& nn_struct) {
 
-  // printf("    structure: %s\n", structure.c_str());
+  //printf("    structure: %s\n", structure.c_str());
 
   // the network structure 
   int pos_of_s = structure.find_last_of("s"),	// sub-sampling layer
@@ -25,10 +25,14 @@ void parseNetworkStructure(const string &structure,
   size_t pos = structure.find("-", max(pos_of_s, pos_of_x));
 
   cnn_struct = structure.substr(0, pos);
-  nn_struct  = structure.substr(pos+1);
 
-  // printf("CNN structure: %s\n", cnn_struct.c_str());
-  // printf("NN  structure: %s\n", nn_struct.c_str());
+  if (pos == string::npos)
+    nn_struct = "";
+  else
+    nn_struct  = structure.substr(pos+1);
+
+  //printf("CNN structure: %s\n", cnn_struct.c_str());
+  //printf("NN  structure: %s\n", nn_struct.c_str());
 }
 
 int str2int(const std::string &s) {
