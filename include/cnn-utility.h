@@ -29,6 +29,8 @@ struct SIZE {
   }
 };
 
+mat batch_convn(const mat& data, const mat& kernel, SIZE s, string type);
+
 void gogo();
 
 mat gaussian_kernel(int h, int w);
@@ -65,3 +67,4 @@ void test_convn(string type);
 void test_valid_shm_vs_valid();
 void test_reshape_images_between_vectors();
 void benchmark_valid_and_valid_shm();
+void benchmark_batch_convn();

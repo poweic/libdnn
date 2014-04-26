@@ -100,9 +100,17 @@ SIZE parseInputDimension(const string &m_by_n) {
 
 #define OUT_OF_BOUNDARY { printf("\33[31mACCESS OUT OF BOUNDARY\33[0m\n"); }
 
-__global__ void convn_valid_kernel_with_shm(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_valid_kernel_with_shm(float *output, const float *data,
+  float *kernel, const int H, const int W, const int kH, const int kW) { 
+
+  // vH, vW stands for valid H and valid W
+  const int vH = H - kH + 1, vW = W - kW + 1;
+
   int tx = threadIdx.x;	  /* tx = 0 ~ 31 */
   int ty = threadIdx.y;	  /* ty = 0 ~ 31 */
+
+  data += blockIdx.z * H * W;
+  output += blockIdx.z * vH * vW;
 
   int x0 = blockIdx.x*blockDim.x;
   int y0 = blockIdx.y*blockDim.y;
@@ -147,8 +155,6 @@ __global__ void convn_valid_kernel_with_shm(float *output, float *data, float *k
     for(int j = 0; j < kH; ++j)
       sum += K[ i * kH + j ] * D[ (tx + i) * h_step + (ty + j) ]; 
 
-  // vH, vW stands for valid H and valid W
-  const int vH = H - kH + 1, vW = W - kW + 1;
   if (x < vW && y < vH)
     output[ x * vH + y ] = sum;
 } 
@@ -269,6 +275,46 @@ SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
     throw std::runtime_error("No such type of convolution");
 }
 
+/* \brief compute convolution of a batch of data with a kernel.
+ * \param data a batch of data, where the batch-size equals to data.getCols()
+ * \param kernel the convolutional kernel (i.e. system's impulse response)
+ * \param s size of a datum. That is, s.m * s.n = data.getRows()
+ * \param type type of convolution. Either "full", "same", or "valid"
+ * */
+mat batch_convn(const mat& data, const mat& kernel, SIZE s, string type) {
+
+  int H = s.m,
+      W = s.n,
+      kH = kernel.getRows(),
+      kW = kernel.getCols(),
+      vH = H - kH + 1,
+      vW = W - kW + 1;
+
+  int N = data.getCols();
+
+  mat output(vH * vW, N);
+
+  ALLOCATE_GRIDS_AND_THREADS(vH, vW);
+  grids.z = N;
+  
+  printf("grids: %lu x %lu x %lu\t", grids.x, grids.y, grids.z);
+
+  size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+  if (SHM_SIZE > 16 * 1024)
+    clog << "\33[35m[Warning]\33[0m Potential excess of Maximum shared memory" << endl;
+
+  convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
+      output.getData(),
+      data.getData(),
+      kernel.getData(),
+      H, W, kH, kW);
+
+  CCE(cudaPeekAtLastError());
+  CCE(cudaDeviceSynchronize());
+
+  return output;
+}
+
 mat convn(const mat& data, const mat& kernel, string type) {
 
   const size_t N_STREAM = 4;
@@ -339,6 +385,7 @@ mat convn(const mat& data, const mat& kernel, string type) {
 	H, W, kH, kW);
   }
 
+  CCE(cudaPeekAtLastError());
   CCE(cudaDeviceSynchronize());
   
   return output;
@@ -678,3 +725,59 @@ void benchmark_valid_and_valid_shm() {
     printf("\n");
   }
 }
+
+void benchmark_batch_convn() {
+
+  // Achieve 3.98x speed up for batch size 128, 3.41x speed up for batch size 32
+  const size_t N = 100;
+
+  perf::Timer timer1, timer2;
+
+  for (size_t i=0; i<N; ++i) {
+    int nImages = 128;
+    int m = rand() % 17 + 23;
+    int n = rand() % 13 + 27;
+    int kh = 5 + rand() % 2; // rand() % 22 + 4;
+    int kw = 5 + rand() % 2; // rand() % 22 + 8;
+
+    SIZE s(m, n);
+    mat X = randn(m * n, nImages);
+    mat kernel = randn(kh, kw);
+
+    // Slow method
+    timer1.start();
+    vector<mat> images = reshapeVectors2Images(X, s);
+    vector<mat> z_golds(nImages);
+
+    for (int i=0; i<nImages; ++i)
+      z_golds[i] = convn(images[i], kernel, "valid_shm");
+
+    mat z_gold = reshapeImages2Vectors(z_golds);
+    timer1.stop();
+
+    // Fast method
+    timer2.start();
+    mat z = batch_convn(X, kernel, s, "valid_shm");
+    timer2.stop();
+
+    printf("# of images = %3d, images size: %3d x %-3d, kernel: %3d x %-3d\t", 
+	nImages, m, n, kh, kw);
+
+    if (z.getRows() == z_gold.getRows() && z.getCols() == z_gold.getCols()) {
+      float l2norm = nrm2(z - z_gold) / nrm2(z_gold) / 2;
+      printf("L2norm = %.7e\t", l2norm);
+      if (l2norm < 1e-6)
+	printf("\33[32m[PASSED]\33[0m\n");
+      else
+	printf("\33[31m[FAILED]\33[0m\n");
+    }
+    else
+	printf("\33[35m[DIMENSION MISMATCH]\33[0m\n");
+  }
+
+  float t1 = timer1.getTime(),
+	t2 = timer2.getTime();
+
+  printf("%.4f => %.4f. %.4f x speed up !!\n", t1, t2, t1 / t2);
+}
+
