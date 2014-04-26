@@ -282,7 +282,6 @@ mat convn(const mat& data, const mat& kernel, string type) {
       cudaStreamCreate ( &streams[i] );
   }
 
-
   int H = data.getRows(),
       W = data.getCols(),
       kH = kernel.getRows(),
@@ -319,12 +318,9 @@ mat convn(const mat& data, const mat& kernel, string type) {
     /* For a data of size 48 x 48 and kernel of size 8 x 8, using shared memory
        can speed up to 4x */
 
-    // throw std::runtime_error(RED_ERROR + "This function is NOT good for some reason. \33[33mDO NOT USE IT\33[0m");
-
     SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
     if (SHM_SIZE > 16 * 1024)
       clog << "\33[35m[Warning]\33[0m Potential excess of Maximum shared memory" << endl;
-    // printf("Shared memory size = %lu Bytes (i.e. %f KBytes)\n", SHM_SIZE, (float) SHM_SIZE / 1024);
 
     const int vH = H - kH + 1, vW = W - kW + 1;
     assert(vH == output.getRows() && vW == output.getCols());
@@ -343,19 +339,7 @@ mat convn(const mat& data, const mat& kernel, string type) {
 	H, W, kH, kW);
   }
 
-  cudaError_t e = cudaDeviceSynchronize();
-  if (e != cudaSuccess) {
-
-    printf("type = %s\n", type.c_str());
-    printf("output: "); output.status();
-    printf("data: ");	data.status();
-    printf("kernel: "); kernel.status();
-
-    printf("H = %lu, W = %lu, kH = %lu, kW = %lu\n", H, W, kH, kW);
-    printf("SHM_SIZE = %lu\n", SHM_SIZE);
-
-    CCE(e);
-  }
+  CCE(cudaDeviceSynchronize());
   
   return output;
 }
@@ -379,11 +363,8 @@ vector<mat> de_concat(const mat& big, int N) {
   for (int i=0; i<N; ++i) {
     smalls[i].resize(s.m, s.n);
     memcpy2D(smalls[i], big, i * s.m, 0, s.m, s.n, 0, 0);
-    /*CCE(cudaMemcpy(smalls[i].getData(),
-		   big.getData() + i * MAP_SIZE,
-	  	   sizeof(float) * MAP_SIZE,
-	  	   cudaMemcpyDeviceToDevice));*/
   }
+
   CCE(cudaDeviceSynchronize());
 
   return smalls;
@@ -398,13 +379,8 @@ mat concat(const vector<mat>& smalls) {
 
   int MAP_SIZE = smalls[0].size();
 
-  for (int i=0; i<nFeatures; ++i) {
+  for (int i=0; i<nFeatures; ++i)
     memcpy2D(big, smalls[i], 0, 0, img_size, batchSize, i * img_size, 0);
-    /*CCE(cudaMemcpy(big.getData() + i * MAP_SIZE,
-		   smalls[i].getData(),
-		   sizeof(float) * MAP_SIZE,
-		   cudaMemcpyDeviceToDevice));*/
-  }
 
   CCE(cudaDeviceSynchronize());
 

@@ -96,12 +96,11 @@ int main(int argc, char* argv[]) {
 
   DNN dnn;
   dnn.init(getRandWeights(cnn.getOutputDimension(), nn_struct, output_dim));
-  // dnn.init(getRandWeights(imgSize.m * imgSize.n, nn_struct, output_dim));
 
   // Show CNN status
   cnn.status();
 
-  cnn_train(dnn, cnn, data/*train*/, valid, batchSize, CROSS_ENTROPY);
+  cnn_train(dnn, cnn, train, valid, batchSize, CROSS_ENTROPY);
 
   if (model_out.empty())
     model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
@@ -113,22 +112,17 @@ int main(int argc, char* argv[]) {
 
 vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim) {
 
-  cout << "structure = " << structure << endl;
-
   auto dims = splitAsInt(structure, '-');
   dims.push_back(output_dim);
   dims.insert(dims.begin(), input_dim);
   for (size_t i=0; i<dims.size(); ++i)
     dims[i] += 1;
 
-  for (size_t i=0; i<dims.size(); ++i)
-    printf("dims[%lu] = %lu\n", i, dims[i]);
-
   size_t nWeights = dims.size() - 1;
   vector<mat> weights(nWeights);
 
   for (size_t i=0; i<nWeights; ++i) {
-    weights[i] = mat("w.mat");// randn(dims[i], dims[i+1]);
+    weights[i] = randn(dims[i], dims[i+1]);
     printf("Initialize a weights[%lu] using randn(%lu, %lu)\n", i, dims[i], dims[i+1]);
   }
 
@@ -142,7 +136,7 @@ void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
   perf::Timer timer;
   timer.start();
 
-  const size_t MAX_EPOCH = 1024;
+  const size_t MAX_EPOCH = 10;
   size_t nTrain = train.size(),
 	 nValid = valid.size();
 

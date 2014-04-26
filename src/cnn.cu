@@ -176,9 +176,8 @@ ConvolutionalLayer::ConvolutionalLayer(size_t n, size_t m, int h, int w)
   for (size_t i=0; i<n; ++i) {
     _kernels[i].resize(m);
     for (size_t j=0; j<m; ++j) {
-      _kernels[i][j] = mat("k" + to_string(++counter) + ".mat");
-      // _kernels[i][j] = randn(h, w);
-      // matlog(_kernels[i][j]);
+      // _kernels[i][j] = mat("k" + to_string(++counter) + ".mat");
+      _kernels[i][j] = randn(h, w);
     }
   }
 
@@ -254,17 +253,9 @@ void ConvolutionalLayer::feedBackward(
   SIZE s = this->get_input_img_size();
   size_t batch_size = deltas[0].getCols();
 
-  /* ... DEBUG CODES BEGIN HERE ... */
-  /*errors.resize(nInputs);
-  for (int i=0; i<nInputs; ++i)
-    errors[i].resize(s.m * s.n, batch_size);
-  return;*/
-  /* ... DEBUG CODES  END  HERE ... */
-
   vector<vector<mat> > oImgs(nOutputs), iImgs(nInputs);
   for (size_t j=0; j<nOutputs; ++j)
     oImgs[j] = reshapeVectors2Images(deltas[j], this->get_output_img_size());
-
 
   for (size_t i=0; i<nInputs; ++i)
     iImgs[i].resize(batch_size);
@@ -273,16 +264,8 @@ void ConvolutionalLayer::feedBackward(
   for (size_t k=0; k<batch_size; ++k) {
     for (size_t i=0; i<nInputs; ++i) {
       iImgs[i][k].resize(s.m, s.n, 0);
-      for (size_t j=0; j<nOutputs; ++j) {
-	/*matlog(oImgs[j][k]);
-	matlog(_kernels[i][j]);
-	matlog(rot180(_kernels[i][j]));
-	matlog(convn(oImgs[j][k], rot180(_kernels[i][j]), "full"));
-	matlog(iImgs[i][k]);*/
+      for (size_t j=0; j<nOutputs; ++j)
 	iImgs[i][k] += convn(oImgs[j][k], rot180(_kernels[i][j]), "full");
-	/*matlog(iImgs[i][k]);
-	PAUSE;*/
-      }
     }
   }
 
@@ -336,28 +319,16 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
   assert(learning_rate > 0);
   float lr = learning_rate / batch_size;
 
-  matlog(_kernels[0][0]);
   // Update kernels with learning rate
   for (size_t k=0; k<batch_size; ++k) {
     for (size_t j=0; j<nOutputs; ++j) {
 
-      for (size_t i=0; i<nInputs; ++i) {
-
-	/*matlog(iImgs[i][k]);
-	matlog(oImgs[j][k]);
-	matlog(rot180(iImgs[i][k]));
-	matlog(convn(rot180(iImgs[i][k]), oImgs[j][k], "valid"));*/
-
+      for (size_t i=0; i<nInputs; ++i)
 	_kernels[i][j] -= convn(rot180(iImgs[i][k]), oImgs[j][k], "valid") * lr;
-      }
 
       _bias[j] -= sum_all(oImgs[j][k]) * lr;
     }
   }
-
-  matlog(_kernels[0][0]);
-  PAUSE;
-  
 }
 
 void ConvolutionalLayer::status() const {
@@ -408,12 +379,8 @@ void SubSamplingLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) 
 
   for (size_t i=0; i<N; ++i) {
     oImgs[i].resize(batch_size);
-    for (size_t k=0; k<batch_size; ++k) {
-      // printf("iImgs[%lu][%lu] = [\n", i, k); iImgs[i][k].print(); printf("]\n");
+    for (size_t k=0; k<batch_size; ++k)
       oImgs[i][k] = downsample(iImgs[i][k], _scale);
-      // printf("oImgs[%lu][%lu] = [\n", i, k); oImgs[i][k].print(); printf("]\n");
-      // PAUSE;
-    }
   }
 
   if (fouts.size() != N)
@@ -429,13 +396,6 @@ void SubSamplingLayer::feedBackward(
   // Since nInputs == nOutputs for subsampling layer, I just use N.
   size_t N = deltas.size();
   size_t batch_size = deltas[0].getCols();
-
-  /* ... DEBUG CODES BEGIN HERE ... */
-  /*errors.resize(N);
-  for (int i=0; i<N; ++i)
-    errors[i].resize(_input_img_size.m * _input_img_size.n, batch_size);
-  return;*/
-  /* ... DEBUG CODES  END  HERE ... */
 
   vector<vector<mat> > oImgs(N), iImgs(N);
   for (size_t i=0; i<N; ++i)
