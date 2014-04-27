@@ -56,6 +56,9 @@ __global__ void setupCuRandState( curandState * state, unsigned long seed );
 mat randn(int m, int n);
 mat rand(int m, int n);
 
+inline mat zeros(int m, int n) { return mat(m, n, 0); }
+inline mat ones(int m, int n) { return mat(m, n, 1); }
+
 vector<float> copyToHost(const mat& m);
 size_t countDifference(const mat& m1, const mat& m2);
 

@@ -296,6 +296,9 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
 
   this->feedBackward(errors, deltas);
 
+  assert(learning_rate > 0);
+  float lr = learning_rate / batch_size;
+
   // iImgs represents the input images.
   // oImgs represents the output images. (Before sigmoid or any other activation function)
   vector<vector<mat> > iImgs(nInputs), oImgs(nOutputs);
@@ -306,15 +309,12 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
   for (size_t j=0; j<nOutputs; ++j)
     oImgs[j] = reshapeVectors2Images(deltas[j], this->get_output_img_size());
 
-  assert(learning_rate > 0);
-  float lr = learning_rate / batch_size;
-
   // Update kernels with learning rate
   for (size_t k=0; k<batch_size; ++k) {
     for (size_t j=0; j<nOutputs; ++j) {
 
       for (size_t i=0; i<nInputs; ++i)
-	_kernels[i][j] -= convn(rot180(iImgs[i][k]), oImgs[j][k], "valid") * lr;
+	_kernels[i][j] -= convn(rot180(iImgs[i][k]), oImgs[j][k], "valid_shm") * lr;
 
       _bias[j] -= sum_all(oImgs[j][k]) * lr;
     }

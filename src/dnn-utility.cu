@@ -81,7 +81,6 @@ mat rand(int m, int n) {
   return x;*/
 }
 
-
 map<int, int> getLabelMapping(const hmat& labels) {
   map<int, int> classes;
   for (size_t i=0; i<labels.size(); ++i)

@@ -1,6 +1,7 @@
 #include <cnn-utility.h>
 #include <cuda_profiler_api.h>
 #define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
+#define MAX_SHARED_MEMORY_SIZE (48 * 1024)
 
 void gogo() {
 
@@ -124,13 +125,14 @@ __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
   extern __shared__ float K[];
   float* D = K + kW * kH;
 
+  // Copy kernel in global memory to shared memory
+  int nTotal = kW * kH;
   int avgToLoad = (kW * kH) / nThreads + 1;
 
-  // Copy kernel in global memory to shared memory
   for (int i=0; i<avgToLoad; ++i) {
     int id = tid + i * nThreads;
 
-    if (id >= kW * kH) break;
+    if (id >= nTotal) break;
 
     int xx = id / kH,
 	yy = id % kH;
@@ -144,7 +146,7 @@ __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
   int w_step = blockDim.x + kW - 1,
       h_step = blockDim.y + kH - 1;
 
-  int nTotal = w_step * h_step;
+  nTotal = w_step * h_step;
   avgToLoad  = nTotal / nThreads + 1;
 
   for (int i=0; i<avgToLoad; ++i) {
@@ -310,10 +312,26 @@ mat convn(const mat& data, const mat& kernel, SIZE s, string type) {
 
   ALLOCATE_GRIDS_AND_THREADS(vH, vW);
   grids.z = N;
-  
+
   size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
-  if (SHM_SIZE > 16 * 1024)
-    clog << "\33[35m[Warning]\33[0m Potential excess of Maximum shared memory" << endl;
+
+  while ( SHM_SIZE > MAX_SHARED_MEMORY_SIZE && threads.x * threads.y >= 32 ) {
+    if ( threads.x >= threads.y ) {
+      threads.x /= 2;
+      grids.x *= 2;
+    }
+    else {
+      threads.y /= 2;
+      grids.y *= 2;
+    }
+
+    SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+  }
+
+  cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
+
+  if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE)
+    throw std::runtime_error(RED_ERROR + "Exceeds maximum shared memory available.");
 
   convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
       output.getData(),
@@ -373,7 +391,6 @@ mat convn(const mat& data, const mat& kernel, string type) {
   else if (type == "valid_shm") {
     /* For a data of size 48 x 48 and kernel of size 8 x 8, using shared memory
        can speed up to 4x */
-    const size_t MAX_SHARED_MEMORY_SIZE = 48 * 1024;
 
     size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
     
@@ -392,7 +409,7 @@ mat convn(const mat& data, const mat& kernel, string type) {
 
     cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
-    if (SHM_SIZE > 48 * 1024)
+    if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE)
       throw std::runtime_error(RED_ERROR + "Exceeds maximum shared memory available.");
     
     const int vH = H - kH + 1, vW = W - kW + 1;
