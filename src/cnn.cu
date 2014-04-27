@@ -251,7 +251,6 @@ void ConvolutionalLayer::feedBackward(
   for (size_t i=0; i<nInputs; ++i)
     iImgs[i].resize(batch_size);
 
-  // FIXME beware that upsample may NOT be able to get back to original size
   for (size_t k=0; k<batch_size; ++k) {
     for (size_t i=0; i<nInputs; ++i) {
       iImgs[i][k].resize(s.m, s.n, 0);
@@ -375,31 +374,17 @@ void SubSamplingLayer::feedBackward(
 
   // Since nInputs == nOutputs for subsampling layer, I just use N.
   size_t N = deltas.size();
-  size_t batch_size = deltas[0].getCols();
-
-  vector<vector<mat> > oImgs(N), iImgs(N);
-  for (size_t i=0; i<N; ++i)
-    oImgs[i] = reshapeVectors2Images(deltas[i], this->get_output_img_size());
-
-  // FIXME beware that upsample may NOT be able to get back to original size
-  for (size_t i=0; i<N; ++i) {
-    iImgs[i].resize(batch_size);
-    for (size_t k=0; k<batch_size; ++k)
-      iImgs[i][k] = upsample(oImgs[i][k], _input_img_size) / (_scale * _scale);
-  }
 
   if (errors.size() != N)
     errors.resize(N);
 
-  for (size_t j=0; j<N; ++j)
-    errors[j] = reshapeImages2Vectors(iImgs[j]);
+  for (size_t i=0; i<N; ++i)
+    errors[i] = upsample(deltas[i], _input_img_size, this->get_output_img_size()) / (_scale * _scale);
 }
 
 void SubSamplingLayer::backPropagate(vector<mat>& errors, const vector<mat>& fins,
     const vector<mat>& fouts, float learning_rate) {
 
   // Copy errors element by element to deltas
-  vector<mat> deltas(errors);
-
-  this->feedBackward(errors, deltas);
+  this->feedBackward(errors, errors);
 }

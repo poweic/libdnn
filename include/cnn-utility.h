@@ -55,8 +55,10 @@ mat concat(const vector<mat>& smalls);
 mat downsample(const mat& x, size_t scale);
 mat downsample(const mat& x, size_t scale, SIZE s);
 // mat upsample(const mat& x, size_t scale, SIZE s = SIZE(0,0) );
-mat upsample(const mat& x, size_t scale);
+
+mat upsample(const mat& x, SIZE s, SIZE img);
 mat upsample(const mat& x, SIZE s);
+mat upsample(const mat& x, size_t scale);
 
 mat rot180(const mat& x);
 float sum_all(const mat& x);

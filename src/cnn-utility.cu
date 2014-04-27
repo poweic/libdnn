@@ -472,6 +472,9 @@ __global__ void upsample_kernel(float *dst, float *src, int h, int w, int H, int
   int x = blockIdx.x*blockDim.x + tx;
   int y = blockIdx.y*blockDim.y + ty;
 
+  src += blockIdx.z * h * w;
+  dst += blockIdx.z * H * W;
+
   int scale = H / h;
 
   if (x >= W || y >= H)
@@ -532,6 +535,31 @@ mat downsample(const mat& x, size_t scale) {
 
 mat upsample(const mat& x, size_t scale) {
   return upsample(x, SIZE(x.getRows() * scale, x.getCols() * scale));
+}
+
+mat upsample(const mat& x, SIZE s, SIZE img) {
+
+  int batch_size = x.getCols();
+  int H = s.m, 
+      W = s.n,
+      h = img.m,
+      w = img.n;
+
+  if ( x.getRows() != img.m * img.n )
+    throw std::runtime_error(DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
+
+  mat output(H * W, batch_size);
+  ALLOCATE_GRIDS_AND_THREADS(H, W);
+  grids.z = batch_size;
+
+  upsample_kernel<<<grids, threads>>>(
+      output.getData(),
+      x.getData(),
+      h, w, H, W);
+
+  CCE(cudaDeviceSynchronize());
+
+  return output;
 }
 
 mat upsample(const mat& x, SIZE s) {
