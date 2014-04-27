@@ -229,7 +229,7 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
 
   for (size_t j=0; j<nOutputs; ++j) {
     for (size_t i=0; i<nInputs; ++i)
-      fouts[j] += batch_convn(fins[i], _kernels[i][j], _input_img_size, "valid_shm");
+      fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, "valid_shm");
     fouts[j] = sigmoid(fouts[j] + _bias[j]);
   }
 }
@@ -362,23 +362,12 @@ void SubSamplingLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) 
 
   // Since nInputs == nOutputs for subsampling layer, I just use N.
   size_t N = fins.size();
-  size_t batch_size = fins[0].getCols();
-
-  vector<vector<mat> > iImgs(N), oImgs(N);
-  for (size_t i=0; i<N; ++i)
-    iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
-
-  for (size_t i=0; i<N; ++i) {
-    oImgs[i].resize(batch_size);
-    for (size_t k=0; k<batch_size; ++k)
-      oImgs[i][k] = downsample(iImgs[i][k], _scale);
-  }
 
   if (fouts.size() != N)
     fouts.resize(N);
 
-  for (size_t j=0; j<N; ++j)
-    fouts[j] = reshapeImages2Vectors(oImgs[j]);
+  for (size_t i=0; i<N; ++i)
+    fouts[i] = downsample(fins[i], _scale, _input_img_size);
 }
 
 void SubSamplingLayer::feedBackward(

@@ -29,8 +29,6 @@ struct SIZE {
   }
 };
 
-mat batch_convn(const mat& data, const mat& kernel, SIZE s, string type);
-
 void gogo();
 
 mat gaussian_kernel(int h, int w);
@@ -46,6 +44,8 @@ __global__ void upsample_kernel(float *dst, float *src, size_t scale, int H, int
 
 SIZE get_convn_size(SIZE data, SIZE kernel, string type = "full");
 SIZE get_convn_size(const mat& data, const mat& kernel, string type = "full");
+
+mat convn(const mat& data, const mat& kernel, SIZE s, string type);
 mat convn(const mat& data, const mat& kernel, string type = "full");
 // mat xcorrn(const mat& data, const mat& kernel, string type = "full");
 
@@ -53,6 +53,7 @@ vector<mat> de_concat(const mat& concated_features, int n);
 mat concat(const vector<mat>& smalls);
 
 mat downsample(const mat& x, size_t scale);
+mat downsample(const mat& x, size_t scale, SIZE s);
 // mat upsample(const mat& x, size_t scale, SIZE s = SIZE(0,0) );
 mat upsample(const mat& x, size_t scale);
 mat upsample(const mat& x, SIZE s);

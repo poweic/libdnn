@@ -282,7 +282,7 @@ SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
  * \param s size of a datum. That is, s.m * s.n = data.getRows()
  * \param type type of convolution. Either "full", "same", or "valid"
  * */
-mat batch_convn(const mat& data, const mat& kernel, SIZE s, string type) {
+mat convn(const mat& data, const mat& kernel, SIZE s, string type) {
 
   int H = s.m,
       W = s.n,
@@ -447,6 +447,9 @@ __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, i
   int h = H / scale,
       w = W / scale;
 
+  src += blockIdx.z * H * W;
+  dst += blockIdx.z * h * w;
+
   if (x >= w || y >= h)
     return;
 
@@ -481,17 +484,46 @@ __global__ void upsample_kernel(float *dst, float *src, int h, int w, int H, int
   dst[x * H + y] = src[sx * h + sy];
 }
 
-mat downsample(const mat& x, size_t scale) {
-  mat output(x.getRows() / scale, x.getCols() / scale);
+mat downsample(const mat& x, size_t scale, SIZE s) {
+  int batch_size = x.getCols();
 
-  ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
+  int H = s.m,
+      W = s.n,
+      h = H / scale,
+      w = W / scale;
+
+  if ( x.getRows() != H * W )
+    throw std::runtime_error(DEBUG_STR(x.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
+
+  mat output(h * w, batch_size);
+
+  ALLOCATE_GRIDS_AND_THREADS(h, w);
+  grids.z = batch_size;
 
   downsample_kernel<<<grids, threads>>>(
       output.getData(),
       x.getData(),
-      scale,
-      x.getRows(),
-      x.getCols());
+      scale, H, W);
+
+  CCE(cudaDeviceSynchronize());
+
+  return output;
+}
+
+mat downsample(const mat& x, size_t scale) {
+  int H = x.getRows(),
+      W = x.getCols(),
+      h = H / scale,
+      w = W / scale;
+
+  mat output(h, w);
+
+  ALLOCATE_GRIDS_AND_THREADS(h, w);
+
+  downsample_kernel<<<grids, threads>>>(
+      output.getData(),
+      x.getData(),
+      scale, H, W);
 
   CCE(cudaDeviceSynchronize());
 
@@ -759,7 +791,7 @@ void benchmark_batch_convn() {
 
     // Fast method
     timer2.start();
-    mat z = batch_convn(X, kernel, s, "valid_shm");
+    mat z = convn(X, kernel, s, "valid_shm");
     timer2.stop();
 
     printf("# of images = %3d, images size: %3d x %-3d, kernel: %3d x %-3d\t", 

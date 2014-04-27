@@ -130,16 +130,16 @@ void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
       cnn.feedForward(fmiddle, fin);
       dnn.feedForward(fout, fmiddle);
 
-      // matlog(fmiddle);
-      // matlog(fout);
+      matlog(fmiddle);
+      matlog(fout);
       mat error = getError( train.getY(*itr), fout, errorMeasure);
-      // matlog(error);
+      matlog(error);
 
       dnn.backPropagate(error, fmiddle, fout, 1.0f / itr->nData );
-      // matlog(error);
+      matlog(error);
       cnn.backPropagate(error, fin, fmiddle, 1);
-      // matlog(error);
-      // exit(-1);
+      matlog(error);
+      exit(-1);
     }
 
     size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),
