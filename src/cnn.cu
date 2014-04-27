@@ -21,11 +21,14 @@ CNN::~CNN() {
 void CNN::feedForward(mat& fout, const mat& fin) {
 
   // First 1st layer of CNN MUST have only 1 input feature map
-  vector<mat> fins;
+  vector<mat> fins(1);
 
   // Transpose the input feature (fin) so that rows = feature dimension, cols =
   // the number of data in a single batch.
-  fins.push_back(~fin);
+  // FIXME the last column in fin is the bias needed ONLY by DNN, not by CNN.
+  fins[0].resize(fin.getRows(), fin.getCols() - 1);
+  memcpy2D(fins[0], fin, 0, 0, fin.getRows(), fin.getCols() - 1, 0, 0);
+  fins[0] = ~fins[0];
 
   // FIXME SubSamplingLayer does NOT need temporary buffer.
   // MAYBE just reserve those for ConvolutionalLayer.
@@ -216,34 +219,19 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
 
   size_t batch_size = fins[0].getCols();
 
-  vector<vector<mat> > iImgs(nInputs), oImgs(nOutputs);
-
   SIZE s = get_output_img_size();
-
-  for (size_t i=0; i<nInputs; ++i)
-    iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
-
-  // Allocate memory and initialize with value 0
-  for (size_t j=0; j<nOutputs; ++j) {
-    oImgs[j].resize(batch_size);
-
-    for (size_t k=0; k<batch_size; ++k)
-      oImgs[j][k].resize(s.m, s.n, 0);
-  }
-
-  for (size_t k=0; k<batch_size; ++k) {
-    for (size_t j=0; j<nOutputs; ++j) {
-      for (size_t i=0; i<nInputs; ++i)
-	oImgs[j][k] += convn(iImgs[i][k], _kernels[i][j], "valid_shm");
-      oImgs[j][k] = sigmoid(oImgs[j][k] + _bias[j]);
-    }
-  }
 
   if (fouts.size() != nOutputs)
     fouts.resize(nOutputs);
 
   for (size_t j=0; j<nOutputs; ++j)
-    fouts[j] = reshapeImages2Vectors(oImgs[j]);
+    fouts[j].resize(s.m * s.n, batch_size, 0);
+
+  for (size_t j=0; j<nOutputs; ++j) {
+    for (size_t i=0; i<nInputs; ++i)
+      fouts[j] += batch_convn(fins[i], _kernels[i][j], _input_img_size, "valid_shm");
+    fouts[j] = sigmoid(fouts[j] + _bias[j]);
+  }
 }
 
 void ConvolutionalLayer::feedBackward(

@@ -1,5 +1,6 @@
 #include <cnn-utility.h>
 #include <cuda_profiler_api.h>
+#define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
 
 void gogo() {
 
@@ -290,6 +291,9 @@ mat batch_convn(const mat& data, const mat& kernel, SIZE s, string type) {
       vH = H - kH + 1,
       vW = W - kW + 1;
 
+  if ( data.getRows() != H * W )
+    throw std::runtime_error(DEBUG_STR(data.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
+
   int N = data.getCols();
 
   mat output(vH * vW, N);
@@ -297,8 +301,6 @@ mat batch_convn(const mat& data, const mat& kernel, SIZE s, string type) {
   ALLOCATE_GRIDS_AND_THREADS(vH, vW);
   grids.z = N;
   
-  printf("grids: %lu x %lu x %lu\t", grids.x, grids.y, grids.z);
-
   size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
   if (SHM_SIZE > 16 * 1024)
     clog << "\33[35m[Warning]\33[0m Potential excess of Maximum shared memory" << endl;
