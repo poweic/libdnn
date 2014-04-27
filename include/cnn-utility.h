@@ -68,6 +68,7 @@ void plotL2normInSemilogy();
 void test_downsample();
 void test_convn(string type);
 void test_valid_shm_vs_valid();
+void test_valid_shm_vs_valid_2();
 void test_reshape_images_between_vectors();
 void benchmark_valid_and_valid_shm();
 void benchmark_batch_convn();

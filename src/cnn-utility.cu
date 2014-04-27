@@ -99,22 +99,24 @@ SIZE parseInputDimension(const string &m_by_n) {
   return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
 }
 
-#define OUT_OF_BOUNDARY { printf("\33[31mACCESS OUT OF BOUNDARY\33[0m\n"); }
-
 __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
   float *kernel, const int H, const int W, const int kH, const int kW) { 
 
   // vH, vW stands for valid H and valid W
   const int vH = H - kH + 1, vW = W - kW + 1;
+  const int nThreads = blockDim.x * blockDim.y;
 
-  int tx = threadIdx.x;	  /* tx = 0 ~ 31 */
-  int ty = threadIdx.y;	  /* ty = 0 ~ 31 */
+  const int tx = threadIdx.x;	  /* tx = 0 ~ 31 */
+  const int ty = threadIdx.y;	  /* ty = 0 ~ 31 */
+
+  const int tid = tx + blockDim.x * ty;
+
+  const int x0 = blockIdx.x * blockDim.x;
+  const int y0 = blockIdx.y * blockDim.y;
 
   data += blockIdx.z * H * W;
   output += blockIdx.z * vH * vW;
 
-  int x0 = blockIdx.x*blockDim.x;
-  int y0 = blockIdx.y*blockDim.y;
   // Matrix index
   int x = x0 + tx;	  /* x = x ~ x + 31 */
   int y = y0 + ty;	  /* y = y ~ y + 31 */
@@ -122,19 +124,28 @@ __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
   extern __shared__ float K[];
   float* D = K + kW * kH;
 
+  int avgToLoad = (kW * kH) / nThreads + 1;
+
   // Copy kernel in global memory to shared memory
-  if (tx < kW && ty < kH)
-    K[(kW - 1 - tx) * kH + (kH - 1 - ty)] = kernel[tx * kH + ty];
+  for (int i=0; i<avgToLoad; ++i) {
+    int id = tid + i * nThreads;
+
+    if (id >= kW * kH) break;
+
+    int xx = id / kH,
+	yy = id % kH;
+
+    if (xx >= kW || yy >= kH) continue;
+
+    K[(kW - 1 - xx) * kH + (kH - 1 - yy)] = kernel[xx * kH + yy];
+  }
 
   // Copy data in global memory to shared memory
-  int nThreads = blockDim.x * blockDim.y;
   int w_step = blockDim.x + kW - 1,
       h_step = blockDim.y + kH - 1;
 
-  int nTotal	=  w_step * h_step;
-  int avgToLoad = nTotal / nThreads + 1;
-
-  int tid = tx * blockDim.y + ty;
+  int nTotal = w_step * h_step;
+  avgToLoad  = nTotal / nThreads + 1;
 
   for (int i=0; i<avgToLoad; ++i) {
     int id = tid + i * nThreads;
@@ -144,8 +155,7 @@ __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
     int xx = id / h_step + x0,
 	yy = id % h_step + y0;
 
-    if (xx >= W || yy >= H)
-      continue;
+    if (xx >= W || yy >= H) continue;
 
     D[id] = data[ xx * H + yy ];
   }
@@ -346,8 +356,6 @@ mat convn(const mat& data, const mat& kernel, string type) {
   cudaStream_t stream = 0;
   counter = (counter + 1) % N_STREAM;
 
-  size_t SHM_SIZE;
-
   if (type == "same") {
     convn_same_kernel<<< grids, threads, 0, stream >>>(
 	output.getData(),
@@ -365,11 +373,28 @@ mat convn(const mat& data, const mat& kernel, string type) {
   else if (type == "valid_shm") {
     /* For a data of size 48 x 48 and kernel of size 8 x 8, using shared memory
        can speed up to 4x */
+    const size_t MAX_SHARED_MEMORY_SIZE = 48 * 1024;
 
-    SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
-    if (SHM_SIZE > 16 * 1024)
-      clog << "\33[35m[Warning]\33[0m Potential excess of Maximum shared memory" << endl;
+    size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+    
+    while ( SHM_SIZE > MAX_SHARED_MEMORY_SIZE && threads.x * threads.y >= 32 ) {
+      if ( threads.x >= threads.y ) {
+	threads.x /= 2;
+	grids.x *= 2;
+      }
+      else {
+	threads.y /= 2;
+	grids.y *= 2;
+      }
 
+      SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+    }
+
+    cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
+
+    if (SHM_SIZE > 48 * 1024)
+      throw std::runtime_error(RED_ERROR + "Exceeds maximum shared memory available.");
+    
     const int vH = H - kH + 1, vW = W - kW + 1;
     assert(vH == output.getRows() && vW == output.getCols());
 
@@ -722,6 +747,31 @@ void test_valid_shm_vs_valid() {
 
   if (all_pass)
     printf("\33[32m !!! Congrats! ALL %lu test cases PASSED !!! \33[0m\n", N);
+}
+
+void test_valid_shm_vs_valid_2() {
+  mat x = randn(200, 200);
+  for (int i=5; i<77; ++i)  {
+    for (int j=5; j<77; ++j) {
+      printf("kernel: %d x %d\t", i, j);
+      mat kernel = randn(i, j);
+
+      mat z1 = convn(x, kernel, "valid_shm");
+      mat z2 = convn(x, kernel, "valid");
+
+      float a = nrm2(z1 - z2),
+	    b = nrm2(z2);
+      float l2error = a / b / 2;
+
+      assert(l2error == l2error);
+      printf("l2error = %.7e / %.7e / 2 = %.7e \t", a, b, l2error);
+      if (l2error > 1e-6)
+	printf("\33[31m[FAILED]\33[0m\n");
+      else
+	printf("\33[32m[PASSED]\33[0m\n");
+      printf("\n");
+    }
+  }
 }
 
 // Unit-testing codes for reshapeImages2Vectors & reshapeVectors2Images
