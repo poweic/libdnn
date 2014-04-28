@@ -266,10 +266,6 @@ size_t DataSet::size() const {
   return _stream.count_lines();
 }
 
-bool DataSet::isLabeled() const {
-  return getLabelMapping(_hy).size() > 1;
-}
-
 void DataSet::showSummary() const {
 
   printf("+--------------------------------+-----------+\n");

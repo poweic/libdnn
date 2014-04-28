@@ -27,6 +27,7 @@ int main (int argc, char* argv[]) {
      .add("--base", "Label id starts from 0 or 1 ?", "0");
 
   cmd.addGroup("Options:")
+    .add("--acc", "calculate prediction accuracy", "true")
     .add("--prob", "output posterior probabilities if true\n"
 	"0 -- Do not output posterior probabilities. Output class-id.\n"
 	"1 -- Output posterior probabilities. (range in [0, 1]) \n"
@@ -49,12 +50,11 @@ int main (int argc, char* argv[]) {
 
   int output_type   = cmd["--prob"];
   bool silent	    = cmd["--silent"];
+  bool calcAcc	    = cmd["--acc"];
 
   DataSet test(test_fn, input_dim, base);
   test.loadPrecomputedStatistics(n_filename);
   test.setNormType(n_type);
-
-  bool hasAnswer = test.isLabeled();
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
@@ -68,10 +68,10 @@ int main (int argc, char* argv[]) {
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     mat prob = dnn.feedForward(test.getX(*itr));
 
-    if (hasAnswer)
+    if (calcAcc && !silent)
       nError += zeroOneError(prob, test.getY(*itr), errorMeasure);
 
-    if (hasAnswer && output_fn.empty() && output_type == 0)
+    if (calcAcc && output_fn.empty() && output_type == 0)
       continue;
 
     switch (output_type) {
@@ -84,7 +84,7 @@ int main (int argc, char* argv[]) {
   if (fid != stdout)
     fclose(fid);
 
-  if (hasAnswer && !silent)
+  if (calcAcc && !silent)
     showAccuracy(nError, test.size());
 
   return 0;
