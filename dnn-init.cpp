@@ -15,7 +15,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "0 for auto detection.", "0")
+	 "0 for auto detection.")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"

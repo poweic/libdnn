@@ -9,15 +9,38 @@
 
 vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim);
 
-size_t cnn_predict(const DNN& dnn, CNN& cnn, const DataSet& data,
+size_t cnn_predict(const DNN& dnn, CNN& cnn, DataSet& data,
     ERROR_MEASURE errorMeasure);
 
-void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
+void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
     size_t batchSize, ERROR_MEASURE errorMeasure);
 
 void cuda_profiling_ground();
 
+void playground() {
+  ifstream fin("test.dat");
+
+  string line;
+  int counter = 0;
+
+  for (int i=0; i<123; ++i) {
+
+    if (!std::getline(fin, line)) {
+      fin.clear();
+      fin.seekg(0);
+      std::getline(fin, line);
+    }
+
+    cout << "#" << counter << ": \t\"" << line << "\"" << endl;
+    ++counter;
+  }
+
+  fin.close();
+}
+
 int main(int argc, char* argv[]) {
+  playground();
+  return 0;
 
   CmdParser cmd(argc, argv);
 
@@ -27,8 +50,7 @@ int main(int argc, char* argv[]) {
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "For example: --input-dim 39x9 \n"
-	 "0 for auto detection.", "0")
+	 "For example: --input-dim 39x9 \n")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
@@ -110,7 +132,7 @@ int main(int argc, char* argv[]) {
   return 0;
 }
 
-void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
+void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
     size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   perf::Timer timer;
@@ -181,7 +203,7 @@ vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim
   return weights;
 }
 
-size_t cnn_predict(const DNN& dnn, CNN& cnn, const DataSet& data,
+size_t cnn_predict(const DNN& dnn, CNN& cnn, DataSet& data,
     ERROR_MEASURE errorMeasure) {
 
   size_t nError = 0;

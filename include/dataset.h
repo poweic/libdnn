@@ -9,10 +9,31 @@ typedef host_matrix<float> hmat;
 
 mat getBatchData(const hmat& data, const Batches::Batch& b);
 
+class DataStream {
+public:
+  DataStream();
+  DataStream(const string& filename, size_t start = 0, size_t end = -1);
+  ~DataStream();
+  size_t count_lines() const;
+
+  void init(const string& filename, size_t start, size_t end);
+
+  string getline();
+  void rewind();
+
+  size_t _nLines;
+  size_t _line_number;
+  string _filename;
+  ifstream _fs;
+  size_t _start, _end;
+};
+
 class DataSet {
 public:
   DataSet();
-  DataSet(const string &fn, size_t dim = 0);
+  DataSet(const string &fn, size_t dim = 0, size_t start = 0, size_t end = -1);
+
+  void set_dimension(size_t dim) { _dim = dim; }
 
   void normalize(const string &type);
   void checkLabelBase(int base);
@@ -28,21 +49,23 @@ public:
   const hmat& getX() const;
   const hmat& getY() const;
 
-  mat getX(const Batches::Batch& b) const;
-  mat getY(const Batches::Batch& b) const;
+  mat getX(const Batches::Batch& b);
+  mat getY(const Batches::Batch& b);
 
   void shuffle();
   void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
 
 private:
 
-  void read(const string &fn);
-  void readSparseFeature(ifstream& fin);
-  void readDenseFeature(ifstream& fin);
+  void readMoreFeature(int N);
+  void readSparseFeature(int N);
+  void readDenseFeature(int N);
 
   void linearScaling(float lower = 0, float upper = 1);
   void normalizeToStandardScore();
   void normalizeToStandardScore(const hmat& mean, const hmat& deviation);
+
+  void set_sparse(bool sparse);
 
   size_t _dim;
 
@@ -74,6 +97,8 @@ private:
    *  in a single batch. This makes memcpy much easier and faster.)
    */
   hmat _hx, _hy;
+  DataStream _stream;
+  bool _sparse;
 };
 
 bool isFileSparse(string train_fn);

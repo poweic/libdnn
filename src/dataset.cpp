@@ -1,5 +1,7 @@
 #include <dataset.h>
 #include <dnn-utility.h>
+#include <thread>
+#include <future>
 
 /*! /brief Get a batch of data. Because of the original ill-design,
  *         the data fed into DNN need tranpose.
@@ -11,6 +13,83 @@
  * # of cols |  # of data in batch |  feature dimension   |
  *
  */
+
+std::ifstream& goToLine(std::ifstream& file, unsigned long num){
+  file.seekg(std::ios::beg);
+  
+  if (num == 0)
+    return file;
+
+  for(size_t i=0; i < num; ++i)
+    file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
+
+  return file;
+}
+
+DataStream::DataStream(): _line_number(0), _start(0), _end(-1) {
+}
+
+DataStream::DataStream(const string& filename, size_t start, size_t end) {
+  this->init(filename, start, end);
+}
+
+DataStream::~DataStream() {
+  _fs.close();
+}
+
+void DataStream::init(const string& filename, size_t start, size_t end) {
+  _filename = filename;
+  _start = start;
+  _end = end;
+  _line_number = _start;
+
+  if (_fs.is_open())
+    _fs.close();
+
+  _fs.open(_filename.c_str());
+
+  if (!_fs.is_open())
+    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + filename);
+
+  std::ifstream fin(_filename.c_str()); 
+  _nLines = std::count(std::istreambuf_iterator<char>(fin), 
+      std::istreambuf_iterator<char>(), '\n');
+  fin.close();
+
+  goToLine(_fs, _start);
+
+  _end = min(_nLines, _end);
+  _nLines = min(_nLines, _end - _start);
+}
+
+string DataStream::getline() {
+  string line;
+
+  // printf("_line_number = %lu, _end = %lu\n", _line_number, _end);
+
+  if ( _line_number >= _end )
+    this->rewind();
+
+  if ( !std::getline(_fs, line) ) {
+    this->rewind();
+    std::getline(_fs, line);
+  }
+
+  ++_line_number;
+
+  return line;
+}
+
+void DataStream::rewind() {
+  _fs.clear();
+  goToLine(_fs, _start);
+  _line_number = _start;
+}
+
+size_t DataStream::count_lines() const {
+  return _nLines;
+}
+
 mat getBatchData(const hmat& data, const Batches::Batch& b) {
   return ~mat(data.getData() + b.offset * data.getRows(), data.getRows(), b.nData);
 }
@@ -18,8 +97,8 @@ mat getBatchData(const hmat& data, const Batches::Batch& b) {
 DataSet::DataSet(): _dim(0) {
 }
 
-DataSet::DataSet(const string &fn, size_t dim): _dim(dim) {
-  this->read(fn);
+DataSet::DataSet(const string &fn, size_t dim, size_t start, size_t end)
+  : _dim(dim), _stream(fn, start, end), _sparse(isFileSparse(fn)) {
 }
 
 void DataSet::normalizeToStandardScore(const hmat& mean, const hmat& deviation) {
@@ -72,6 +151,8 @@ void DataSet::normalizeToStandardScore() {
 
 void DataSet::normalize(const string &type) {
 
+  return;
+
   if (type == "0") {
     return;
   }
@@ -121,7 +202,7 @@ size_t DataSet::getFeatureDimension() const {
 }
 
 size_t DataSet::size() const {
-  return _hy.size();
+  return _stream.count_lines();
 }
 
 size_t DataSet::getClassNumber() const {
@@ -133,6 +214,7 @@ bool DataSet::isLabeled() const {
 }
 
 void DataSet::showSummary() const {
+  return;
 
   printf("+--------------------------------+-----------+\n");
   printf("| Number of classes              | %9lu |\n", this->getClassNumber());
@@ -150,84 +232,74 @@ const hmat& DataSet::getY() const {
   return _hy;
 }
 
-mat DataSet::getX(const Batches::Batch& b) const {
-  return getBatchData(_hx, b);
+mat DataSet::getX(const Batches::Batch& b) {
+  this->readMoreFeature(b.nData);
+  return ((mat) _hx) / 255;
+  // return _hx;
 }
 
-mat DataSet::getY(const Batches::Batch& b) const {
-  return getBatchData(_hy, b);
+mat DataSet::getY(const Batches::Batch& b) {
+  return ((mat) _hy) - 1;
+}
+
+void DataSet::set_sparse(bool sparse) {
+  _sparse = sparse;
 }
 
 void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio) {
 
-  size_t inputDim = _hx.getRows();
+  size_t nLines = this->_stream.count_lines();
   
-  size_t nValid = size() / ratio,
-	 nTrain = size() - nValid;
+  size_t nValid = nLines / ratio,
+	 nTrain = nLines - nValid;
 
-  printf("| nTrain                         | %9lu |\n", nTrain);
-  printf("| nValid                         | %9lu |\n", nValid);
-  printf("+--------------------------------+-----------+\n");
+  printf("nLines = %lu, nTrain = %lu, nValid = %lu\n", nLines, nTrain, nValid);
 
-  // Copy data to training set
-  train._hx.resize(inputDim , nTrain);
-  train._hy.resize(1	    , nTrain);
+  train.set_dimension(this->_dim);
+  valid.set_dimension(this->_dim);
 
-  memcpy(train._hx.getData(), _hx.getData(), sizeof(float) * train._hx.size());
-  memcpy(train._hy.getData(), _hy.getData(), sizeof(float) * train._hy.size());
+  train._sparse = this->_sparse;
+  valid._sparse = this->_sparse;
 
-  // Copy data to validation set
-  valid._hx.resize(inputDim , nValid);
-  valid._hy.resize(1	    , nValid);
-
-  memcpy(valid._hx.getData(), _hx.getData() + train._hx.size(), sizeof(float) * valid._hx.size());
-  memcpy(valid._hy.getData(), _hy.getData() + train._hy.size(), sizeof(float) * valid._hy.size());
+  train._stream.init(this->_stream._filename, 0, nTrain);
+  valid._stream.init(this->_stream._filename, nTrain, -1);
 }
 
+void DataSet::readMoreFeature(int N) {
 
-void DataSet::read(const string &fn) {
-  ifstream fin(fn.c_str());
-
-  if (!fin.is_open())
-    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
-
-  bool isSparse = isFileSparse(fn);
-
-  perf::Timer timer;
-
-  //printf("Finding feature dimension...\n");
-  //timer.start();
-  if (_dim == 0)
-    _dim = isSparse ? findMaxDimension(fin) : findDimension(fin);
-  //timer.elapsed();
-
-  //printf("Getting # of feature vector...\n");
-  //timer.start();
-  size_t N = getLineNumber(fin);
-  //timer.elapsed();
-
-  _hx.resize(_dim + 1, N);
-  _hy.resize(1, N);
-
-  //printf("Parsing features...\n");
-  //timer.start();
-  if (isSparse)
-    readSparseFeature(fin);
+  if (_sparse)
+    this->readSparseFeature(N);
   else
-    readDenseFeature(fin);
-  //timer.elapsed();
+    this->readDenseFeature(N);
 
-  fin.close();
+  /*static std::future<hmat> hx, hy;
 
-  for (size_t i=0; i<N; ++i)
-    _hx(_dim, i) = 1;
+  _hx = hx.get();
+  _hy = hy.get();
+
+  hx = std::async(readSparseFeature, N);
+  static std::thread* t = nullptr;  
+  if (t) {
+    t->join();
+    delete t;
+  }*/
+
+  /*if (_sparse)
+    t = new std::thread(readSparseFeature, N);*/
 }
 
-void DataSet::readSparseFeature(ifstream& fin) {
+void DataSet::readSparseFeature(int N) {
+
+  _hx.resize(N, _dim + 1);
+  _hy.resize(N, 1);
+
+  _hx.fillwith(0);
+  _hx.fillwith(0);
 
   string line, token;
-  size_t i = 0;
-  while (std::getline(fin, line)) {
+
+  for (int i=0; i<N; ++i) {
+    string line = _stream.getline();
     stringstream ss(line);
   
     ss >> token;
@@ -241,15 +313,18 @@ void DataSet::readSparseFeature(ifstream& fin) {
       size_t j = str2float(token.substr(0, pos)) - 1;
       float value = str2float(token.substr(pos + 1));
       
-      _hx(j, i) = value;
+      _hx(i, j) = value;
     }
-    ++i;
+  
+    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
+    // not by CNN or other classifier.
+    _hx(i, _dim) = 1.0f;
   }
 }
 
-void DataSet::readDenseFeature(ifstream& fin) {
+void DataSet::readDenseFeature(int N) {
   
-  string line, token;
+/*  string line, token;
   size_t i = 0;
   while (std::getline(fin, line)) {
     stringstream ss(line);
@@ -262,6 +337,7 @@ void DataSet::readDenseFeature(ifstream& fin) {
       _hx(j++, i) = str2float(token);
     ++i;
   }
+*/
 }
 
 void DataSet::linearScaling(float lower, float upper) {
@@ -292,6 +368,8 @@ void DataSet::linearScaling(float lower, float upper) {
 }
 
 void DataSet::checkLabelBase(int base) {
+  return;
+
   assert(_hy.getRows() == 1);
 
   int min_idx = _hy[0];
@@ -311,6 +389,8 @@ void DataSet::checkLabelBase(int base) {
 
 void DataSet::shuffle() {
 
+  return;
+
   std::vector<size_t> perm = randperm(size());
 
   hmat x(_hx), y(_hy);
@@ -322,8 +402,8 @@ void DataSet::shuffle() {
   }
 }
 
-bool isFileSparse(string train_fn) {
-  ifstream fin(train_fn.c_str());
+bool isFileSparse(string fn) {
+  ifstream fin(fn.c_str());
   string line;
   std::getline(fin, line);
   return line.find(':') != string::npos;

@@ -7,8 +7,8 @@
 #include <batch.h>
 using namespace std;
 
-size_t dnn_predict(const DNN& dnn, const DataSet& data, ERROR_MEASURE errorMeasure);
-void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
+size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure);
+void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
 
 int main (int argc, char* argv[]) {
@@ -21,7 +21,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "0 for auto detection.", "0")
+	 "0 for auto detection.")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
@@ -94,7 +94,7 @@ int main (int argc, char* argv[]) {
   return 0;
 }
 
-void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
+void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   printf("Training...\n");
   perf::Timer timer;
@@ -119,6 +119,7 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 
       // Copy a batch of data from host to device
       mat fin = train.getX(*itr);
+
       dnn.feedForward(fout, fin);
 
       mat error = getError( train.getY(*itr), fout, errorMeasure);
@@ -126,9 +127,8 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
       dnn.backPropagate(error, fin, fout, dnn.getConfig().learningRate);
     }
 
-    Eout.push_back(dnn_predict(dnn, valid, errorMeasure));
-  
     Ein = dnn_predict(dnn, train, errorMeasure);
+    Eout.push_back(dnn_predict(dnn, valid, errorMeasure));
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
@@ -158,7 +158,7 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   showAccuracy(Eout.back(), valid.size());
 }
 
-size_t dnn_predict(const DNN& dnn, const DataSet& data, ERROR_MEASURE errorMeasure) {
+size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure) {
   size_t nError = 0;
 
   Batches batches(2048, data.size());
