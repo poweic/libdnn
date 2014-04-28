@@ -121,8 +121,10 @@ void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
 	 nValid = valid.size();
 
   mat fmiddle, fout;
+  float t_start = timer.getTime();
 
   for (size_t epoch=0; epoch<MAX_EPOCH; ++epoch) {
+
     Batches batches(batchSize, nTrain);
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
       mat fin = train.getX(*itr);
@@ -147,8 +149,10 @@ void cnn_train(DNN& dnn, CNN& cnn, const DataSet& train, const DataSet& valid,
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
     float validAcc = 1.0f - (float) Eout / nValid;
-    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
-      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid); 
+    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu ), elapsed %.3f seconds.\n",
+      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid, (timer.getTime() - t_start) / 1000); 
+
+    t_start = timer.getTime();
   }
 
   timer.elapsed();
@@ -167,8 +171,10 @@ vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim
   vector<mat> weights(nWeights);
 
   for (size_t i=0; i<nWeights; ++i) {
-    weights[i] = randn(dims[i], dims[i+1]);
-    printf("Initialize a weights[%lu] using randn(%lu, %lu)\n", i, dims[i], dims[i+1]);
+    float coeff = (2 * sqrt(6.0f / (dims[i] + dims[i+1]) ) );
+    weights[i] = coeff * (rand(dims[i], dims[i+1]) - 0.5);
+    printf("Initialize a weights[%lu] using %.4f x (rand(%3lu,%3lu) - 0.5)\n", i,
+	coeff, dims[i], dims[i+1]);
   }
 
   CCE(cudaDeviceSynchronize());
