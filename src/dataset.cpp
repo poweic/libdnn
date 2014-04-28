@@ -3,21 +3,6 @@
 #include <thread>
 #include <future>
 
-/*! /brief Get a batch of data. Because of the original ill-design,
- *         the data fed into DNN need tranpose.
- *
- *	     |  Before Transposed  |  After Transposed    |
- *           |                     | (the thing returned) |
- * ----------+---------------------+----------------------+
- * # of rows |  feature dimension  |  # of data in batch  |
- * # of cols |  # of data in batch |  feature dimension   |
- * 
- * [Deprecated]
- */
-mat getBatchData(const hmat& data, const Batches::Batch& b) {
-  return ~mat(data.getData() + b.offset * data.getRows(), data.getRows(), b.nData);
-}
-
 std::ifstream& goToLine(std::ifstream& file, unsigned long num){
   file.seekg(std::ios::beg);
   
@@ -277,16 +262,8 @@ void DataSet::setNormType(NormType type) {
   }
 }
 
-size_t DataSet::getFeatureDimension() const {
-  return _dim;
-}
-
 size_t DataSet::size() const {
   return _stream.count_lines();
-}
-
-size_t DataSet::getClassNumber() const {
-  return getLabelMapping(_hy).size();
 }
 
 bool DataSet::isLabeled() const {
@@ -294,12 +271,10 @@ bool DataSet::isLabeled() const {
 }
 
 void DataSet::showSummary() const {
-  return;
 
   printf("+--------------------------------+-----------+\n");
-  printf("| Number of classes              | %9lu |\n", this->getClassNumber());
   printf("| Number of input feature (data) | %9lu |\n", this->size());
-  printf("| Dimension of  input feature    | %9lu |\n", this->getFeatureDimension());
+  printf("| Dimension of  input feature    | %9lu |\n", _dim);
   printf("+--------------------------------+-----------+\n");
 
 }
@@ -421,6 +396,10 @@ void DataSet::setDimension(size_t dim) {
 
 void DataSet::setLabelBase(int base) {
   _base = base;
+}
+
+DataStream& DataSet::getDataStream() {
+  return _stream;
 }
 
 bool isFileSparse(string fn) {

@@ -7,8 +7,6 @@
 typedef device_matrix<float> mat;
 typedef host_matrix<float> hmat;
 
-mat getBatchData(const hmat& data, const Batches::Batch& b);
-
 enum NormType {
   NO_NORMALIZATION,
   LINEAR_SCALING,
@@ -56,9 +54,9 @@ public:
   void normalize(NormType type);
 
   void setLabelBase(int base);
+  DataStream& getDataStream();
 
   size_t getFeatureDimension() const;
-  size_t getClassNumber() const;
 
   size_t size() const;
 

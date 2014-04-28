@@ -14,13 +14,12 @@ int main (int argc, char* argv[]) {
     .add("model_file", false);
 
   cmd.addGroup("Feature options:")
-     .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "0 for auto detection.")
+     .add("--input-dim", "specify the input dimension (dimension of feature).\n")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma ."
-	"filename -- Read mean and variance from file", "0");
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+     .add("--nf", "Load pre-computed statistics from file", "");
 
   cmd.addGroup("Structure of Neural Network: ")
      .add("--nodes", "specify the width(nodes) of each hidden layer seperated by \"-\":\n"
@@ -52,7 +51,7 @@ int main (int argc, char* argv[]) {
   string structure  = cmd["--nodes"];
   size_t output_dim = cmd["--output-dim"];
 
-  RBM_UNIT_TYPE type  = RBM_UNIT_TYPE ((int) cmd["--type"]);
+  UNIT_TYPE type  = UNIT_TYPE ((int) cmd["--type"]);
   float slopeThres    = cmd["--slope-thres"];
   float learning_rate = cmd["--learning-rate"];
 
@@ -64,21 +63,15 @@ int main (int argc, char* argv[]) {
   data.setNormType(n_type);
   data.showSummary();
 
-  if (input_dim == 0) input_dim = data.getFeatureDimension();
-  if (output_dim == 0) output_dim = getOutputDimension();
+  if (output_dim == 0)
+    output_dim = getOutputDimension();
 
   auto dims = getDimensionsForRBM(input_dim, structure, output_dim);
 
   // Initialize using RBM
-  auto weights = initStackedRBM(data, dims, slopeThres, type, learning_rate);
-
-  FILE* fid = fopen(model_fn.c_str(), "w");
-
-  for (size_t i=0; i<weights.size() - 1; ++i)
-    FeatureTransform::print(fid, weights[i], "sigmoid");
-  FeatureTransform::print(fid, weights.back(), "softmax");
-
-  fclose(fid);
+  StackedRbmTrainer trainer(type, dims, slopeThres, learning_rate);
+  trainer.train(data);
+  trainer.save(model_fn);
 
   return 0;
 }

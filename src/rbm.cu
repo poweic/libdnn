@@ -2,6 +2,10 @@
 #include <cstdlib>
 #define fill_bias(x) { fillLastColumnWith(x, 1.0f); }
 
+const float StackedRbmTrainer::initial_momentum = 0.5;
+const float StackedRbmTrainer::final_momentum = 0.9;
+const float StackedRbmTrainer::L2_penalty = 0.0002;
+
 inline __device__ void gaussian(float& x, curandState* state) {
   x += curand_normal(state);
 }
@@ -29,7 +33,7 @@ __global__ void sampling_kernel(float* const data, curandState* globalState, uns
   __syncthreads();
 }
 
-ostream& operator << (ostream& os, const RBM_UNIT_TYPE& type) {
+ostream& operator << (ostream& os, const UNIT_TYPE& type) {
   switch (type) {
     case GAUSSIAN: os << "Gaussian"; break;
     case BERNOULLI: os << "Bernoulli"; break;
@@ -37,70 +41,34 @@ ostream& operator << (ostream& os, const RBM_UNIT_TYPE& type) {
   return os;
 }
 
-hmat batchFeedForwarding(const hmat& X, const mat& w) {
-  printf("Start feedforwarding (in batch)... \n");
-  perf::Timer timer;
-  timer.start();
+void StackedRbmTrainer::train(DataSet& data) {
 
-  size_t nData = X.getCols();
-
-  // TODO Crashed when # of input (i.e. nData) is very large.
-  // Even the original data (say 351 x 500,000) can be fitted into memory
-  // , a hidden layer of width 2048 would need (2048 x 500,000) memory,
-  // which will casue OUT OF MEMORY.
-  printf("Allocating host matrix of size %lu ...", w.getCols() * nData);
-  hmat Y(w.getCols(), nData);
-  printf("[Done]\n");
-
-  Batches batches(2048, nData);
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    mat fin  = getBatchData(X, *itr);
-    mat fout = sigmoid(fin * w);
-    fill_bias(fout);
-
-    size_t offset = fout.getCols() * itr->offset,
-	   nBytes = sizeof(float) * fout.size();
-
-    fout = ~fout;
-    CCE(cudaMemcpy(Y.getData() + offset, fout.getData(), nBytes, cudaMemcpyDeviceToHost));
-  }
-
-  timer.elapsed();
-  return Y;
-}
-
-std::vector<mat> initStackedRBM(DataSet& data, const std::vector<size_t>& dims,
-    float slopeThres, RBM_UNIT_TYPE type, float learning_rate) {
-
-  std::vector<mat> weights(dims.size() - 1);
+  _weights.resize(_dims.size() - 1);
 
   size_t nData = data.size();
 
   // FIXME For NOW, hidden units are only allowed to be Bernoulli
-  RBM_UNIT_TYPE vis_type = type, hid_type = BERNOULLI;
+  UNIT_TYPE vis_type = _vis_type, hid_type = BERNOULLI;
 
   // If vis_type is Bernoulli, make sure the visible units have values in the
   // range [0, 1]. If the values scatter over a wide range and has a Gaussian
   // distribution, make sure the values are normalized to 0 mean and 1 standard
   // deviation before going into this function.
-  if (vis_type == BERNOULLI)
-    assert(ext::max(data.getX()) <= 1 && ext::min(data.getX()) >= 0);
+  /*if (vis_type == BERNOULLI)
+    assert(ext::max(data.getX()) <= 1 && ext::min(data.getX()) >= 0);*/
   
-  hmat X = data.getX();
-  for (size_t i=0; i<weights.size(); ++i) {
+  for (size_t i=0; i<_weights.size(); ++i) {
 
-    weights[i] = rbmTrain(X, dims[i + 1], slopeThres, vis_type, hid_type, learning_rate);
+    _weights[i].resize(_dims[i] + 1, _dims[i + 1] + 1);
+
+    this->rbm_train(data, i, vis_type, hid_type);
 
     vis_type = hid_type;
     hid_type = BERNOULLI;
-
-    X = batchFeedForwarding(X, weights[i]);
   }
-
-  return weights;
 }
 
-void sample(mat &prob, RBM_UNIT_TYPE type) {
+void sample(mat &prob, UNIT_TYPE type) {
   static CURAND_STATE state;
 
   ALLOCATE_GRIDS_AND_THREADS(prob.getRows(), prob.getCols());
@@ -118,7 +86,7 @@ void sample(mat &prob, RBM_UNIT_TYPE type) {
   fill_bias(prob);
 }
 
-void up_propagate(const mat& W, const mat& visible, mat& hidden, RBM_UNIT_TYPE type) {
+void StackedRbmTrainer::up_propagate(const mat& W, const mat& visible, mat& hidden, UNIT_TYPE type) {
   hidden = visible * W;
 
   if (type == BERNOULLI)
@@ -127,7 +95,7 @@ void up_propagate(const mat& W, const mat& visible, mat& hidden, RBM_UNIT_TYPE t
   fill_bias(hidden);
 }
 
-void down_propagate(const mat& W, mat& visible, const mat& hidden, RBM_UNIT_TYPE type) {
+void StackedRbmTrainer::down_propagate(const mat& W, mat& visible, const mat& hidden, UNIT_TYPE type) {
   visible = hidden * ~W;
 
   if (type == BERNOULLI)
@@ -136,29 +104,7 @@ void down_propagate(const mat& W, mat& visible, const mat& hidden, RBM_UNIT_TYPE
   fill_bias(visible);
 }
 
-// Calculuate standard deviation of each dimension of x.
-// After that, average over all standard deviations.
-float calcAverageStandardDeviation(const mat& x) {
-  size_t rows = x.getRows(),
-	 cols = x.getCols();
-
-  mat x_minus_mean = x - (mat(rows, rows, 1) * x) / rows;
-  mat sum_of_squares = mat(1, rows, 1) * (x_minus_mean & x_minus_mean);
-
-  hmat squares(1, cols);
-  CCE(cudaMemcpy(squares.getData(), sum_of_squares.getData(), sizeof(float) * squares.size(), cudaMemcpyDeviceToHost));
-
-  int N = (rows == 1) ? 1 : rows - 1;
-
-  float s = 0;
-  for (size_t i=0; i<cols; ++i)
-    s += sqrt(squares[i] / N);
-  s /= cols;
-
-  return s;
-}
-
-void antiWeightExplosion(mat& W, const mat& v1, const mat& v2, float &learning_rate) {
+void StackedRbmTrainer::antiWeightExplosion(mat& W, const mat& v1, const mat& v2, float &learning_rate) {
   float v1_avg_std = calcAverageStandardDeviation(v1),
 	v2_avg_std = calcAverageStandardDeviation(v2),
 	std_ratio = v2_avg_std / v1_avg_std;
@@ -172,12 +118,13 @@ void antiWeightExplosion(mat& W, const mat& v1, const mat& v2, float &learning_r
   }
 }
 
-float getReconstructionError(const hmat& data, const mat& W, RBM_UNIT_TYPE vis_type, RBM_UNIT_TYPE hid_type) {
+float StackedRbmTrainer::getReconstructionError(DataSet& data, const mat& W
+    , UNIT_TYPE vis_type, UNIT_TYPE hid_type, int layer) {
 
   float r_error = 0;
 
   const size_t batch_size = 1024;
-  size_t nData = data.getCols();
+  size_t nData = data.size();
 
   Batches batches(batch_size, nData);
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
@@ -185,7 +132,8 @@ float getReconstructionError(const hmat& data, const mat& W, RBM_UNIT_TYPE vis_t
     // v1 is input data, v2 is reconstructed data
     mat v1, v2, h1;
 
-    v1 = getBatchData(data, *itr);
+    v1 = getBatchData(data, *itr, layer);
+    // v1 = data.getX(*itr);
     fill_bias(v1);
 
     // Up propagation
@@ -202,10 +150,12 @@ float getReconstructionError(const hmat& data, const mat& W, RBM_UNIT_TYPE vis_t
 
   r_error = sqrt(r_error) / nData;
 
+  data.getDataStream().rewind();
+
   return r_error;
 }
 
-float getFreeEnergy(const mat& visible, const mat& W) {
+float StackedRbmTrainer::getFreeEnergy(const mat& visible, const mat& W) {
   int N = visible.getRows();
   mat hidden = visible * W;
 
@@ -229,36 +179,47 @@ float getFreeEnergy(const mat& visible, const mat& W) {
   return free_energy;
 }
 
-float getFreeEnergyGap(const hmat& data, size_t batch_size, const mat& W) {
+float StackedRbmTrainer::getFreeEnergyGap(DataSet& data, size_t batch_size, const mat& W, int layer) {
 
-  size_t nData = data.getCols();
+  size_t nData = data.size();
   Batches batches(batch_size, nData);
   Batches::iterator ii = batches.begin();
 
-  float fe1 = getFreeEnergy(getBatchData(data, *(ii    )), W),
-	fe2 = getFreeEnergy(getBatchData(data, *(ii + 1)), W);
+  float fe1 = getFreeEnergy(getBatchData(data, *ii, layer), W),
+	fe2 = getFreeEnergy(getBatchData(data, *(ii+1), layer), W);
+
+  data.getDataStream().rewind();
 
   return abs(fe1 - fe2);
 }
 
-mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_UNIT_TYPE vis_type, RBM_UNIT_TYPE hid_type, float learning_rate) {
+mat StackedRbmTrainer::getBatchData(DataSet& data, const Batches::Batch& batch, int layer) {
+  mat x = data.getX(batch);
+  for (int i=0; i<layer; ++i) 
+    x = sigmoid(x * _weights[i]);
+  return x;
+}
+
+void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TYPE hid_type) {
+
+  clog << "Training \33[34m" << vis_type << " - " << hid_type << "\33[0m RBM ..." << endl;
 
   // Note: The learning rate of Gaussian RBM needs to be about one or two
   // orders of magnitude smaller than when using binary visible units.
   // Otherwise value will explode very quickly and get NaN.
   // [cf. A Practical Guide to Training Restricted Boltzmann Machines]
 
-  if (vis_type == GAUSSIAN) learning_rate *= 0.01;
-  if (hid_type == GAUSSIAN) learning_rate *= 0.01;
-  cout << "Training \33[34m" << vis_type << " - " << hid_type << "\33[0m RBM ..." << endl;
+  float lr = _learning_rate;
 
-  const float initial_momentum = 0.5, final_momentum = 0.9, L2_penalty = 0.0002;
+  if (vis_type == GAUSSIAN) lr *= 0.01;
+  if (hid_type == GAUSSIAN) lr *= 0.01;
 
-  size_t input_dim = data.getRows();
-  size_t nData = data.getCols();
+  size_t nData = data.size();
   size_t batch_size = nData < 1024 ? (nData / 10) : 1024;
 
-  mat W(input_dim, nHiddenUnits + 1);
+  mat &W = _weights[layer];
+
+  W.resize(_dims[layer] + 1, _dims[layer + 1] + 1);
   mat dW(W.getRows(), W.getCols());
   ext::randn(W, 0, 0.1 / W.getCols());
 
@@ -285,8 +246,13 @@ mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_UNIT_TY
 
       mat v1, v2, h1, h2;
 
-      v1 = getBatchData(data, *itr);
+      v1 = getBatchData(data, *itr, layer);
+      // v1 = data.getX(*itr);
       fill_bias(v1);
+      if (layer == 1) {
+	matlog(v1);
+	PAUSE;
+      }
 
       // Up propagation
       up_propagate(W, v1, h1, hid_type);
@@ -305,17 +271,17 @@ mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_UNIT_TY
       mat negative = ~v2 * h2;
 
       // Prevent weight explosion (cf. "kaldi-trunk/src/nnet/nnet-rbm.cc")
-      antiWeightExplosion(W, v1, v2, learning_rate);
+      antiWeightExplosion(W, v1, v2, lr);
 
-      dW = dW * momentum					// momentum
-	+ (learning_rate / batch_size) * (positive - negative)	// gradient of CD
-	- (learning_rate * L2_penalty) * W;			// gradient of L2-penalty
+      dW = dW * momentum				// momentum
+	+ (lr / batch_size) * (positive - negative)	// gradient of CD
+	- (lr * L2_penalty) * W;			// gradient of L2-penalty
 
       W += dW;
     }
 
-    float fe_gap = getFreeEnergyGap(data, batch_size, W);
-    float error = getReconstructionError(data, W, vis_type, hid_type);
+    float fe_gap = getFreeEnergyGap(data, batch_size, W, layer);
+    float error = getReconstructionError(data, W, vis_type, hid_type, layer);
     errors.push_back(error);
 
     if (epoch == minEpoch)
@@ -323,14 +289,14 @@ mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_UNIT_TY
 
     if (epoch > minEpoch) {
       float ratio = abs(getSlope(errors, minEpoch) / initialSlope);
-      float percentage = (epoch == maxEpoch - 1) ? 1.0 : std::min(1.0f, threshold / ratio);
+      float percentage = (epoch == maxEpoch - 1) ? 1.0 : std::min(1.0f, _slopeThres / ratio);
 
       char status[100];
       sprintf(status, "( | Δ free energy | = %.2e, reconstruction error = %.2e )", fe_gap, error);
 
       pBar.refresh(percentage, status);
 
-      if (ratio < threshold)
+      if (ratio < _slopeThres)
 	break;
     }
   }
@@ -338,8 +304,16 @@ mat rbmTrain(const hmat& data, size_t nHiddenUnits, float threshold, RBM_UNIT_TY
   float t_end = timer.getTime();
   printf("Average magnitude of elements in weight W = %.7f\n", nrm2(W) / sqrt(W.size()));
   printf("# of epoch = %lu, average time for each epoch = %f\n", epoch, t_end / epoch);
-  
-  return W;
+}
+
+void StackedRbmTrainer::save(const string& fn) {
+  FILE* fid = fopen(fn.c_str(), "w");
+
+  for (size_t i=0; i<_weights.size() - 1; ++i)
+    FeatureTransform::print(fid, _weights[i], "sigmoid");
+  FeatureTransform::print(fid, _weights.back(), "softmax");
+
+  fclose(fid);
 }
 
 // Show a dialogue and ask user for the output dimension
@@ -350,7 +324,8 @@ size_t getOutputDimension() {
     printf("\33[33m Since RBM is a kind of UNSUPERVISED pre-training. "
 	   "Please enter how many nodes you want in the output layer.\33[0m "
 	   "[      ]\b\b\b\b\b");
-    cin >> userInput;
+    // cin >> userInput;
+    userInput = "12";
   }
 
   return atoi(userInput.c_str());
@@ -377,6 +352,29 @@ std::vector<size_t> getDimensionsForRBM(
 
   return dims;
 }
+
+// Calculuate standard deviation of each dimension of x.
+// After that, average over all standard deviations.
+float calcAverageStandardDeviation(const mat& x) {
+  size_t rows = x.getRows(),
+	 cols = x.getCols();
+
+  mat x_minus_mean = x - (mat(rows, rows, 1) * x) / rows;
+  mat sum_of_squares = mat(1, rows, 1) * (x_minus_mean & x_minus_mean);
+
+  hmat squares(1, cols);
+  CCE(cudaMemcpy(squares.getData(), sum_of_squares.getData(), sizeof(float) * squares.size(), cudaMemcpyDeviceToHost));
+
+  int N = (rows == 1) ? 1 : rows - 1;
+
+  float s = 0;
+  for (size_t i=0; i<cols; ++i)
+    s += sqrt(squares[i] / N);
+  s /= cols;
+
+  return s;
+}
+
 
 float getSlope(const std::vector<float> &seq, size_t N) {
   std::vector<float> x(N);
