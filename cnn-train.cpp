@@ -17,30 +17,7 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
 
 void cuda_profiling_ground();
 
-void playground() {
-  ifstream fin("test.dat");
-
-  string line;
-  int counter = 0;
-
-  for (int i=0; i<123; ++i) {
-
-    if (!std::getline(fin, line)) {
-      fin.clear();
-      fin.seekg(0);
-      std::getline(fin, line);
-    }
-
-    cout << "#" << counter << ": \t\"" << line << "\"" << endl;
-    ++counter;
-  }
-
-  fin.close();
-}
-
 int main(int argc, char* argv[]) {
-  playground();
-  return 0;
 
   CmdParser cmd(argc, argv);
 
@@ -83,7 +60,7 @@ int main(int argc, char* argv[]) {
   string model_out  = cmd[2];
 
   string input_dim  = cmd["--input-dim"];
-  string n_type	    = cmd["--normalize"];
+  NormType n_type   = (NormType) (int) cmd["--normalize"];
   int base	    = cmd["--base"];
   string structure  = cmd["--struct"];
   size_t output_dim = cmd["--output-dim"];
@@ -96,14 +73,12 @@ int main(int argc, char* argv[]) {
   printf("Image dimension = %ld x %lu\n", imgSize.m, imgSize.n);
 
   // Load dataset
-  DataSet data(train_fn, imgSize.m * imgSize.n);
-  data.normalize(n_type);
-  data.checkLabelBase(base);
-  // data.shuffle();
+  DataSet data(train_fn, imgSize.m * imgSize.n, base);
+  data.setNormType(n_type);
   data.showSummary();
 
   DataSet train, valid;
-  data.splitIntoTrainAndValidSet(train, valid, ratio);
+  DataSet::split(data, train, valid, ratio);
 
   // Parse structure
   string cnn_struct, nn_struct;

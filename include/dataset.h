@@ -9,11 +9,23 @@ typedef host_matrix<float> hmat;
 
 mat getBatchData(const hmat& data, const Batches::Batch& b);
 
+enum NormType {
+  NO_NORMALIZATION,
+  LINEAR_SCALING,
+  STANDARD_SCORE
+};
+
 class DataStream {
 public:
   DataStream();
   DataStream(const string& filename, size_t start = 0, size_t end = -1);
+  DataStream(const DataStream& src);
   ~DataStream();
+
+  DataStream& operator = (DataStream that);
+
+  friend void swap(DataStream& a, DataStream& b);
+
   size_t count_lines() const;
 
   void init(const string& filename, size_t start, size_t end);
@@ -31,12 +43,19 @@ public:
 class DataSet {
 public:
   DataSet();
-  DataSet(const string &fn, size_t dim = 0, size_t start = 0, size_t end = -1);
+  DataSet(const string &fn, size_t dim = 0, int base = 0,
+      size_t start = 0, size_t end = -1);
 
-  void set_dimension(size_t dim) { _dim = dim; }
+  DataSet(const DataSet& data);
+  DataSet& operator = (DataSet that);
 
-  void normalize(const string &type);
-  void checkLabelBase(int base);
+  friend void swap(DataSet& a, DataSet& b);
+
+  void loadPrecomputedStatistics(string fn);
+  void setNormType(NormType type);
+  void normalize(NormType type);
+
+  void setLabelBase(int base);
 
   size_t getFeatureDimension() const;
   size_t getClassNumber() const;
@@ -52,8 +71,8 @@ public:
   mat getX(const Batches::Batch& b);
   mat getY(const Batches::Batch& b);
 
-  void shuffle();
-  void splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio);
+  static void 
+    split(const DataSet& data, DataSet& train, DataSet& valid, int ratio);
 
 private:
 
@@ -61,13 +80,26 @@ private:
   void readSparseFeature(int N);
   void readDenseFeature(int N);
 
-  void linearScaling(float lower = 0, float upper = 1);
+  void setDimension(size_t dim);
+
+  void findMaxAndMinOfEachDimension();
+  void computeMeanAndDeviation();
+  void normalizeByLinearScaling();
   void normalizeToStandardScore();
-  void normalizeToStandardScore(const hmat& mean, const hmat& deviation);
 
   void set_sparse(bool sparse);
 
   size_t _dim;
+  DataStream _stream;
+  bool _sparse;
+  NormType _type;
+  int _base;
+
+  vector<double> _mean;
+  vector<double> _dev;
+
+  vector<double> _min;
+  vector<double> _max;
 
   /* ! /brief Memory Layout of _hx and _hy.
    * _hx are training data, _hy are training labels.
@@ -96,9 +128,8 @@ private:
    *  batch are contiguous or coalescent. (That is, no jumps of memory address
    *  in a single batch. This makes memcpy much easier and faster.)
    */
+  // TEMP variable
   hmat _hx, _hy;
-  DataStream _stream;
-  bool _sparse;
 };
 
 bool isFileSparse(string train_fn);

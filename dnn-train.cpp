@@ -26,6 +26,7 @@ int main (int argc, char* argv[]) {
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
 	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+     .add("--nf", "Load pre-computed statistics from file", "")
      .add("--base", "Label id starts from 0 or 1 ?", "0");
 
   cmd.addGroup("Training options: ")
@@ -49,7 +50,8 @@ int main (int argc, char* argv[]) {
   string model_out    = cmd[3];
 
   size_t input_dim    = cmd["--input-dim"];
-  string n_type	      = cmd["--normalize"];
+  NormType n_type     = (NormType) (int) cmd["--normalize"];
+  string n_filename   = cmd["--nf"];
   int base	      = cmd["--base"];
 
   int ratio	      = cmd["-v"];
@@ -71,14 +73,13 @@ int main (int argc, char* argv[]) {
   dnn.setConfig(config);
 
   // Load data
-  DataSet data(train_fn, input_dim);
-  data.normalize(n_type);
-  data.checkLabelBase(base);
-  data.shuffle();
+  DataSet data(train_fn, input_dim, base);
+  data.loadPrecomputedStatistics(n_filename);
+  data.setNormType(n_type);
   data.showSummary();
 
   DataSet train, valid;
-  data.splitIntoTrainAndValidSet(train, valid, ratio);
+  DataSet::split(data, train, valid, ratio);
   config.print();
 
   // Start Training

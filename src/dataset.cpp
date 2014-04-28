@@ -11,8 +11,12 @@
  * ----------+---------------------+----------------------+
  * # of rows |  feature dimension  |  # of data in batch  |
  * # of cols |  # of data in batch |  feature dimension   |
- *
+ * 
+ * [Deprecated]
  */
+mat getBatchData(const hmat& data, const Batches::Batch& b) {
+  return ~mat(data.getData() + b.offset * data.getRows(), data.getRows(), b.nData);
+}
 
 std::ifstream& goToLine(std::ifstream& file, unsigned long num){
   file.seekg(std::ios::beg);
@@ -33,18 +37,29 @@ DataStream::DataStream(const string& filename, size_t start, size_t end) {
   this->init(filename, start, end);
 }
 
+DataStream::DataStream(const DataStream& src) : _nLines(src._nLines),
+    _line_number(src._line_number), _filename(src._filename),
+    _start(src._start), _end(src._end) {
+  this->init(_filename, _start, _end);
+}
+
 DataStream::~DataStream() {
   _fs.close();
 }
 
+DataStream& DataStream::operator = (DataStream that) {
+  swap(*this, that);
+  return *this;
+}
+
 void DataStream::init(const string& filename, size_t start, size_t end) {
+  if (_fs.is_open())
+    _fs.close();
+
   _filename = filename;
   _start = start;
   _end = end;
   _line_number = _start;
-
-  if (_fs.is_open())
-    _fs.close();
 
   _fs.open(_filename.c_str());
 
@@ -64,8 +79,6 @@ void DataStream::init(const string& filename, size_t start, size_t end) {
 
 string DataStream::getline() {
   string line;
-
-  // printf("_line_number = %lu, _end = %lu\n", _line_number, _end);
 
   if ( _line_number >= _end )
     this->rewind();
@@ -90,110 +103,177 @@ size_t DataStream::count_lines() const {
   return _nLines;
 }
 
-mat getBatchData(const hmat& data, const Batches::Batch& b) {
-  return ~mat(data.getData() + b.offset * data.getRows(), data.getRows(), b.nData);
+void swap(DataStream& a, DataStream& b) { 
+  std::swap(a._nLines, b._nLines);
+  std::swap(a._line_number, b._line_number);
+  std::swap(a._filename, b._filename);
+  std::swap(a._start, b._start);
+  std::swap(a._end, b._end);
 }
 
-DataSet::DataSet(): _dim(0) {
+/* \brief Constructors for DataSet
+ */
+DataSet::DataSet() {
 }
 
-DataSet::DataSet(const string &fn, size_t dim, size_t start, size_t end)
-  : _dim(dim), _stream(fn, start, end), _sparse(isFileSparse(fn)) {
+DataSet::DataSet(const string &fn, size_t dim, int base, size_t start, size_t end)
+  : _dim(dim), _stream(fn, start, end), _sparse(isFileSparse(fn)), _base(base) {
 }
 
-void DataSet::normalizeToStandardScore(const hmat& mean, const hmat& deviation) {
-  hmat& data = _hx;
+DataSet::DataSet(const DataSet& src)
+  : _dim(src._dim), _stream(src._stream), _sparse(src._sparse), _type(src._type),
+  _base(src._base), _mean(src._mean), _dev(src._dev), _min(src._min), _max(src._max) {
+}
 
-  size_t nData = data.getCols();
+DataSet& DataSet::operator = (DataSet that) {
+  swap(*this, that);
+  return *this;
+}
+
+void DataSet::normalize(NormType type) {
+  switch (type) {
+    case NO_NORMALIZATION: break;
+    case LINEAR_SCALING: normalizeByLinearScaling(); break;
+    case STANDARD_SCORE: normalizeToStandardScore(); break;
+  }
+}
+
+void DataSet::normalizeByLinearScaling() {
+  size_t nData = _hx.getRows();
 
   for (size_t i=0; i<_dim; ++i) {
-    for (size_t j=0; j<nData; ++j)
-      data(i, j) -= mean[i];
-    
-    if (deviation[i] == 0)
+    float r = _max[i] - _min[i];
+    if (r == 0)
       continue;
 
     for (size_t j=0; j<nData; ++j)
-      data(i, j) /= deviation[i];
+      _hx(j, i) = (_hx(j, i) - _min[i]) / r;
   }
 }
 
 void DataSet::normalizeToStandardScore() {
-  hmat& data = _hx;
-  size_t nData = data.getCols();
+  size_t nData = _hx.getRows();
 
   for (size_t i=0; i<_dim; ++i) {
-    float mean = 0;
     for (size_t j=0; j<nData; ++j)
-      mean += data(i, j);
-    mean /= nData;
-
-    for (size_t j=0; j<nData; ++j)
-      data(i, j) -= mean;
-
-    if (nData <= 1)
-      continue;
-
-    float deviation = 0;
-    for (size_t j=0; j<nData; ++j)
-      deviation += pow(data(i, j), 2.0f);
-    deviation = sqrt(deviation / (nData - 1));
-
-    // printf("mean = %.7e, deviation = %.7e\n", mean, deviation);
-
-    if (deviation == 0)
+      _hx(j, i) -= _mean[i];
+    
+    if (_dev[i] == 0)
       continue;
 
     for (size_t j=0; j<nData; ++j)
-      data(i, j) /= deviation;
+      _hx(j, i) /= _dev[i];
   }
 }
 
-void DataSet::normalize(const string &type) {
+void DataSet::findMaxAndMinOfEachDimension() {
+  size_t N = _stream.count_lines();
 
-  return;
+  assert(_dim > 0);
+  assert(N > 0);
 
-  if (type == "0") {
+  _min.resize(_dim);
+  _max.resize(_dim);
+
+  for (size_t j=0; j<_dim; ++j) {
+    _min[j] = std::numeric_limits<double>::max();
+    _max[j] = -std::numeric_limits<double>::max();
+  }
+
+  Batches batches(1024, N);
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    this->readMoreFeature(itr->nData);
+
+    for (size_t i=0; i<_hx.getRows(); ++i) {
+      for (size_t j=0; j<_dim; ++j) {
+	_min[j] = min( (float) _min[j], _hx(i, j));
+	_max[j] = max( (float) _max[j], _hx(i, j));
+      }
+    }
+  }
+
+  this->_stream.rewind();
+}
+
+void DataSet::computeMeanAndDeviation() {
+
+  size_t N = _stream.count_lines();
+
+  assert(_dim > 0);
+  assert(N > 0);
+
+  _mean.resize(_dim);
+  _dev.resize(_dim);
+
+  for (size_t j=0; j<_dim; ++j)
+    _mean[j] = _dev[j] = 0;
+
+  Batches batches(1024, N);
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    this->readMoreFeature(itr->nData);
+
+    for (size_t i=0; i<_hx.getRows(); ++i) {
+      for (size_t j=0; j<_dim; ++j) {
+	_mean[j] += _hx(i, j);
+	_dev[j] += pow( (double) _hx(i, j), 2);
+      }
+    }
+  }
+
+  for (size_t j=0; j<_dim; ++j) {
+    _mean[j] /= N;
+    _dev[j] = sqrt((_dev[j] / N) - pow(_mean[j], 2));
+  }
+
+  this->_stream.rewind();
+}
+
+void DataSet::loadPrecomputedStatistics(string fn) {
+  if (fn.empty())
     return;
-  }
-  else if (type == "1") {
-    clog << "\33[34m[Info]\33[0m Rescale to [0, 1] linearly" << endl;
-    // Rescale each dimension to [0, 1] (for Bernoulli-Bernoulli RBM)
-    //printf("\33[33m[Info]\33[0m Rescale each dimension to [0, 1]\n");
-    linearScaling(0, 1);
-  }
-  else if (type == "2")  {
-    clog << "\33[34m[Info]\33[0m Normalize to standard score" << endl;
-    // Normalize to standard score z = (x-u)/sigma (i.e. CMVN in speech)
-    //printf("\33[33m[Info]\33[0m Normalize each dimension to standard score\n");
-    normalizeToStandardScore();
-  }
-  else {
-    string fn = type;
 
-    clog << "\33[34m[Info]\33[0m Normalize using \"" << fn << "\"" << endl;
+  clog << "\33[34m[Info]\33[0m Normalize using \"" << fn << "\"" << endl;
 
-    mat ss(fn);
-    hmat statistics(ss);
-    hmat mean(_dim, 1);
-    hmat deviation(_dim, 1);
+  mat ss(fn);
+  hmat statistics(ss);
 
-    if (_dim == statistics.getRows()) {
-      for (size_t i=0; i<_dim; ++i) {
-	mean[i] = statistics(i, 0);
-	deviation[i] = statistics(i, 1);
-      }
+  vector<double> a(_dim), b(_dim);
+
+  if (_dim == statistics.getRows()) {
+    for (size_t i=0; i<_dim; ++i) {
+      a[i] = statistics(i, 0);
+      b[i] = statistics(i, 1);
     }
-    else if (_dim == statistics.getCols()) {
-      for (size_t i=0; i<_dim; ++i) {
-	mean[i] = statistics(0, i);
-	deviation[i] = statistics(1, i);
-      }
+  }
+  else if (_dim == statistics.getCols()) {
+    for (size_t i=0; i<_dim; ++i) {
+      a[i] = statistics(0, i);
+      b[i] = statistics(1, i);
     }
-    else
-      throw runtime_error("ERROR: dimension mismatch");
+  }
+  else
+    throw runtime_error("ERROR: dimension mismatch");
 
-    normalizeToStandardScore(mean, deviation);
+  switch (_type) {
+    case NO_NORMALIZATION: break;
+    case LINEAR_SCALING: _min = a; _max = b; break;
+    case STANDARD_SCORE: _mean = a; _dev = b; break;
+  }
+}
+
+void DataSet::setNormType(NormType type) {
+
+  _type = type;
+  switch (_type) {
+    case NO_NORMALIZATION: break;
+    case LINEAR_SCALING:
+      clog << "\33[34m[Info]\33[0m Rescale to [0, 1] linearly" << endl;
+      findMaxAndMinOfEachDimension();
+      break;
+    case STANDARD_SCORE:
+      clog << "\33[34m[Info]\33[0m Normalize to standard score" << endl;
+      computeMeanAndDeviation();
+      break;
   }
 }
 
@@ -234,35 +314,32 @@ const hmat& DataSet::getY() const {
 
 mat DataSet::getX(const Batches::Batch& b) {
   this->readMoreFeature(b.nData);
-  return ((mat) _hx) / 255;
-  // return _hx;
+  this->normalize(_type);
+  return _hx;
 }
 
 mat DataSet::getY(const Batches::Batch& b) {
-  return ((mat) _hy) - 1;
+  return _hy;
 }
 
 void DataSet::set_sparse(bool sparse) {
   _sparse = sparse;
 }
 
-void DataSet::splitIntoTrainAndValidSet(DataSet& train, DataSet& valid, int ratio) {
+void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ratio) {
 
-  size_t nLines = this->_stream.count_lines();
+  size_t nLines = data._stream.count_lines();
   
   size_t nValid = nLines / ratio,
 	 nTrain = nLines - nValid;
 
   printf("nLines = %lu, nTrain = %lu, nValid = %lu\n", nLines, nTrain, nValid);
 
-  train.set_dimension(this->_dim);
-  valid.set_dimension(this->_dim);
+  train = data;
+  valid = data;
 
-  train._sparse = this->_sparse;
-  valid._sparse = this->_sparse;
-
-  train._stream.init(this->_stream._filename, 0, nTrain);
-  valid._stream.init(this->_stream._filename, nTrain, -1);
+  train._stream.init(data._stream._filename, 0, nTrain);
+  valid._stream.init(data._stream._filename, nTrain, -1);
 }
 
 void DataSet::readMoreFeature(int N) {
@@ -271,21 +348,6 @@ void DataSet::readMoreFeature(int N) {
     this->readSparseFeature(N);
   else
     this->readDenseFeature(N);
-
-  /*static std::future<hmat> hx, hy;
-
-  _hx = hx.get();
-  _hy = hy.get();
-
-  hx = std::async(readSparseFeature, N);
-  static std::thread* t = nullptr;  
-  if (t) {
-    t->join();
-    delete t;
-  }*/
-
-  /*if (_sparse)
-    t = new std::thread(readSparseFeature, N);*/
 }
 
 void DataSet::readSparseFeature(int N) {
@@ -296,11 +358,10 @@ void DataSet::readSparseFeature(int N) {
   _hx.fillwith(0);
   _hx.fillwith(0);
 
-  string line, token;
+  string token;
 
   for (int i=0; i<N; ++i) {
-    string line = _stream.getline();
-    stringstream ss(line);
+    stringstream ss(_stream.getline());
   
     ss >> token;
     _hy[i] = str2float(token);
@@ -312,94 +373,54 @@ void DataSet::readSparseFeature(int N) {
 
       size_t j = str2float(token.substr(0, pos)) - 1;
       float value = str2float(token.substr(pos + 1));
-      
+
       _hx(i, j) = value;
     }
   
     // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
     // not by CNN or other classifier.
-    _hx(i, _dim) = 1.0f;
+    _hx(i, _dim) = 1;
   }
+
+  for (int i=0; i<N; ++i)
+    _hy[i] -= _base;
 }
 
 void DataSet::readDenseFeature(int N) {
+
+  _hx.resize(N, _dim + 1);
+  _hy.resize(N, 1);
+
+  _hx.fillwith(0);
+  _hx.fillwith(0);
   
-/*  string line, token;
-  size_t i = 0;
-  while (std::getline(fin, line)) {
-    stringstream ss(line);
+  string token;
+
+  for (int i=0; i<N; ++i) {
+    stringstream ss(_stream.getline());
   
     ss >> token;
     _hy[i] = str2float(token);
 
     size_t j = 0;
     while (ss >> token)
-      _hx(j++, i) = str2float(token);
-    ++i;
+      _hx(i, j++) = str2float(token);
+
+    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
+    // not by CNN or other classifier.
+    _hx(i, _dim) = 1;
   }
-*/
+
+  for (int i=0; i<N; ++i)
+    _hy[i] -= _base;
 }
 
-void DataSet::linearScaling(float lower, float upper) {
-
-  // FIXME
-  // This function rescale every pixel int 0~255 to float 0~1
-  // , rather than rescale each dimension to 0~1
-  for (size_t i=0; i<this->size(); ++i) {
-    float min = _hx(0, i),
-	  max = _hx(0, i);
-
-    for (size_t j=0; j<_dim; ++j) {
-      float x = _hx(j, i);
-      if (x > max) max = x;
-      if (x < min) min = x;
-    }
-
-    if (max == min) {
-      for (size_t j=0; j<_dim; ++j)
-	_hx(j, i) = upper;
-      continue;
-    }
-
-    float ratio = (upper - lower) / (max - min);
-    for (size_t j=0; j<_dim; ++j)
-      _hx(j, i) = (_hx(j, i) - min) * ratio + lower;
-  }
+void DataSet::setDimension(size_t dim) {
+  _dim = dim;
 }
 
-void DataSet::checkLabelBase(int base) {
-  return;
-
-  assert(_hy.getRows() == 1);
-
-  int min_idx = _hy[0];
-  for (size_t i=0; i<_hy.size(); ++i)
-    min_idx = min(min_idx, (int) _hy[i]);
-
-  if (min_idx != base)
-    clog << "\33[33m[Warning]\33[0m The array is told to be " << base << "-based."
-      "However, the minimum class id is " << min_idx << "." << endl;
-
-  // This is IMPORTANT
-  // Change to 0-based if it's 1-based originally.
-  for (size_t i=0; i<_hy.size(); ++i)
-    _hy[i] -= base;
-
-}
-
-void DataSet::shuffle() {
-
-  return;
-
-  std::vector<size_t> perm = randperm(size());
-
-  hmat x(_hx), y(_hy);
-
-  for (size_t i=0; i<size(); ++i) {
-    for (size_t j=0; j<_dim + 1; ++j)
-      _hx(j, perm[i]) = x(j, i);
-    _hy[perm[i]] = y[i];
-  }
+void DataSet::setLabelBase(int base) {
+  _base = base;
 }
 
 bool isFileSparse(string fn) {
@@ -461,4 +482,18 @@ size_t findDimension(ifstream& fin) {
   fin.seekg(previous_pos);
 
   return dim;
+}
+
+void swap(DataSet& a, DataSet& b) {
+  std::swap(a._dim, b._dim);
+  swap(a._stream, b._stream);
+  std::swap(a._sparse, b._sparse);
+  std::swap(a._type, b._type);
+  std::swap(a._base, b._base);
+  std::swap(a._mean, b._mean);
+  std::swap(a._dev, b._dev);
+  std::swap(a._max, b._max);
+  std::swap(a._min, b._min);
+  std::swap(a._hx, b._hx);
+  std::swap(a._hy, b._hy);
 }

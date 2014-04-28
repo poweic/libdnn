@@ -43,18 +43,18 @@ int main (int argc, char* argv[]) {
   string output_fn  = cmd[3];
 
   size_t input_dim  = cmd["--input-dim"];
-  string n_type	    = cmd["--normalize"];
+  NormType n_type   = (NormType) (int) cmd["--normalize"];
+  string n_filename = cmd["--nf"];
   int base	    = cmd["--base"];
 
   int output_type   = cmd["--prob"];
   bool silent	    = cmd["--silent"];
 
-  DataSet test(test_fn, input_dim);
-  test.normalize(n_type);
+  DataSet test(test_fn, input_dim, base);
+  test.loadPrecomputedStatistics(n_filename);
+  test.setNormType(n_type);
 
   bool hasAnswer = test.isLabeled();
-  if (hasAnswer)
-    test.checkLabelBase(base);
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 

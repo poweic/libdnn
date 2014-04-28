@@ -46,7 +46,8 @@ int main (int argc, char* argv[]) {
   string model_fn   = cmd[2];
 
   size_t input_dim  = cmd["--input-dim"];
-  string n_type	    = cmd["--normalize"];
+  NormType n_type   = (NormType) (int) cmd["--normalize"];
+  string n_filename = cmd["--nf"];
 
   string structure  = cmd["--nodes"];
   size_t output_dim = cmd["--output-dim"];
@@ -59,8 +60,8 @@ int main (int argc, char* argv[]) {
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data(train_fn, input_dim);
-  data.normalize(n_type);
-  data.shuffle();
+  data.loadPrecomputedStatistics(n_filename);
+  data.setNormType(n_type);
   data.showSummary();
 
   if (input_dim == 0) input_dim = data.getFeatureDimension();
