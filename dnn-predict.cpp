@@ -24,6 +24,7 @@ int main (int argc, char* argv[]) {
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
 	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+     .add("--nf", "Load pre-computed statistics from file", "")
      .add("--base", "Label id starts from 0 or 1 ?", "0");
 
   cmd.addGroup("Options:")

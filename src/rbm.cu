@@ -220,7 +220,7 @@ void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, 
   mat &W = _weights[layer];
 
   W.resize(_dims[layer] + 1, _dims[layer + 1] + 1);
-  mat dW(W.getRows(), W.getCols());
+  mat dW(W.getRows(), W.getCols(), 0);
   ext::randn(W, 0, 0.1 / W.getCols());
 
   size_t minEpoch = 5, maxEpoch = 32;
@@ -249,10 +249,6 @@ void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, 
       v1 = getBatchData(data, *itr, layer);
       // v1 = data.getX(*itr);
       fill_bias(v1);
-      if (layer == 1) {
-	matlog(v1);
-	PAUSE;
-      }
 
       // Up propagation
       up_propagate(W, v1, h1, hid_type);
@@ -309,6 +305,9 @@ void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, 
 void StackedRbmTrainer::save(const string& fn) {
   FILE* fid = fopen(fn.c_str(), "w");
 
+  if (!fid)
+    throw std::runtime_error("Cannot open file: \"" + fn + "\"");
+
   for (size_t i=0; i<_weights.size() - 1; ++i)
     FeatureTransform::print(fid, _weights[i], "sigmoid");
   FeatureTransform::print(fid, _weights.back(), "softmax");
@@ -324,8 +323,7 @@ size_t getOutputDimension() {
     printf("\33[33m Since RBM is a kind of UNSUPERVISED pre-training. "
 	   "Please enter how many nodes you want in the output layer.\33[0m "
 	   "[      ]\b\b\b\b\b");
-    // cin >> userInput;
-    userInput = "12";
+    cin >> userInput;
   }
 
   return atoi(userInput.c_str());
