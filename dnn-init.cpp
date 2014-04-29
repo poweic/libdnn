@@ -36,6 +36,9 @@ int main (int argc, char* argv[]) {
      .add("--learning-rate", "specify learning rate in constrastive divergence "
 	 "algorithm", "0.1");
 
+  cmd.addGroup("Hardward options:")
+     .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
+
   cmd.addGroup("Example usage: dnn-init data/train3.dat --nodes=16-8");
 
   if (!cmd.isOptionLegal())
@@ -54,6 +57,9 @@ int main (int argc, char* argv[]) {
   UNIT_TYPE type  = UNIT_TYPE ((int) cmd["--type"]);
   float slopeThres    = cmd["--slope-thres"];
   float learning_rate = cmd["--learning-rate"];
+
+  size_t cache_size   = cmd["--cache"];
+  CudaMemManager<float>::setCacheSize(cache_size);
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";

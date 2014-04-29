@@ -35,6 +35,9 @@ int main (int argc, char* argv[]) {
 	"2 -- Output natural log of posterior probabilities. (range in [-inf, 0])", "0")
     .add("--silent", "Suppress all log messages", "false");
 
+  cmd.addGroup("Hardward options:")
+     .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
+
   cmd.addGroup("Example usage: dnn-predict test3.dat train3.dat.model");
 
   if (!cmd.isOptionLegal())
@@ -52,6 +55,9 @@ int main (int argc, char* argv[]) {
   int output_type   = cmd["--prob"];
   bool silent	    = cmd["--silent"];
   bool calcAcc	    = cmd["--acc"];
+
+  size_t cache_size   = cmd["--cache"];
+  CudaMemManager<float>::setCacheSize(cache_size);
 
   DataSet test(test_fn, input_dim, base);
   test.loadPrecomputedStatistics(n_filename);

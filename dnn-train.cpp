@@ -40,6 +40,9 @@ int main (int argc, char* argv[]) {
 	"0 -- classfication\n"
 	"1 -- regression", "0");
 
+  cmd.addGroup("Hardward options:")
+     .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
+
   cmd.addGroup("Example usage: dnn-train data/train3.dat --nodes=16-8");
 
   if (!cmd.isOptionLegal())
@@ -60,6 +63,9 @@ int main (int argc, char* argv[]) {
   float variance      = cmd["--variance"];
   float minValidAcc   = cmd["--min-acc"];
   size_t maxEpoch     = cmd["--max-epoch"];
+
+  size_t cache_size   = cmd["--cache"];
+  CudaMemManager<float>::setCacheSize(cache_size);
 
   // Set configurations
   Config config;
