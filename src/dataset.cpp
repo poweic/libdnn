@@ -3,6 +3,19 @@
 #include <thread>
 #include <future>
 
+size_t countLines(const string& fn) {
+  printf("Loading file: \33[32m%s\33[0m (try to find out how many data) ...", fn.c_str());
+  fflush(stdout);
+  
+  std::ifstream fin(fn.c_str()); 
+  size_t N = std::count(std::istreambuf_iterator<char>(fin), 
+      std::istreambuf_iterator<char>(), '\n');
+  fin.close();
+
+  printf("\t\33[32m[Done]\33[0m\n");
+  return N;
+}
+
 std::ifstream& goToLine(std::ifstream& file, unsigned long num){
   file.seekg(std::ios::beg);
   
@@ -15,10 +28,10 @@ std::ifstream& goToLine(std::ifstream& file, unsigned long num){
   return file;
 }
 
-DataStream::DataStream(): _line_number(0), _start(0), _end(-1) {
+DataStream::DataStream(): _nLines(0), _line_number(0), _start(0), _end(-1) {
 }
 
-DataStream::DataStream(const string& filename, size_t start, size_t end) {
+DataStream::DataStream(const string& filename, size_t start, size_t end) : _nLines(0) {
   this->init(filename, start, end);
 }
 
@@ -51,10 +64,8 @@ void DataStream::init(const string& filename, size_t start, size_t end) {
   if (!_fs.is_open())
     throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + filename);
 
-  std::ifstream fin(_filename.c_str()); 
-  _nLines = std::count(std::istreambuf_iterator<char>(fin), 
-      std::istreambuf_iterator<char>(), '\n');
-  fin.close();
+  if (_nLines == 0)
+    _nLines = countLines(_filename);
 
   goToLine(_fs, _start);
 
@@ -303,8 +314,6 @@ void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ra
   
   size_t nValid = nLines / ratio,
 	 nTrain = nLines - nValid;
-
-  printf("nLines = %lu, nTrain = %lu, nValid = %lu\n", nLines, nTrain, nValid);
 
   train = data;
   valid = data;
