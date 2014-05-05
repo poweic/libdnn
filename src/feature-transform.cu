@@ -22,7 +22,7 @@ void FeatureTransform::print(FILE* fid, const host_matrix<float>& data, string t
 }
 
 mat rowSum(mat& m) {
-  return m * (mat(m.getCols(), m.getCols()) += 1);
+  return m * mat(m.getCols(), m.getCols(), 1);
 }
 
 // convert a linear index to a row index
@@ -48,13 +48,8 @@ __global__ void substract_max_per_row(float* const A, float* const rmax, unsigne
 void substractMaxPerRow(mat& x) {
   mat rmax = getRowMax(x);
 
-  const int N = 32;
-  dim3 grid;
-  grid.x = (unsigned int) ceil((float) x.getCols() / N);
-  grid.y = (unsigned int) ceil((float) x.getRows() / N);
-  dim3 threads(N, N);
-
-  substract_max_per_row<<<grid, threads>>>(x.getData(), rmax.getData(), x.getRows(), x.getCols());
+  ALLOCATE_GRIDS_AND_THREADS(x.getRows(), x.getCols());
+  substract_max_per_row<<< grids, threads >>>(x.getData(), rmax.getData(), x.getRows(), x.getCols());
   CCE(cudaDeviceSynchronize());
 }
 
@@ -154,6 +149,7 @@ void Sigmoid::feedForward(mat& fout, const mat& fin) {
 }
 
 void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+
   mat delta = error & (1.0f - fout) & fout;
   this->feedBackward(error, delta);
   gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
@@ -189,7 +185,7 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
   thrust::device_ptr<float> pPtr(p.getData());
   thrust::transform(xPtr, xPtr + x.size(), pPtr, func::exp<float>());
 
-  mat sumOfProb = p * (mat(p.getCols(), p.getCols()) += 1);
+  mat sumOfProb = p * mat(p.getCols(), p.getCols(), 1);
 
   fout.resize(p.getRows(), p.getCols() + 1);
   thrust::device_ptr<float> foutPtr(fout.getData());

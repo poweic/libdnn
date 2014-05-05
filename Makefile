@@ -1,7 +1,7 @@
 CC=gcc
 CXX=g++-4.6
 CFLAGS=
-NVCC=nvcc -arch=sm_21 -w
+NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
@@ -14,8 +14,10 @@ INCLUDE= -I include/ \
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
-SOURCES=dnn.cu\
+SOURCES=cnn-utility.cu\
+	cnn.cu\
 	dnn-utility.cu\
+	dnn.cu\
 	utility.cpp\
 	rbm.cu\
 	feature-transform.cu\
@@ -23,14 +25,16 @@ SOURCES=dnn.cu\
 	batch.cpp\
 	config.cpp
 
-EXECUTABLES=dnn-train dnn-predict dnn-init
-.PHONY: debug all o3 ctags
+EXECUTABLES=dnn-train dnn-predict dnn-init cnn-train
+.PHONY: debug all o3 ctags dump_nrv
 all: $(EXECUTABLES) ctags
 
 o3: CFLAGS+=-O3
 o3: all
 debug: CFLAGS+=-g -DDEBUG
 debug: all
+dump_nrv: NVCC+=-Xcompiler "-fdump-tree-nrv" all
+dump_nrv: all
 
 vpath %.h include/
 vpath %.cpp src/
@@ -42,13 +46,20 @@ LIBRARY=-lpbar -lcumatrix
 CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 
-$(EXECUTABLES): % : %.cpp $(OBJ)
-	$(CXX) $(CFLAGS) -std=c++0x $(INCLUDE) -o $@ $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
+test: test.cpp
+	g++ -std=c++0x $(INCLUDE) $(LIBRARY_PATH) -o test test.cpp -lpthread  $(CUDA_LIBRARY)
+
+$(EXECUTABLES): % : obj/%.o $(OBJ)
+	$(CXX) -o $@ $(CFLAGS) -std=c++0x $(INCLUDE) $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
+
+#%.o: %.cpp
+#	$(CXX) $(CFLAGS) -std=c++0x $(INCLUDE) -o $@ -c $^
+
 # +==============================+
 # +===== Other Phony Target =====+
 # +==============================+
 obj/%.o: %.cpp
-	$(CXX) $(CPPFLAGS) -o $@ -c $<
+	$(CXX) $(CPPFLAGS) -std=c++0x -o $@ -c $<
 
 obj/%.o: %.cu include/%.h
 	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ -c $<

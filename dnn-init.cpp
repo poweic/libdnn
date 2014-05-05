@@ -14,12 +14,12 @@ int main (int argc, char* argv[]) {
     .add("model_file", false);
 
   cmd.addGroup("Feature options:")
-     .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "0 for auto detection.", "0")
+     .add("--input-dim", "specify the input dimension (dimension of feature).\n")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+     .add("--nf", "Load pre-computed statistics from file", "");
 
   cmd.addGroup("Structure of Neural Network: ")
      .add("--nodes", "specify the width(nodes) of each hidden layer seperated by \"-\":\n"
@@ -36,6 +36,9 @@ int main (int argc, char* argv[]) {
      .add("--learning-rate", "specify learning rate in constrastive divergence "
 	 "algorithm", "0.1");
 
+  cmd.addGroup("Hardward options:")
+     .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
+
   cmd.addGroup("Example usage: dnn-init data/train3.dat --nodes=16-8");
 
   if (!cmd.isOptionLegal())
@@ -45,39 +48,36 @@ int main (int argc, char* argv[]) {
   string model_fn   = cmd[2];
 
   size_t input_dim  = cmd["--input-dim"];
-  int n_type	    = cmd["--normalize"];
+  NormType n_type   = (NormType) (int) cmd["--normalize"];
+  string n_filename = cmd["--nf"];
 
   string structure  = cmd["--nodes"];
   size_t output_dim = cmd["--output-dim"];
 
-  RBM_UNIT_TYPE type  = RBM_UNIT_TYPE ((int) cmd["--type"]);
-  size_t batchSize    = cmd["--batch-size"];
+  UNIT_TYPE type  = UNIT_TYPE ((int) cmd["--type"]);
   float slopeThres    = cmd["--slope-thres"];
   float learning_rate = cmd["--learning-rate"];
+
+  size_t cache_size   = cmd["--cache"];
+  CudaMemManager<float>::setCacheSize(cache_size);
 
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data(train_fn, input_dim);
-  data.normalize(n_type);
-  data.shuffle();
+  // data.loadPrecomputedStatistics(n_filename);
+  data.setNormType(n_type);
   data.showSummary();
 
-  if (input_dim == 0) input_dim = data.getFeatureDimension();
-  if (output_dim == 0) output_dim = getOutputDimension();
+  if (output_dim == 0)
+    output_dim = getOutputDimension();
 
   auto dims = getDimensionsForRBM(input_dim, structure, output_dim);
 
   // Initialize using RBM
-  auto weights = initStackedRBM(data, dims, slopeThres, type, learning_rate);
-
-  FILE* fid = fopen(model_fn.c_str(), "w");
-
-  for (size_t i=0; i<weights.size() - 1; ++i)
-    FeatureTransform::print(fid, weights[i], "sigmoid");
-  FeatureTransform::print(fid, weights.back(), "softmax");
-
-  fclose(fid);
+  StackedRbmTrainer trainer(type, dims, slopeThres, learning_rate);
+  trainer.train(data);
+  trainer.save(model_fn);
 
   return 0;
 }

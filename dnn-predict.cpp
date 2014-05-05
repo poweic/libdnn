@@ -6,7 +6,7 @@
 #include <batch.h>
 using namespace std;
 
-void printLabels(const mat& prob, FILE* fid);
+void printLabels(const mat& prob, FILE* fid, int base);
 FILE* openFileOrStdout(const string& filename);
 
 int main (int argc, char* argv[]) {
@@ -19,18 +19,24 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "0 for auto detection.", "0")
+	 "0 for auto detection.")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+     .add("--nf", "Load pre-computed statistics from file", "")
+     .add("--base", "Label id starts from 0 or 1 ?", "0");
 
   cmd.addGroup("Options:")
+    .add("--acc", "calculate prediction accuracy", "true")
     .add("--prob", "output posterior probabilities if true\n"
 	"0 -- Do not output posterior probabilities. Output class-id.\n"
 	"1 -- Output posterior probabilities. (range in [0, 1]) \n"
 	"2 -- Output natural log of posterior probabilities. (range in [-inf, 0])", "0")
     .add("--silent", "Suppress all log messages", "false");
+
+  cmd.addGroup("Hardward options:")
+     .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
 
   cmd.addGroup("Example usage: dnn-predict test3.dat train3.dat.model");
 
@@ -42,15 +48,20 @@ int main (int argc, char* argv[]) {
   string output_fn  = cmd[3];
 
   size_t input_dim  = cmd["--input-dim"];
-  int n_type	    = cmd["--normalize"];
+  NormType n_type   = (NormType) (int) cmd["--normalize"];
+  string n_filename = cmd["--nf"];
+  int base	    = cmd["--base"];
 
   int output_type   = cmd["--prob"];
   bool silent	    = cmd["--silent"];
+  bool calcAcc	    = cmd["--acc"];
 
-  DataSet test(test_fn, input_dim);
-  test.normalize(n_type);
+  size_t cache_size   = cmd["--cache"];
+  CudaMemManager<float>::setCacheSize(cache_size);
 
-  bool hasAnswer = test.isLabeled();
+  DataSet test(test_fn, input_dim, base);
+  // test.loadPrecomputedStatistics(n_filename);
+  test.setNormType(n_type);
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
@@ -62,17 +73,18 @@ int main (int argc, char* argv[]) {
 
   Batches batches(1024, test.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    mat prob = dnn.feedForward(test.getX(*itr));
+    auto data = test[*itr];
+    mat prob = dnn.feedForward(data.x);
 
-    if (hasAnswer)
-      nError += zeroOneError(prob, test.getY(*itr), errorMeasure);
+    if (calcAcc && !silent)
+      nError += zeroOneError(prob, data.y, errorMeasure);
 
-    if (hasAnswer && output_fn.empty() && output_type == 0)
+    if (calcAcc && output_fn.empty() && output_type == 0)
       continue;
 
     switch (output_type) {
-      case 0: prob.print(fid);	      break;
-      case 1: printLabels(prob, fid); break;
+      case 0: printLabels(prob, fid, base); break;
+      case 1: prob.print(fid);	      break;
       case 2: log(prob).print(fid);   break;
     }
   }
@@ -80,7 +92,7 @@ int main (int argc, char* argv[]) {
   if (fid != stdout)
     fclose(fid);
 
-  if (hasAnswer && !silent)
+  if (calcAcc && !silent)
     showAccuracy(nError, test.size());
 
   return 0;
@@ -88,10 +100,10 @@ int main (int argc, char* argv[]) {
 
 // DO NOT USE device_matrix::print()
 // (since labels should be printed as integer)
-void printLabels(const mat& prob, FILE* fid) {
+void printLabels(const mat& prob, FILE* fid, int base) {
   auto h_labels = copyToHost(posteriorProb2Label(prob));
   for (size_t i=0; i<h_labels.size(); ++i)
-    cout << (int) h_labels[i] << endl;
+    fprintf(fid, "%d\n", (int) h_labels[i] + base);
 }
 
 FILE* openFileOrStdout(const string& filename) {
