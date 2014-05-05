@@ -60,7 +60,7 @@ int main (int argc, char* argv[]) {
   CudaMemManager<float>::setCacheSize(cache_size);
 
   DataSet test(test_fn, input_dim, base);
-  test.loadPrecomputedStatistics(n_filename);
+  // test.loadPrecomputedStatistics(n_filename);
   test.setNormType(n_type);
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
@@ -73,10 +73,11 @@ int main (int argc, char* argv[]) {
 
   Batches batches(1024, test.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    mat prob = dnn.feedForward(test.getX(*itr));
+    auto data = test[*itr];
+    mat prob = dnn.feedForward(data.x);
 
     if (calcAcc && !silent)
-      nError += zeroOneError(prob, test.getY(*itr), errorMeasure);
+      nError += zeroOneError(prob, data.y, errorMeasure);
 
     if (calcAcc && output_fn.empty() && output_type == 0)
       continue;

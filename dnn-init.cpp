@@ -65,7 +65,7 @@ int main (int argc, char* argv[]) {
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   DataSet data(train_fn, input_dim);
-  data.loadPrecomputedStatistics(n_filename);
+  // data.loadPrecomputedStatistics(n_filename);
   data.setNormType(n_type);
   data.showSummary();
 

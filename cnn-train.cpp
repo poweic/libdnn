@@ -124,19 +124,19 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
 
     Batches batches(batchSize, nTrain);
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
-      mat fin = train.getX(*itr);
+      auto data = train[*itr];
 
-      cnn.feedForward(fmiddle, fin);
+      cnn.feedForward(fmiddle, data.x);
       dnn.feedForward(fout, fmiddle);
 
       // matlog(fmiddle);
       // matlog(fout);
-      mat error = getError( train.getY(*itr), fout, errorMeasure);
+      mat error = getError( data.y, fout, errorMeasure);
       // matlog(error);
 
       dnn.backPropagate(error, fmiddle, fout, 1.0f / itr->nData );
       // matlog(error);
-      cnn.backPropagate(error, fin, fmiddle, 1);
+      cnn.backPropagate(error, data.x, fmiddle, 1);
       // matlog(error);
       // exit(-1);
     }
@@ -182,13 +182,13 @@ size_t cnn_predict(const DNN& dnn, CNN& cnn, DataSet& data,
     ERROR_MEASURE errorMeasure) {
 
   size_t nError = 0;
+  mat fmiddle;
 
   Batches batches(2048, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    mat fmiddle;
-    cnn.feedForward(fmiddle, data.getX(*itr));
-    mat prob = dnn.feedForward(fmiddle);
-    nError += zeroOneError(prob, data.getY(*itr), errorMeasure);
+    auto d = data[*itr];
+    cnn.feedForward(fmiddle, d.x);
+    nError += zeroOneError(dnn.feedForward(fmiddle), d.y, errorMeasure);
   }
 
   return nError;

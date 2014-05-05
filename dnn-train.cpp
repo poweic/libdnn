@@ -80,7 +80,7 @@ int main (int argc, char* argv[]) {
 
   // Load data
   DataSet data(train_fn, input_dim, base);
-  data.loadPrecomputedStatistics(n_filename);
+  // data.loadPrecomputedStatistics(n_filename);
   data.setNormType(n_type);
   data.showSummary();
 
@@ -125,13 +125,13 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
       // Copy a batch of data from host to device
-      mat fin = train.getX(*itr);
+      auto data = train[*itr];
 
-      dnn.feedForward(fout, fin);
+      dnn.feedForward(fout, data.x);
 
-      mat error = getError( train.getY(*itr), fout, errorMeasure);
+      mat error = getError( data.y, fout, errorMeasure);
 
-      dnn.backPropagate(error, fin, fout, dnn.getConfig().learningRate);
+      dnn.backPropagate(error, data.x, fout, dnn.getConfig().learningRate);
     }
 
     Ein = dnn_predict(dnn, train, errorMeasure);
@@ -170,8 +170,9 @@ size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure) {
 
   Batches batches(2048, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    mat prob = dnn.feedForward(data.getX(*itr));
-    nError += zeroOneError(prob, data.getY(*itr), errorMeasure);
+    auto d = data[*itr];
+    mat prob = dnn.feedForward(d.x);
+    nError += zeroOneError(prob, d.y, errorMeasure);
   }
 
   return nError;

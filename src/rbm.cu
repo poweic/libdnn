@@ -194,7 +194,8 @@ float StackedRbmTrainer::getFreeEnergyGap(DataSet& data, size_t batch_size, cons
 }
 
 mat StackedRbmTrainer::getBatchData(DataSet& data, const Batches::Batch& batch, int layer) {
-  mat x = data.getX(batch);
+  // mat x = data.getX(batch);
+  mat x = (mat) data[batch].x;
   for (int i=0; i<layer; ++i) 
     x = sigmoid(x * _weights[i]);
   return x;

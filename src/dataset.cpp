@@ -3,31 +3,85 @@
 #include <thread>
 #include <future>
 
-size_t countLines(const string& fn) {
-  printf("Loading file: \33[32m%s\33[0m (try to find out how many data) ...", fn.c_str());
-  fflush(stdout);
-  
-  std::ifstream fin(fn.c_str()); 
-  size_t N = std::count(std::istreambuf_iterator<char>(fin), 
-      std::istreambuf_iterator<char>(), '\n');
-  fin.close();
+BatchData readMoreFeature(DataStream& stream, int N, size_t dim, size_t base, bool sparse) {
 
-  printf("\t\33[32m[Done]\33[0m\n");
-  return N;
+  BatchData data;
+  if (sparse)
+    readSparseFeature(stream, N, dim, base, data);
+  else
+    readDenseFeature(stream, N, dim, base, data);
+
+  return data;
 }
 
-std::ifstream& goToLine(std::ifstream& file, unsigned long num){
-  file.seekg(std::ios::beg);
+void readSparseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data) {
+
+  data.x.resize(N, dim + 1);
+  data.y.resize(N, 1);
+
+  data.x.fillwith(0);
+  data.y.fillwith(0);
+
+  string token;
+
+  for (int i=0; i<N; ++i) {
+    stringstream ss(stream.getline());
   
-  if (num == 0)
-    return file;
+    ss >> token;
+    data.y[i] = str2float(token);
 
-  for(size_t i=0; i < num; ++i)
-    file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
+    while (ss >> token) {
+      size_t pos = token.find(':');
+      if (pos == string::npos)
+	continue;
 
-  return file;
+      size_t j = str2float(token.substr(0, pos)) - 1;
+      float value = str2float(token.substr(pos + 1));
+
+      data.x(i, j) = value;
+    }
+  
+    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
+    // not by CNN or other classifier.
+    data.x(i, dim) = 1;
+  }
+
+  for (int i=0; i<N; ++i)
+    data.y[i] -= base;
 }
 
+void readDenseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data) {
+
+  data.x.resize(N, dim + 1);
+  data.y.resize(N, 1);
+
+  data.x.fillwith(0);
+  data.y.fillwith(0);
+  
+  string token;
+
+  for (int i=0; i<N; ++i) {
+    stringstream ss(stream.getline());
+  
+    ss >> token;
+    data.y[i] = str2float(token);
+
+    size_t j = 0;
+    while (ss >> token)
+      data.x(i, j++) = str2float(token);
+
+    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
+    // not by CNN or other classifier.
+    data.x(i, dim) = 1;
+  }
+
+  for (int i=0; i<N; ++i)
+    data.y[i] -= base;
+}
+
+/* \brief constructor of class DataStream
+ *
+ * */
 DataStream::DataStream(): _nLines(0), _line_number(0), _start(0), _end(-1) {
 }
 
@@ -108,17 +162,27 @@ void swap(DataStream& a, DataStream& b) {
 }
 
 /* \brief Constructors for DataSet
+ *
+ *
  */
-DataSet::DataSet() {
+DataSet::DataSet(): _normalizer(NULL) {
 }
 
 DataSet::DataSet(const string &fn, size_t dim, int base, size_t start, size_t end)
-  : _dim(dim), _stream(fn, start, end), _sparse(isFileSparse(fn)), _base(base) {
+  : _dim(dim), _stream(fn, start, end), _sparse(isFileSparse(fn)),
+  _base(base), _normalizer(NULL) {
 }
 
 DataSet::DataSet(const DataSet& src)
   : _dim(src._dim), _stream(src._stream), _sparse(src._sparse), _type(src._type),
-  _base(src._base), _mean(src._mean), _dev(src._dev), _min(src._min), _max(src._max) {
+  _base(src._base), _normalizer(NULL) {
+    if (src._normalizer)
+      _normalizer = src._normalizer->clone();
+}
+
+DataSet::~DataSet() {
+  if (_normalizer)
+    delete _normalizer;
 }
 
 DataSet& DataSet::operator = (DataSet that) {
@@ -126,135 +190,11 @@ DataSet& DataSet::operator = (DataSet that) {
   return *this;
 }
 
-void DataSet::normalize(NormType type) {
-  switch (type) {
-    case NO_NORMALIZATION: break;
-    case LINEAR_SCALING: normalizeByLinearScaling(); break;
-    case STANDARD_SCORE: normalizeToStandardScore(); break;
-  }
-}
-
-void DataSet::normalizeByLinearScaling() {
-  size_t nData = _hx.getRows();
-
-  for (size_t i=0; i<_dim; ++i) {
-    float r = _max[i] - _min[i];
-    if (r == 0)
-      continue;
-
-    for (size_t j=0; j<nData; ++j)
-      _hx(j, i) = (_hx(j, i) - _min[i]) / r;
-  }
-}
-
-void DataSet::normalizeToStandardScore() {
-  size_t nData = _hx.getRows();
-
-  for (size_t i=0; i<_dim; ++i) {
-    for (size_t j=0; j<nData; ++j)
-      _hx(j, i) -= _mean[i];
-    
-    if (_dev[i] == 0)
-      continue;
-
-    for (size_t j=0; j<nData; ++j)
-      _hx(j, i) /= _dev[i];
-  }
-}
-
-void DataSet::findMaxAndMinOfEachDimension() {
-  size_t N = _stream.count_lines();
-
-  assert(_dim > 0);
-  assert(N > 0);
-
-  _min.resize(_dim);
-  _max.resize(_dim);
-
-  for (size_t j=0; j<_dim; ++j) {
-    _min[j] = std::numeric_limits<double>::max();
-    _max[j] = -std::numeric_limits<double>::max();
-  }
-
-  Batches batches(1024, N);
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    this->readMoreFeature(itr->nData);
-
-    for (size_t i=0; i<_hx.getRows(); ++i) {
-      for (size_t j=0; j<_dim; ++j) {
-	_min[j] = min( (float) _min[j], _hx(i, j));
-	_max[j] = max( (float) _max[j], _hx(i, j));
-      }
-    }
-  }
-
-  this->_stream.rewind();
-}
-
-void DataSet::computeMeanAndDeviation() {
-
-  size_t N = _stream.count_lines();
-
-  assert(_dim > 0);
-  assert(N > 0);
-
-  _mean.resize(_dim);
-  _dev.resize(_dim);
-
-  for (size_t j=0; j<_dim; ++j)
-    _mean[j] = _dev[j] = 0;
-
-  Batches batches(1024, N);
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    this->readMoreFeature(itr->nData);
-
-    for (size_t i=0; i<_hx.getRows(); ++i) {
-      for (size_t j=0; j<_dim; ++j) {
-	_mean[j] += _hx(i, j);
-	_dev[j] += pow( (double) _hx(i, j), 2);
-      }
-    }
-  }
-
-  for (size_t j=0; j<_dim; ++j) {
-    _mean[j] /= N;
-    _dev[j] = sqrt((_dev[j] / N) - pow(_mean[j], 2));
-  }
-
-  this->_stream.rewind();
-}
-
 void DataSet::loadPrecomputedStatistics(string fn) {
   if (fn.empty())
     return;
 
-  clog << "\33[34m[Info]\33[0m Normalize using \"" << fn << "\"" << endl;
-
-  mat ss(fn);
-  hmat statistics(ss);
-
-  vector<double> a(_dim), b(_dim);
-
-  if (_dim == statistics.getRows()) {
-    for (size_t i=0; i<_dim; ++i) {
-      a[i] = statistics(i, 0);
-      b[i] = statistics(i, 1);
-    }
-  }
-  else if (_dim == statistics.getCols()) {
-    for (size_t i=0; i<_dim; ++i) {
-      a[i] = statistics(0, i);
-      b[i] = statistics(1, i);
-    }
-  }
-  else
-    throw runtime_error("ERROR: dimension mismatch");
-
-  switch (_type) {
-    case NO_NORMALIZATION: break;
-    case LINEAR_SCALING: _min = a; _max = b; break;
-    case STANDARD_SCORE: _mean = a; _dev = b; break;
-  }
+  _normalizer->load(fn);
 }
 
 void DataSet::setNormType(NormType type) {
@@ -264,11 +204,13 @@ void DataSet::setNormType(NormType type) {
     case NO_NORMALIZATION: break;
     case LINEAR_SCALING:
       clog << "\33[34m[Info]\33[0m Rescale to [0, 1] linearly" << endl;
-      findMaxAndMinOfEachDimension();
+      _normalizer = new ZeroOne();
+      _normalizer->stat(*this);
       break;
     case STANDARD_SCORE:
       clog << "\33[34m[Info]\33[0m Normalize to standard score" << endl;
-      computeMeanAndDeviation();
+      _normalizer = new StandardScore();
+      _normalizer->stat(*this);
       break;
   }
 }
@@ -286,22 +228,18 @@ void DataSet::showSummary() const {
 
 }
 
-const hmat& DataSet::getX() const {
-  return _hx;
-}
+BatchData DataSet::operator [] (const Batches::Batch& b) {
+  // auto data = readMoreFeature(_stream, b.nData, _dim, _base, _sparse);
+  /*std::future<BatchData> f_data = std::async(std::launch::async, readMoreFeature,
+      std::ref(_stream), b.nData, _dim, _base, _sparse);
+  auto data = f_data.get();*/
 
-const hmat& DataSet::getY() const {
-  return _hy;
-}
+  auto data = readMoreFeature(_stream, b.nData, _dim, _base, _sparse);
 
-mat DataSet::getX(const Batches::Batch& b) {
-  this->readMoreFeature(b.nData);
-  this->normalize(_type);
-  return _hx;
-}
+  if (_normalizer)
+    _normalizer->normalize(data);
 
-mat DataSet::getY(const Batches::Batch& b) {
-  return _hy;
+  return data;
 }
 
 void DataSet::set_sparse(bool sparse) {
@@ -322,79 +260,6 @@ void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ra
   valid._stream.init(data._stream._filename, nTrain, -1);
 }
 
-void DataSet::readMoreFeature(int N) {
-
-  if (_sparse)
-    this->readSparseFeature(N);
-  else
-    this->readDenseFeature(N);
-}
-
-void DataSet::readSparseFeature(int N) {
-
-  _hx.resize(N, _dim + 1);
-  _hy.resize(N, 1);
-
-  _hx.fillwith(0);
-  _hx.fillwith(0);
-
-  string token;
-
-  for (int i=0; i<N; ++i) {
-    stringstream ss(_stream.getline());
-  
-    ss >> token;
-    _hy[i] = str2float(token);
-
-    while (ss >> token) {
-      size_t pos = token.find(':');
-      if (pos == string::npos)
-	continue;
-
-      size_t j = str2float(token.substr(0, pos)) - 1;
-      float value = str2float(token.substr(pos + 1));
-
-      _hx(i, j) = value;
-    }
-  
-    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
-    // not by CNN or other classifier.
-    _hx(i, _dim) = 1;
-  }
-
-  for (int i=0; i<N; ++i)
-    _hy[i] -= _base;
-}
-
-void DataSet::readDenseFeature(int N) {
-
-  _hx.resize(N, _dim + 1);
-  _hy.resize(N, 1);
-
-  _hx.fillwith(0);
-  _hx.fillwith(0);
-  
-  string token;
-
-  for (int i=0; i<N; ++i) {
-    stringstream ss(_stream.getline());
-  
-    ss >> token;
-    _hy[i] = str2float(token);
-
-    size_t j = 0;
-    while (ss >> token)
-      _hx(i, j++) = str2float(token);
-
-    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
-    // not by CNN or other classifier.
-    _hx(i, _dim) = 1;
-  }
-
-  for (int i=0; i<N; ++i)
-    _hy[i] -= _base;
-}
-
 void DataSet::setDimension(size_t dim) {
   _dim = dim;
 }
@@ -407,21 +272,14 @@ DataStream& DataSet::getDataStream() {
   return _stream;
 }
 
+/* Other Utility Functions 
+ *
+ * */
 bool isFileSparse(string fn) {
   ifstream fin(fn.c_str());
   string line;
   std::getline(fin, line);
   return line.find(':') != string::npos;
-}
-
-size_t getLineNumber(ifstream& fin) {
-  int previous_pos = fin.tellg();
-  string a;
-  size_t n = 0;
-  while(std::getline(fin, a) && ++n);
-  fin.clear();
-  fin.seekg(previous_pos);
-  return n;
 }
 
 size_t findMaxDimension(ifstream& fin) {
@@ -468,16 +326,28 @@ size_t findDimension(ifstream& fin) {
   return dim;
 }
 
-void swap(DataSet& a, DataSet& b) {
-  std::swap(a._dim, b._dim);
-  swap(a._stream, b._stream);
-  std::swap(a._sparse, b._sparse);
-  std::swap(a._type, b._type);
-  std::swap(a._base, b._base);
-  std::swap(a._mean, b._mean);
-  std::swap(a._dev, b._dev);
-  std::swap(a._max, b._max);
-  std::swap(a._min, b._min);
-  std::swap(a._hx, b._hx);
-  std::swap(a._hy, b._hy);
+std::ifstream& goToLine(std::ifstream& file, unsigned long num){
+  file.seekg(std::ios::beg);
+  
+  if (num == 0)
+    return file;
+
+  for(size_t i=0; i < num; ++i)
+    file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
+
+  return file;
 }
+
+size_t countLines(const string& fn) {
+  printf("Loading file: \33[32m%s\33[0m (try to find out how many data) ...", fn.c_str());
+  fflush(stdout);
+  
+  std::ifstream fin(fn.c_str()); 
+  size_t N = std::count(std::istreambuf_iterator<char>(fin), 
+      std::istreambuf_iterator<char>(), '\n');
+  fin.close();
+
+  printf("\t\33[32m[Done]\33[0m\n");
+  return N;
+}
+
