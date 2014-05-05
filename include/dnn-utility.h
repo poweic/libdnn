@@ -9,6 +9,13 @@
   #include <device_math.h>
   #include <device_arithmetic.h>
   #define WHERE thrust
+
+  #define NV_DEVICE_WARP_SIZE 32
+
+  #define ALLOCATE_GRIDS_AND_THREADS(rows, cols) \
+    dim3 grids( ceil( (float) cols / NV_DEVICE_WARP_SIZE), ceil( (float) rows / NV_DEVICE_WARP_SIZE)); \
+    dim3 threads(NV_DEVICE_WARP_SIZE, NV_DEVICE_WARP_SIZE);
+
 #endif
 
 #include <thrust/transform_reduce.h>
@@ -18,6 +25,10 @@
 #include <thrust/inner_product.h>
 
 #include <host_matrix.h>
+
+#include <curand.h>
+#include <curand_kernel.h>
+
 typedef host_matrix<float> hmat;
 
 map<int, int> getLabelMapping(const hmat& labels);
@@ -27,6 +38,26 @@ mat posteriorProb2Label(const mat& prob);
 
 size_t zeroOneError(const mat& predict, const mat& label, ERROR_MEASURE errorMeasure);
 // mat& calcError(const mat& output, const mat& trainY, size_t offset = 0, size_t nData = 0);
+
+class CURAND_STATE {
+public:
+  CURAND_STATE(unsigned seed = unsigned(time(NULL)), int N = 32);
+  curandState* get() const;
+
+  ~CURAND_STATE();
+
+private:
+  curandState* _states;
+};
+
+typedef void (*Operation)(float&, curandState*);
+__global__ void setupCuRandState( curandState * state, unsigned long seed );
+
+mat randn(int m, int n);
+mat rand(int m, int n);
+
+inline mat zeros(int m, int n) { return mat(m, n, 0); }
+inline mat ones(int m, int n) { return mat(m, n, 1); }
 
 vector<float> copyToHost(const mat& m);
 size_t countDifference(const mat& m1, const mat& m2);
@@ -52,8 +83,23 @@ bool hasNAN(const host_matrix<T>& x) {
   return false;
 }
 
+/*! \brief Copy a block memory.
+ * Copy a block (of size h by w) of memory from src to dest.
+ * Both the number of rows of src and dest must be greater or equal to h.
+ * Both the number of cols of src and dest must be greater or equal to w.
+ *
+ * \param dest	destination device matrix.
+ * \param src	source device matrix.
+ * \param r0	source row id. (0-based)
+ * \param c0	source column id. (0-based)
+ * \param h	height of the block of memory to be copied.
+ * \param w	width of the block of memory to be copied.
+ * \param r1	destination row id. (0-based) i.e. the position to paste.
+ * \param c1	destination column id. (0-based) i.e. the position to paste.
+ * */
 template <typename T>
-void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src, size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {
+void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
+    size_t r0, size_t c0, size_t h, size_t w, size_t r1, size_t c1) {
 
   device_matrix<float>::cublas_geam(
       CUBLAS_OP_N, CUBLAS_OP_N,

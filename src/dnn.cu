@@ -22,6 +22,7 @@ void DNN::init(const std::vector<mat>& weights) {
   for (size_t i=0; i<_transforms.size() - 1; ++i)
       _transforms[i] = new Sigmoid(weights[i]);
   _transforms.back() = new Softmax(weights.back());
+  // _transforms.back() = new Sigmoid(weights.back());
 }
 
 DNN::~DNN() {
@@ -170,12 +171,17 @@ void DNN::feedForward(mat& output, const mat& fin) {
   if (_houts.size() != this->getNLayer() - 2)
     _houts.resize(this->getNLayer() - 2);
 
-  _transforms[0]->feedForward(_houts[0], fin);
+  if (_houts.size() > 0) {
+    _transforms[0]->feedForward(_houts[0], fin);
 
-  for (size_t i=1; i<_transforms.size()-1; ++i)
-    _transforms[i]->feedForward(_houts[i], _houts[i-1]);
+    for (size_t i=1; i<_transforms.size()-1; ++i)
+      _transforms[i]->feedForward(_houts[i], _houts[i-1]);
 
-  _transforms.back()->feedForward(output, _houts.back());
+    _transforms.back()->feedForward(output, _houts.back());
+  }
+  else {
+    _transforms.back()->feedForward(output, fin);
+  }
 
   output.resize(output.getRows(), output.getCols() - 1);
 }
@@ -187,15 +193,24 @@ void DNN::feedForward(mat& output, const mat& fin) {
 void DNN::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
 
   mat output(fout);
-  output.reserve(output.getRows() * (output.getCols() + 1));
+  output.reserve(output.size() + output.getRows());
   output.resize(output.getRows(), output.getCols() + 1);
 
-  _transforms.back()->backPropagate(error, _houts.back(), output, learning_rate);
+  error.reserve(error.size() + error.getRows());
+  error.resize(error.getRows(), error.getCols() + 1);
 
-  for (int i=_transforms.size() - 2; i >= 1; --i)
-    _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
+  assert(error.getRows() == output.getRows() && error.getCols() == output.getCols());
 
-  _transforms[0]->backPropagate(error, fin, _houts[0], learning_rate);
+  if (_houts.size() > 0) {
+    _transforms.back()->backPropagate(error, _houts.back(), output, learning_rate);
+
+    for (int i=_transforms.size() - 2; i >= 1; --i)
+      _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
+
+    _transforms[0]->backPropagate(error, fin, _houts[0], learning_rate);
+  }
+  else
+    _transforms.back()->backPropagate(error, fin, output, learning_rate);
 }
 
 Config DNN::getConfig() const {

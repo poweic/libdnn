@@ -1,5 +1,86 @@
 #include <dnn-utility.h>
 
+CURAND_STATE::CURAND_STATE(unsigned seed, int N): _states(NULL) {
+  cudaMalloc ( &_states, N * N * sizeof( curandState ) );
+  setupCuRandState <<< 1, N * N >>> ( _states, seed );
+  CCE(cudaDeviceSynchronize());
+}
+
+curandState* CURAND_STATE::get() const {
+  return _states;
+}
+
+CURAND_STATE::~CURAND_STATE() {
+  cudaFree(_states);
+}
+
+__global__ void setupCuRandState( curandState * state, unsigned long seed ) {
+  int x = blockIdx.x*blockDim.x + threadIdx.x;
+  curand_init ( seed, x, 0, &state[x] );
+}
+
+inline __device__ void get_curand_normal(float& x, curandState* state) {
+  x = curand_normal(state);
+}
+
+inline __device__ void get_curand_uniform(float& x, curandState* state) {
+  x = curand_uniform(state);
+}
+
+template <Operation op>
+__global__ void rand_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
+
+  // Matrix index
+  int x = blockIdx.x*blockDim.x + tx;
+  int y = blockIdx.y*blockDim.y + ty;
+
+  if (x >= cols || y >= rows)
+    return;
+
+  int i = x * rows + y;
+  int j = tx * blockDim.y + ty;
+  op(data[i], globalState + j);
+  __syncthreads();
+}
+
+mat randn(int m, int n) {
+
+  // Use ext::randn (which is set to seed 0) to debug.
+  mat x(m, n);
+  ext::randn(x);
+  return x;
+
+  /*static CURAND_STATE state();
+
+  mat x(m, n);
+
+  ALLOCATE_GRIDS_AND_THREADS(m, n);
+  rand_kernel<get_curand_normal><<<grids, threads>>>(x.getData(), state.get(), m, n);
+  CCE(cudaDeviceSynchronize());
+
+  return x;*/
+}
+
+mat rand(int m, int n) {
+
+  // Use ext::rand (which is set to seed 0) to debug.
+  mat x(m, n);
+  ext::rand(x);
+  return x;
+
+  /*static CURAND_STATE state();
+
+  mat x(m, n);
+
+  ALLOCATE_GRIDS_AND_THREADS(m, n);
+  rand_kernel<get_curand_uniform><<<grids, threads>>>(x.getData(), state.get(), m, n);
+  CCE(cudaDeviceSynchronize());
+
+  return x;*/
+}
+
 map<int, int> getLabelMapping(const hmat& labels) {
   map<int, int> classes;
   for (size_t i=0; i<labels.size(); ++i)
@@ -61,27 +142,28 @@ __global__ void dcrossentropy_kernel(float* error, float* const target, float* c
 
   int i = x * rows + y;
 
-  error[i] = output[i] - (float) (target[y] - 1 == x);
+  // target[y] need to be 0-based 
+  error[i] = output[i] - (float) (target[y] == x);
 
   __syncthreads();
 }
 
 void dCrossEntropy(mat& error, const mat &target, const mat& output) {
 
-  const size_t N = 32;
-  dim3 threads(N, N);
-  dim3 grid;
-  grid.x = (unsigned int) ceil((float) output.getCols() / N);
-  grid.y = (unsigned int) ceil((float) output.getRows() / N);
+  assert(error.getRows() == output.getRows() && error.getCols() == output.getCols());
 
-  dcrossentropy_kernel<<< grid, threads >>>(error.getData(), target.getData(), output.getData(), output.getRows(), output.getCols());
+  ALLOCATE_GRIDS_AND_THREADS(error.getRows(), error.getCols());
+
+  dcrossentropy_kernel<<< grids, threads >>>(
+      error.getData(), target.getData(), output.getData(),
+      error.getRows(), error.getCols());
 
   CCE(cudaDeviceSynchronize());
 }
 
 mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
 
-  mat error;
+  mat error(output.getRows(), output.getCols());
 
   switch (errorMeasure) {
     case L2ERROR: 
@@ -92,8 +174,6 @@ mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
 
       break;
     case CROSS_ENTROPY:
-
-      error.resize(output.getRows(), output.getCols() + 1);
 
       dCrossEntropy(error, target, output);
 
@@ -113,6 +193,7 @@ mat posteriorProb2Label(const mat& prob) {
   float* h_prob = new float[prob.size()];
   float* h_labels  = new float[rows];
   CCE(cudaMemcpy(h_prob, prob.getData(), sizeof(float) * prob.size(), cudaMemcpyDeviceToHost));
+  CCE(cudaDeviceSynchronize());
 
   for (size_t i=0; i<rows; ++i) {
 
@@ -126,7 +207,7 @@ mat posteriorProb2Label(const mat& prob) {
       }
     }
 
-    h_labels[i] = maxIdx + 1;
+    h_labels[i] = maxIdx;
   }
 
   mat labels(h_labels, rows, 1);

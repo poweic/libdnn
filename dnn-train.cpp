@@ -7,8 +7,8 @@
 #include <batch.h>
 using namespace std;
 
-size_t dnn_predict(const DNN& dnn, const DataSet& data, ERROR_MEASURE errorMeasure);
-void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
+size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure);
+void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
 
 int main (int argc, char* argv[]) {
@@ -21,14 +21,15 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "0 for auto detection.", "0")
+	 "0 for auto detection.")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0")
+     .add("--nf", "Load pre-computed statistics from file", "")
+     .add("--base", "Label id starts from 0 or 1 ?", "0");
 
   cmd.addGroup("Training options: ")
-     .add("--rp", "perform random permutation at the start of each epoch", "false")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "100000")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
@@ -38,6 +39,9 @@ int main (int argc, char* argv[]) {
      .add("--type", "choose one of the following:\n"
 	"0 -- classfication\n"
 	"1 -- regression", "0");
+
+  cmd.addGroup("Hardward options:")
+     .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
 
   cmd.addGroup("Example usage: dnn-train data/train3.dat --nodes=16-8");
 
@@ -49,7 +53,9 @@ int main (int argc, char* argv[]) {
   string model_out    = cmd[3];
 
   size_t input_dim    = cmd["--input-dim"];
-  int n_type	      = cmd["--normalize"];
+  NormType n_type     = (NormType) (int) cmd["--normalize"];
+  string n_filename   = cmd["--nf"];
+  int base	      = cmd["--base"];
 
   int ratio	      = cmd["-v"];
   size_t batchSize    = cmd["--batch-size"];
@@ -57,7 +63,9 @@ int main (int argc, char* argv[]) {
   float variance      = cmd["--variance"];
   float minValidAcc   = cmd["--min-acc"];
   size_t maxEpoch     = cmd["--max-epoch"];
-  bool randperm	      = cmd["--rp"];
+
+  size_t cache_size   = cmd["--cache"];
+  CudaMemManager<float>::setCacheSize(cache_size);
 
   // Set configurations
   Config config;
@@ -65,20 +73,20 @@ int main (int argc, char* argv[]) {
   config.learningRate = learningRate;
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
-  config.print();
 
   // Load model
   DNN dnn(model_in);
   dnn.setConfig(config);
 
   // Load data
-  DataSet data(train_fn, input_dim);
-  data.normalize(n_type);
-  data.shuffle();
+  DataSet data(train_fn, input_dim, base);
+  // data.loadPrecomputedStatistics(n_filename);
+  data.setNormType(n_type);
   data.showSummary();
 
   DataSet train, valid;
-  data.splitIntoTrainAndValidSet(train, valid, ratio);
+  DataSet::split(data, train, valid, ratio);
+  config.print();
 
   // Start Training
   ERROR_MEASURE err = CROSS_ENTROPY;
@@ -93,7 +101,7 @@ int main (int argc, char* argv[]) {
   return 0;
 }
 
-void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
+void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   printf("Training...\n");
   perf::Timer timer;
@@ -101,7 +109,7 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
 
   vector<mat> O(dnn.getNLayer());
 
-  size_t Ein;
+  size_t Ein = 1;
   size_t MAX_EPOCH = dnn.getConfig().maxEpoch, epoch;
   std::vector<size_t> Eout;
   Eout.reserve(MAX_EPOCH);
@@ -117,17 +125,17 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
       // Copy a batch of data from host to device
-      mat fin = train.getX(*itr);
-      dnn.feedForward(fout, fin);
+      auto data = train[*itr];
 
-      mat error = getError( train.getY(*itr), fout, errorMeasure);
+      dnn.feedForward(fout, data.x);
 
-      dnn.backPropagate(error, fin, fout, dnn.getConfig().learningRate);
+      mat error = getError( data.y, fout, errorMeasure);
+
+      dnn.backPropagate(error, data.x, fout, dnn.getConfig().learningRate);
     }
 
-    Eout.push_back(dnn_predict(dnn, valid, errorMeasure));
-  
     Ein = dnn_predict(dnn, train, errorMeasure);
+    Eout.push_back(dnn_predict(dnn, valid, errorMeasure));
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
@@ -157,13 +165,14 @@ void dnn_train(DNN& dnn, const DataSet& train, const DataSet& valid, size_t batc
   showAccuracy(Eout.back(), valid.size());
 }
 
-size_t dnn_predict(const DNN& dnn, const DataSet& data, ERROR_MEASURE errorMeasure) {
+size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure) {
   size_t nError = 0;
 
   Batches batches(2048, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    mat prob = dnn.feedForward(data.getX(*itr));
-    nError += zeroOneError(prob, data.getY(*itr), errorMeasure);
+    auto d = data[*itr];
+    mat prob = dnn.feedForward(d.x);
+    nError += zeroOneError(prob, d.y, errorMeasure);
   }
 
   return nError;

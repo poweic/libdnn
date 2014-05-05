@@ -18,7 +18,8 @@ typedef device_matrix<float> mat;
 
 #ifdef DEBUG
 #define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }
-#define matlog(x) { printf("\33[34m"#x"\33[0m = [\n"); x.print(); printf("];\n"); }
+#define matlog(x) { printf(#x": "); (x).status(); printf("\33[34m"#x"\33[0m = [\n"); (x).print(); printf("];\n"); }
+// #define matlog(x) { printf(#x" = [\n"); (x).print(); printf("];\n"); }
 #define mylog(x) { cout << #x << " = " << x << endl; }
 #else
 #define PAUSE {}
@@ -38,6 +39,12 @@ long getFileSize(std::string filename) {
   return rc == 0 ? stat_buf.st_size : -1;
 }*/
 
+
+/*! \brief divide --struct into cnn-structure and nn-structure
+ */
+void parseNetworkStructure(const string &structure,
+    string& cnn_struct, string& nn_struct);
+
 template <typename T>
 void print(const vector<T>& v) {
   cout << "[";
@@ -46,6 +53,14 @@ void print(const vector<T>& v) {
   cout << "\b\b]" << endl;
 }
 
+template <typename T>
+string to_string(T n) {
+  stringstream ss;
+  ss << n;
+  return ss.str();
+}
+
+int str2int(const std::string &s);
 float str2float(const std::string &s);
 std::vector<std::string> split(const std::string &s, char delim);
 std::vector<std::string>& split(const std::string &s, char delim, std::vector<std::string>& elems);
