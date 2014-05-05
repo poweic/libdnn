@@ -9,8 +9,8 @@ CUMATRIX_ROOT=tools/libcumatrix/
 INCLUDE= -I include/ \
 	 -I $(BOTON_UTIL_ROOT)/include/ \
 	 -I $(CUMATRIX_ROOT)/include \
- 	 -isystem /usr/local/cuda/samples/common/inc/ \
-	 -isystem /usr/local/cuda/include
+ 	 -I /usr/local/cuda/samples/common/inc/ \
+	 -I /usr/local/cuda/include
 
 CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
 
