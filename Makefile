@@ -12,7 +12,7 @@ INCLUDE= -I include/ \
  	 -I /usr/local/cuda/samples/common/inc/ \
 	 -I /usr/local/cuda/include
 
-CPPFLAGS= -std=c++0x -Werror -Wall $(CFLAGS) $(INCLUDE)
+CPPFLAGS= -std=c++0x $(CFLAGS) $(INCLUDE) #-Werror -Wall 
 
 SOURCES=cnn-utility.cu\
 	cnn.cu\

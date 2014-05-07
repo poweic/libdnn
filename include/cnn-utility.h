@@ -67,7 +67,7 @@ float sum_all(const mat& x);
 void plotL2normInSemilogy();
 void test_downsample();
 void test_convn(string type);
-void test_valid_shm_vs_valid();
+void test_convn_with_and_without_shm(string type, const int N = 10000);
 void test_valid_shm_vs_valid_2();
 void test_reshape_images_between_vectors();
 void benchmark_valid_and_valid_shm();
