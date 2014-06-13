@@ -12,9 +12,9 @@ You need
 # Quick Start
 1. ```git clone https://github.com/botonchou/libdnn.git && cd libdnn && ./install-sh```
 2. ```cd example/```
-3. ```dnn-init data/a1a --nodes 512-512``` ( Please enter 2 )
-4. ```dnn-train data/a1a --pre 2 -f a1a.model --min-acc 0.8```
-5. ```dnn-predict data/a1a.t a1a.model```
+3. ```dnn-init    data/a1a   model/a1a.rbm   --input-dim 123 --output-dim 2 --nodes 256-256```
+4. ```dnn-train   data/a1a   model/a1a.rbm   --input-dim 123 model/a1a.model --min-acc 0.8```
+5. ```dnn-predict data/a1a.t model/a1a.model --input-dim 123 ```
 
 # Examples
 There're 3 examples in example/:
@@ -93,15 +93,15 @@ It then perform stacked RBM initialization for a neural network of the structure
 ```
 Din-1024-1024-Dout
 ```
-(**Note**: If the values in train.dat does not lie in the range **[0, 1]**, it would cause an assertion. Try to add ```--rescale true``` after ```dnn-init``` like: ```dnn-init --rescale true --nodes 1024-1024 train.dat```.)
+(**Note**: If the values in train.dat does not lie in the range **[0, 1]**, it would cause an assertion. Try to add ```--normalize 1``` after ```dnn-init``` like: ```dnn-init --normalize 1 --nodes 1024-1024 train.dat```.)
 
 ### dnn-train
 ```
-dnn-train [options] training_data [model_out]
+dnn-train [options] training_data model_in [model_out]
 ```
 This program perform mini-batch stochastic gradient descent (mini-batch SGD) to train the model initialized by ```dnn-init```.
 ```
-dnn-train train.dat --pre 2 -f train.dat.model
+dnn-train train.dat train.dat.model
 ```
 
 ### dnn-predict

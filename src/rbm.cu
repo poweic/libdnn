@@ -112,7 +112,7 @@ void StackedRbmTrainer::antiWeightExplosion(mat& W, const mat& v1, const mat& v2
   assert(std_ratio != 0);
 
   if (std_ratio > 2) {
-    printf("\33[34m[Info]\33[0m W and learning_rate shrinked to prevent weights to explode!!\n");
+    // printf("\33[34m[Info]\33[0m W and learning_rate shrinked to prevent weights to explode!!\n");
     W /= std_ratio;
     learning_rate *= 0.9;
   }
