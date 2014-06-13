@@ -1,10 +1,13 @@
-#!/bin/bash -xe
+#!/bin/bash -e
 
 # Example 2
-Train=data/train.dat
-Test=data/test.dat
-Model=train.dat.model
+TRAIN=data/train.dat
+TEST=data/test.dat
+stacked_rbm=model/train.dat.rbm
+model=model/train.dat.model
 
-echo 2 | dnn-init --nodes 64-64 $Train $Model --rescale true
-dnn-train $Train --pre 2 -f $Model --min-acc 0.8 --rescale true
-dnn-predict $Test $Model --rescale true
+opts="--normalize 1 --input-dim 20"
+
+dnn-init $opts --output-dim 2 --nodes 64-64 $TRAIN $stacked_rbm
+dnn-train $opts $TRAIN $stacked_rbm $model --min-acc 0.74
+dnn-predict $opts $TEST $model
