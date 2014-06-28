@@ -434,6 +434,17 @@ Normalization* StandardScore::clone() const {
   return new StandardScore(*this);
 }
 
+void StandardScore::print(FILE* fid) const {
+  fprintf(fid, "_mean = [ ");
+  for (size_t i=0; i<_mean.size(); ++i)
+    fprintf(fid, "%.14e ", _mean[i]); 
+  fprintf(fid, "];\n");
+
+  fprintf(fid, "_dev = [ ");
+  for (size_t i=0; i<_dev.size(); ++i)
+    fprintf(fid, "%.14e ", _dev[i]); 
+  fprintf(fid, "];");
+}
 
 /*
  * Class ZeroOne (inherited from Normalization)
@@ -509,3 +520,16 @@ void ZeroOne::stat(DataSet& data) {
 Normalization* ZeroOne::clone() const {
   return new ZeroOne(*this);
 }
+
+void ZeroOne::print(FILE* fid) const {
+  fprintf(fid, "_min = [ ");
+  for (size_t i=0; i<_min.size(); ++i)
+    fprintf(fid, "%.14e ", _min[i]); 
+  fprintf(fid, "];\n");
+
+  fprintf(fid, "_max = [ ");
+  for (size_t i=0; i<_max.size(); ++i)
+    fprintf(fid, "%.14e ", _max[i]); 
+  fprintf(fid, "];");
+}
+

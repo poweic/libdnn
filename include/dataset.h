@@ -133,6 +133,8 @@ public:
   virtual void stat(DataSet& data);
   virtual Normalization* clone() const;
 
+  virtual void print(FILE* fid = stdout) const;
+
 private:
   vector<double> _mean;
   vector<double> _dev;
@@ -147,6 +149,8 @@ public:
   virtual void normalize(BatchData& data) const;
   virtual void stat(DataSet& data);
   virtual Normalization* clone() const;
+
+  virtual void print(FILE* fid = stdout) const;
 
 private:
   vector<double> _min;
