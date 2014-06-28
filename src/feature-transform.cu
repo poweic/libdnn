@@ -15,10 +15,10 @@ void FeatureTransform::print(FILE* fid, const host_matrix<float>& data, string t
   }
   fprintf(fid, "]\n");
 
-  fprintf(fid, "<bias> \n [");
+  fprintf(fid, "<bias> \n [ ");
   for (size_t j=0; j<cols-1; ++j)
     fprintf(fid, "%g ", data[j * rows + rows - 1]);
-  fprintf(fid, " ]\n");
+  fprintf(fid, "]\n");
 }
 
 mat rowSum(mat& m) {
