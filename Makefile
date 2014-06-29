@@ -5,10 +5,12 @@ NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
+KALDIIO_ROOT=tools/libkaldiio/
 
 INCLUDE= -I include/ \
 	 -I $(BOTON_UTIL_ROOT)/include/ \
 	 -I $(CUMATRIX_ROOT)/include \
+	 -I $(KALDIIO_ROOT)/include \
  	 -I /usr/local/cuda/samples/common/inc/ \
 	 -I /usr/local/cuda/include
 
@@ -19,8 +21,9 @@ SOURCES=cnn-utility.cu\
 	dnn-utility.cu\
 	dnn.cpp\
 	utility.cpp\
-	rbm.cpp\
-	feature-transform.cpp\
+	rbm.cu\
+	feature-transform.cu\
+	data-io.cpp\
 	dataset.cpp\
 	batch.cpp\
 	config.cpp

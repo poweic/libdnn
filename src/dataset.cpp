@@ -15,24 +15,98 @@
 #include <dataset.h>
 #include <dnn-utility.h>
 
+string read_docid(FILE* fid) {
+  char buffer[512];
+  int result = fscanf(fid, "%s ", buffer);
+
+  return (result != 1) ? "" : string(buffer);
+}
+
+void readKaldiFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data);
+
 BatchData readMoreFeature(DataStream& stream, int N, size_t dim, size_t base, bool sparse) {
 
   BatchData data;
-  if (sparse)
-    readSparseFeature(stream, N, dim, base, data);
-  else
-    readDenseFeature(stream, N, dim, base, data);
+  if (stream.is_pipe()) {
+    readKaldiFeature(stream, N, dim, base, data);
+  }
+  else {
+    if (sparse)
+      readSparseFeature(stream, N, dim, base, data);
+    else
+      readDenseFeature(stream, N, dim, base, data);
+  }
 
   return data;
 }
 
+void readKaldiFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data) {
+
+  data.x.resize(N, dim + 1, 0);
+  data.y.resize(N, 1, 0);
+
+  // Read kaldi feature
+  FILE* &fis = stream._feat_ps;
+  FILE* &lis = stream._label_ps;
+
+  int counter = 0;
+  int& r = stream._remained;
+
+  while (true) {
+
+    if (r == 0) {
+      string docid1, docid2;
+      docid1 = read_docid(fis);
+      docid2 = read_docid(lis);
+
+      if (docid1.empty() or docid2.empty()) {
+	stream.rewind();
+	docid1 = read_docid(fis);
+	docid2 = read_docid(lis);
+      }
+
+      if (docid1 != docid2)
+	throw std::runtime_error(RED_ERROR + "Cannot find " + docid2 + " in label");
+
+      char s[6]; 
+      int frame;
+
+      fread((void*) s, 1, 6, fis); // fis.read(s, 6);
+      fread((void*) &frame, 4, 1, fis); // fis.read((char*) &frame, 4);
+      fread((void*) s, 1, 1, fis); // fis.read(s, 1);
+      fread((void*) s, 4, 1, fis); // fis.read((char*) &dim, 4);
+
+      r = frame;
+    }
+
+    for(int i = 0; i < r; i++) {
+      for(int j = 0; j < dim; j++) {
+	fread((void*) &data.x(counter, j), sizeof(float), 1, fis);
+	// fis.read((char*) &data.x(counter, j), sizeof(float));
+      }
+      data.x(counter, dim) = 1;
+
+      size_t y;
+      fscanf(lis, "%lu", &y);
+      data.y[counter] = y;
+
+      if (++counter == N) {
+	r -= i + 1;
+	return;
+      }
+    }
+
+    r = 0;
+  }
+
+  // Read label
+  // TODO Use "comm" to remove un-alignmented feature
+}
+
 void readSparseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data) {
 
-  data.x.resize(N, dim + 1);
-  data.y.resize(N, 1);
-
-  data.x.fillwith(0);
-  data.y.fillwith(0);
+  data.x.resize(N, dim + 1, 0);
+  data.y.resize(N, 1, 0);
 
   string token;
 
@@ -64,11 +138,8 @@ void readSparseFeature(DataStream& stream, int N, size_t dim, size_t base, Batch
 
 void readDenseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data) {
 
-  data.x.resize(N, dim + 1);
-  data.y.resize(N, 1);
-
-  data.x.fillwith(0);
-  data.y.fillwith(0);
+  data.x.resize(N, dim + 1, 0);
+  data.y.resize(N, 1, 0);
   
   string token;
 
@@ -91,88 +162,6 @@ void readDenseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchD
     data.y[i] -= base;
 }
 
-/* \brief constructor of class DataStream
- *
- * */
-DataStream::DataStream(): _nLines(0), _line_number(0), _start(0), _end(-1) {
-}
-
-DataStream::DataStream(const string& filename, size_t start, size_t end) : _nLines(0) {
-  this->init(filename, start, end);
-}
-
-DataStream::DataStream(const DataStream& src) : _nLines(src._nLines),
-    _line_number(src._line_number), _filename(src._filename),
-    _start(src._start), _end(src._end) {
-  this->init(_filename, _start, _end);
-}
-
-DataStream::~DataStream() {
-  _fs.close();
-}
-
-DataStream& DataStream::operator = (DataStream that) {
-  swap(*this, that);
-  return *this;
-}
-
-void DataStream::init(const string& filename, size_t start, size_t end) {
-  if (_fs.is_open())
-    _fs.close();
-
-  _filename = filename;
-  _start = start;
-  _end = end;
-  _line_number = _start;
-
-  _fs.open(_filename.c_str());
-
-  if (!_fs.is_open())
-    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + filename);
-
-  if (_nLines == 0)
-    _nLines = countLines(_filename);
-
-  goToLine(_fs, _start);
-
-  _end = min(_nLines, _end);
-  _nLines = min(_nLines, _end - _start);
-}
-
-string DataStream::getline() {
-  string line;
-
-  if ( _line_number >= _end )
-    this->rewind();
-
-  if ( !std::getline(_fs, line) ) {
-    this->rewind();
-    std::getline(_fs, line);
-  }
-
-  ++_line_number;
-
-  return line;
-}
-
-void DataStream::rewind() {
-  _fs.clear();
-  goToLine(_fs, _start);
-  _line_number = _start;
-}
-
-size_t DataStream::count_lines() const {
-  return _nLines;
-}
-
-void swap(DataStream& a, DataStream& b) { 
-  std::swap(a._nLines, b._nLines);
-  std::swap(a._line_number, b._line_number);
-  std::swap(a._filename, b._filename);
-  std::swap(a._start, b._start);
-  std::swap(a._end, b._end);
-}
-
 /* \brief Constructors for DataSet
  *
  *
@@ -183,6 +172,10 @@ DataSet::DataSet(): _normalizer(NULL) {
 DataSet::DataSet(const string &fn, size_t dim, int base, size_t start, size_t end)
   : _dim(dim), _stream(fn, start, end), _sparse(isFileSparse(fn)),
   _base(base), _normalizer(NULL) {
+}
+
+void DataSet::init(const string &fn, size_t dim, int base, size_t start, size_t end) {
+  // TODO;
 }
 
 DataSet::DataSet(const DataSet& src)
@@ -233,7 +226,7 @@ void DataSet::setNormType(NormType type) {
 }
 
 size_t DataSet::size() const {
-  return _stream.count_lines();
+  return _stream.get_line_number();
 }
 
 void DataSet::showSummary() const {
@@ -272,7 +265,7 @@ void DataSet::set_sparse(bool sparse) {
 
 void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ratio) {
 
-  size_t nLines = data._stream.count_lines();
+  size_t nLines = data.size();
   
   size_t nValid = nLines / ratio,
 	 nTrain = nLines - nValid;
@@ -280,8 +273,8 @@ void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ra
   train = data;
   valid = data;
 
-  train._stream.init(data._stream._filename, 0, nTrain);
-  valid._stream.init(data._stream._filename, nTrain, -1);
+  train._stream.init(data._stream.get_filename(), 0, nTrain);
+  valid._stream.init(data._stream.get_filename(), nTrain, -1);
 }
 
 void DataSet::setDimension(size_t dim) {
@@ -293,8 +286,8 @@ void DataSet::setLabelBase(int base) {
 }
 
 void DataSet::rewind() {
-  if (f_data.valid())
-    f_data.wait();
+  /*if (f_data.valid())
+    f_data.wait();*/
   this->_stream.rewind();
 }
 
@@ -305,10 +298,11 @@ bool isFileSparse(string fn) {
   ifstream fin(fn.c_str());
   string line;
   std::getline(fin, line);
+  fin.close();
   return line.find(':') != string::npos;
 }
 
-size_t findMaxDimension(ifstream& fin) {
+/*size_t findMaxDimension(ifstream& fin) {
   int previous_pos = fin.tellg();
 
   string token;
@@ -327,9 +321,9 @@ size_t findMaxDimension(ifstream& fin) {
   fin.seekg(previous_pos);
 
   return maxDimension;
-}
+}*/
 
-size_t findDimension(ifstream& fin) {
+/*size_t findDimension(ifstream& fin) {
 
   size_t dim = 0;
 
@@ -350,33 +344,7 @@ size_t findDimension(ifstream& fin) {
   fin.seekg(previous_pos);
 
   return dim;
-}
-
-std::ifstream& goToLine(std::ifstream& file, unsigned long num){
-  file.seekg(std::ios::beg);
-  
-  if (num == 0)
-    return file;
-
-  for(size_t i=0; i < num; ++i)
-    file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
-
-  return file;
-}
-
-size_t countLines(const string& fn) {
-  printf("Loading file: \33[32m%s\33[0m (try to find out how many data) ...", fn.c_str());
-  fflush(stdout);
-  
-  std::ifstream fin(fn.c_str()); 
-  size_t N = std::count(std::istreambuf_iterator<char>(fin), 
-      std::istreambuf_iterator<char>(), '\n');
-  fin.close();
-
-  printf("\t\33[32m[Done]\33[0m\n");
-  return N;
-}
-
+}*/
 
 /* 
  * Class StandardScore (inherited from Normalization)
@@ -422,7 +390,7 @@ void StandardScore::normalize(BatchData& data) const {
 void StandardScore::stat(DataSet& data) {
 
   DataStream& stream = data._stream;
-  size_t N = stream.count_lines(),
+  size_t N = data.size(),
 	 dim = data._dim,
 	 base = data._base,
 	 sparse = data._sparse;
@@ -447,13 +415,13 @@ void StandardScore::stat(DataSet& data) {
       }
     }
   }
-
+  
   for (size_t j=0; j<dim; ++j) {
     _mean[j] /= N;
     _dev[j] = sqrt((_dev[j] / N) - pow(_mean[j], 2));
   }
 
-  stream.rewind();
+  data.rewind();
 }
 
 Normalization* StandardScore::clone() const {
@@ -513,7 +481,7 @@ void ZeroOne::normalize(BatchData& data) const {
 void ZeroOne::stat(DataSet& data) {
 
   DataStream& stream = data._stream;
-  size_t N = stream.count_lines(),
+  size_t N = data.size(),
 	 dim = data._dim,
 	 base = data._base,
 	 sparse = data._sparse;

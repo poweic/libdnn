@@ -1,6 +1,8 @@
 #ifndef __DATASET_H_
 #define __DATASET_H_
 
+#include <data-io.h>
+
 #include <device_matrix.h>
 #include <host_matrix.h>
 #include <batch.h>
@@ -13,31 +15,6 @@ enum NormType {
   NO_NORMALIZATION,
   LINEAR_SCALING,
   STANDARD_SCORE
-};
-
-class DataStream {
-public:
-  DataStream();
-  DataStream(const string& filename, size_t start = 0, size_t end = -1);
-  DataStream(const DataStream& src);
-  ~DataStream();
-
-  DataStream& operator = (DataStream that);
-
-  friend void swap(DataStream& a, DataStream& b);
-
-  size_t count_lines() const;
-
-  void init(const string& filename, size_t start, size_t end);
-
-  string getline();
-  void rewind();
-
-  size_t _nLines;
-  size_t _line_number;
-  string _filename;
-  ifstream _fs;
-  size_t _start, _end;
 };
 
 struct BatchData {
@@ -55,6 +32,8 @@ public:
   DataSet();
   DataSet(const string &fn, size_t dim = 0, int base = 0,
       size_t start = 0, size_t end = -1);
+
+  void init(const string &fn, size_t dim, int base, size_t start, size_t end);
 
   DataSet(const DataSet& data);
   ~DataSet();

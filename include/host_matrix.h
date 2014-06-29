@@ -40,6 +40,11 @@ public:
     return *this;
   }
 
+  void resize(size_t r, size_t c, T x) {
+    this->resize(r, c);
+    this->fillwith(x);
+  }
+
   void resize(size_t r, size_t c) {
     if (_rows == r && _cols == c)
       return;
@@ -107,7 +112,7 @@ public:
   void print(FILE* fid = stdout) const {
     for (size_t i=0; i<_rows; ++i) {
       for (size_t j=0; j<_cols; ++j)
-	fprintf(fid, "%.4e ", _data[j * _rows + i]);
+	fprintf(fid, "%.5f ", _data[j * _rows + i]);
       fprintf(fid, "\n");
     }
 
