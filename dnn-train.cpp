@@ -119,6 +119,14 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
 
   mat fout;
 
+  printf("._______._________________________._________________________.\n"
+         "|       |                         |                         |\n"
+         "|       |        In-Sample        |      Out-of-Sample      |\n"
+         "| Epoch |__________.______________|__________.______________|\n"
+         "|       |          |              |          |              |\n"
+         "|       | Accuracy | # of correct | Accuracy | # of correct |\n"
+         "|_______|__________|______________|__________|______________|\n");
+
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
 
     Batches batches(batchSize, nTrain);
@@ -146,8 +154,12 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
 
     float validAcc = 1.0f - (float) Eout[epoch] / nValid;
 
-    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
-      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); 
+         //"|_______|__________|______________|__________|______________|\n");
+    printf("|%4lu   |  %.2f %% |  %7lu     |  %.2f %% |  %7lu     |\n",
+      epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eout[epoch]);
+
+    /*printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
+      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); */
 
     if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
       break;
