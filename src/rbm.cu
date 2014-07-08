@@ -309,9 +309,30 @@ void StackedRbmTrainer::save(const string& fn) {
   if (!fid)
     throw std::runtime_error("Cannot open file: \"" + fn + "\"");
 
-  for (size_t i=0; i<_weights.size() - 1; ++i)
-    FeatureTransform::print(fid, _weights[i], "sigmoid");
-  FeatureTransform::print(fid, _weights.back(), "softmax");
+  FeatureTransform *affine, *activation;
+  size_t dim;
+
+  for (size_t i=0; i<_weights.size() - 1; ++i) {
+    affine = new AffineTransform(_weights[i]);
+    affine->write(fid);
+
+    dim = affine->getOutputDimension();
+    activation = new Sigmoid(dim, dim);
+    activation->write(fid);
+
+    delete affine;
+    delete activation;
+  }
+
+  affine = new AffineTransform(_weights.back());
+  affine->write(fid);
+
+  dim = affine->getOutputDimension();
+  activation = new Softmax(dim, dim);
+  activation->write(fid);
+
+  delete affine;
+  delete activation;
 
   fclose(fid);
 }

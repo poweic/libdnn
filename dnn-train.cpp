@@ -33,7 +33,7 @@ int main (int argc, char* argv[]) {
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "100000")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
-     .add("--learning-rate", "learning rate in back-propagation", "0.01")
+     .add("--learning-rate", "learning rate in back-propagation", "0.1")
      .add("--variance", "the variance of normal distribution when initializing the weights", "0.01")
      .add("--batch-size", "number of data per mini-batch", "32")
      .add("--type", "choose one of the following:\n"
@@ -154,12 +154,8 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
 
     float validAcc = 1.0f - (float) Eout[epoch] / nValid;
 
-         //"|_______|__________|______________|__________|______________|\n");
     printf("|%4lu   |  %.2f %% |  %7lu     |  %.2f %% |  %7lu     |\n",
       epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eout[epoch]);
-
-    /*printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
-      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); */
 
     if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
       break;

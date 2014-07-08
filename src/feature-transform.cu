@@ -1,68 +1,32 @@
 #include <feature-transform.h>
 
-void FeatureTransform::print(FILE* fid, const host_matrix<float>& data, string type) {
-  fprintf(fid, "<%s> %lu %lu\n", type.c_str(), data.getRows() - 1, data.getCols() - 1);
+FeatureTransform* FeatureTransform::create(FILE* fid) {
+  char c_type[128];
+  if ( fscanf(fid, "%s", c_type) == EOF )
+    return NULL;
 
-  size_t rows = data.getRows(),
-	 cols = data.getCols();
+  string type(c_type);
 
-  fprintf(fid, " [");
+  if (type == "<AffineTransform>")
+    return new AffineTransform(fid);
+  else if (type == "<Sigmoid>")
+    return new Sigmoid(fid);
+  else if (type == "<Softmax>")
+    return new Softmax(fid);
 
-  for (size_t j=0; j<rows-1; ++j) {
-    fprintf(fid, "\n  ");
-    for (size_t k=0; k<cols-1; ++k)
-      fprintf(fid, "%g ", data[k * rows + j]);
-  }
-  fprintf(fid, "]\n");
-
-  fprintf(fid, "<bias> \n [ ");
-  for (size_t j=0; j<cols-1; ++j)
-    fprintf(fid, "%g ", data[j * rows + rows - 1]);
-  fprintf(fid, "]\n");
-}
-
-mat rowSum(mat& m) {
-  return m * mat(m.getCols(), m.getCols(), 1);
+  return NULL;
 }
 
 // convert a linear index to a row index
 template <typename T>
-struct linear_index_to_row_index : public thrust::unary_function<T,T>
-{
-  T C; // number of columns
+struct linear_index_to_row_index : public thrust::unary_function<T,T> {
+  T cols; // number of columns
 
-  __host__ __device__
-    linear_index_to_row_index(T C) : C(C) {}
+  __host__ __device__ linear_index_to_row_index(T cols) : cols(cols) {}
 
-  __host__ __device__
-    T operator()(T i)
-    {
-      return i / C;
-    }
+  __host__ __device__ T operator()(T i) { return i / cols; }
 };
 
-void substractMaxPerRow(mat& x);
-mat getRowMax(mat& A);
-__global__ void substract_max_per_row(float* const A, float* const rmax, unsigned int rows, unsigned int cols);
-
-void substractMaxPerRow(mat& x) {
-  mat rmax = getRowMax(x);
-
-  ALLOCATE_GRIDS_AND_THREADS(x.getRows(), x.getCols());
-  substract_max_per_row<<< grids, threads >>>(x.getData(), rmax.getData(), x.getRows(), x.getCols());
-  CCE(cudaDeviceSynchronize());
-}
-
-__global__ void substract_max_per_row(float* const A, float* const rmax, unsigned int rows, unsigned int cols) {
-  // Matrix index
-  int x = blockIdx.x*blockDim.x + threadIdx.x;
-  int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-  if (x >= cols || y >= rows)
-    return;
-
-  A[x * rows + y] -= rmax[y];
-}
 
 mat getRowMax(mat& A) {
   mat rmax(A.getRows(), 1);
@@ -85,29 +49,122 @@ mat getRowMax(mat& A) {
   return rmax;
 }
 
-// ============================
-// ===== FeatureTransform =====
-// ============================
+__global__ void substract_max_per_row(float* const A, float* const rmax, unsigned int rows, unsigned int cols) {
+  // Matrix index
+  int x = blockIdx.x*blockDim.x + threadIdx.x;
+  int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-FeatureTransform::FeatureTransform(const FeatureTransform& source): _w(source._w) {
+  if (x >= cols || y >= rows)
+    return;
+
+  A[x * rows + y] -= rmax[y];
 }
 
-FeatureTransform::FeatureTransform(const mat& w): _w(w){
+void substractMaxPerRow(mat& x) {
+  mat rmax = getRowMax(x);
+
+  ALLOCATE_GRIDS_AND_THREADS(x.getRows(), x.getCols());
+  substract_max_per_row<<< grids, threads >>>(x.getData(), rmax.getData(), x.getRows(), x.getCols());
+  CCE(cudaDeviceSynchronize());
 }
 
-size_t FeatureTransform::getInputDimension() const {
-  return _w.getRows();
+
+/*
+ * class FeatureTransform
+ *
+ * */
+
+FeatureTransform::FeatureTransform(size_t input_dim, size_t output_dim)
+  : _input_dim(input_dim), _output_dim(output_dim) {
 }
 
-size_t FeatureTransform::getOutputDimension() const {
-  return _w.getCols();
+FeatureTransform::FeatureTransform(const FeatureTransform& source) {
 }
 
-void FeatureTransform::print(FILE* fid) const {
-  FeatureTransform::print(fid, this->_w, this->toString());
+/*
+ * class AffineTransform
+ *
+ * */
+AffineTransform::AffineTransform(size_t input_dim, size_t output_dim)
+  : FeatureTransform(input_dim, output_dim) {
+
 }
 
-void FeatureTransform::feedBackward(mat& error, const mat& delta) {
+AffineTransform::AffineTransform(const mat& w)
+  : FeatureTransform(w.getRows() - 1, w.getCols() - 1), _w(w) {
+}
+
+AffineTransform::AffineTransform(const AffineTransform& src): FeatureTransform(src) {
+}
+
+AffineTransform::AffineTransform(FILE* fid) {
+  this->read(fid);
+}
+
+void AffineTransform::read(FILE* fid) {
+  size_t rows, cols;
+  if ( fscanf(fid, "%lu %lu", &rows, &cols) == EOF)
+    throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+
+  hmat hw(rows + 1, cols + 1);
+
+  // Read matrix
+  fscanf(fid, " [\n");
+  for (size_t i=0; i<rows; ++i)
+    for (size_t j=0; j<cols; ++j)
+      fscanf(fid, "%f ", &hw(i, j) );
+  fscanf(fid, "]\n");
+
+  // Read vector (bias)
+  fscanf(fid, "[");
+  for (size_t j=0; j<cols; ++j)
+    fscanf(fid, "%f ", &hw(rows, j) );
+  fscanf(fid, "]\n");
+
+  _w = (mat) hw;
+  _input_dim = _w.getRows();
+  _output_dim = _w.getCols();
+}
+
+void AffineTransform::write(FILE* fid) const {
+  hmat data(_w);
+  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str()
+      , data.getRows() - 1, data.getCols() - 1);
+
+  size_t rows = data.getRows(),
+	 cols = data.getCols();
+
+  fprintf(fid, "[");
+
+  for (size_t j=0; j<rows-1; ++j) {
+    fprintf(fid, "\n  ");
+    for (size_t k=0; k<cols-1; ++k)
+      fprintf(fid, "%g ", data[k * rows + j]);
+  }
+  fprintf(fid, "]\n");
+
+  fprintf(fid, "[ ");
+  for (size_t j=0; j<cols-1; ++j)
+    fprintf(fid, "%g ", data[j * rows + rows - 1]);
+  fprintf(fid, "]\n");
+}
+
+AffineTransform* AffineTransform::clone() const {
+  return new AffineTransform(*this);
+}
+
+string AffineTransform::toString() const {
+  return "AffineTransform";
+}
+
+void AffineTransform::feedForward(mat& fout, const mat& fin) {
+  fout = fin * _w;
+  fillLastColumnWith(fout, (float) 1.0);
+}
+
+void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  mat delta = error;
+
   // The last row of _w is bias, and the last column of _w is saved only for computational efficiency.
   // Therefore, ignore last column, which is the bias.
   size_t traceLength = delta.getCols() - 1;
@@ -122,16 +179,37 @@ void FeatureTransform::feedBackward(mat& error, const mat& delta) {
       _w.getData(), _w.getRows(),
       0.0,
       error.getData(), error.getRows());
+
+  gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
 }
 
-// ===================
-// ===== Sigmoid =====
-// ===================
+/*
+ * class Sigmoid
+ *
+ * */
 
-Sigmoid::Sigmoid(const mat& w): FeatureTransform(w) {
+Sigmoid::Sigmoid(size_t input_dim, size_t output_dim)
+  : FeatureTransform(input_dim, output_dim) {
+
 }
 
 Sigmoid::Sigmoid(const Sigmoid& src): FeatureTransform(src) {
+}
+
+Sigmoid::Sigmoid(FILE* fid) {
+  this->read(fid);
+}
+
+void Sigmoid::read(FILE* fid) {
+  if ( fscanf(fid, "%lu %lu\n [\n", &_input_dim, &_output_dim) == EOF)
+    throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+
+  if (_input_dim != _output_dim)
+    throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
+}
+
+void Sigmoid::write(FILE* fid) const {
+  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str(), _input_dim, _output_dim);
 }
 
 Sigmoid* Sigmoid::clone() const {
@@ -139,30 +217,45 @@ Sigmoid* Sigmoid::clone() const {
 }
 
 string Sigmoid::toString() const {
-  return "sigmoid";
+  return "Sigmoid";
 }
 
 void Sigmoid::feedForward(mat& fout, const mat& fin) {
-  // fout = sigmoid(fin * _w);
-  fout = transform(fin * _w, func::sigmoid<float>());
+  fout = transform(fin, func::sigmoid<float>());
   fillLastColumnWith(fout, (float) 1.0);
 }
 
 void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
-
-  mat delta = error & (1.0f - fout) & fout;
-  this->feedBackward(error, delta);
-  gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
+  error = error & (1.0f - fout) & fout;
 }
 
-// ===================
-// ===== Softmax =====
-// ===================
+/*
+ * class Softmax
+ *
+ * */
 
-Softmax::Softmax(const mat& w): FeatureTransform(w) {
+Softmax::Softmax(size_t input_dim, size_t output_dim)
+  : FeatureTransform(input_dim, output_dim) {
+
 }
 
 Softmax::Softmax(const Softmax& src): FeatureTransform(src) {
+}
+
+Softmax::Softmax(FILE* fid) {
+  this->read(fid);
+}
+
+void Softmax::read(FILE* fid) {
+  if ( fscanf(fid, "%lu %lu\n [\n", &_input_dim, &_output_dim) == EOF)
+    throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+
+  if (_input_dim != _output_dim)
+    throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
+}
+
+void Softmax::write(FILE* fid) const {
+  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str(), _input_dim, _output_dim);
 }
 
 Softmax* Softmax::clone() const {
@@ -170,12 +263,12 @@ Softmax* Softmax::clone() const {
 }
 
 string Softmax::toString() const {
-  return "softmax";
+  return "Softmax";
 }
 
 void Softmax::feedForward(mat& fout, const mat& fin) {
 
-  mat x = fin * _w;
+  mat x = fin;
   x.resize(x.getRows(), x.getCols() - 1);
   substractMaxPerRow(x);
 
@@ -194,17 +287,5 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
 }
 
 void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
-
-  // This is much faster and easier
-  mat delta = error;
-  this->feedBackward(error, delta);
-  gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
-
-  // cf. /usr/local/lib/python2.7/dist-packages/theano/tensor/nnet/nnet.py:251
-  /*mat error_times_fout = error & fout;
-  mat delta = error_times_fout - (rowSum(error_times_fout) & fout);
-
-  this->feedBackward(error, delta);
-
-  gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);*/
+  // Do nothing.
 }

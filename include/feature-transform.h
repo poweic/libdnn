@@ -7,6 +7,8 @@ string toString(std::vector<float> data, size_t rows, size_t cols);
 
 class FeatureTransform {
 public:
+  FeatureTransform() { }
+  FeatureTransform(size_t input_dim, size_t output_dim);
   FeatureTransform(const FeatureTransform& source);
 
   virtual FeatureTransform* clone() const = 0;
@@ -14,41 +16,52 @@ public:
   virtual void feedForward(mat& fout, const mat& fin) = 0;
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) = 0;
 
-  virtual void feedBackward(mat& error, const mat& delta);
+  virtual size_t getInputDimension() const { return _input_dim; }
+  virtual size_t getOutputDimension() const { return _output_dim; }
 
-  static void print(FILE* fid, const host_matrix<float>& A, string type);
-  size_t getInputDimension() const;
-  size_t getOutputDimension() const;
-  void print(FILE* fid) const;
+  virtual void read(FILE* fid) = 0;
+  virtual void write(FILE* fid) const = 0;
+
+  static FeatureTransform* create(FILE* fid);
 
 protected:
-  FeatureTransform(const mat& w);
-
-  mat _w;
+  size_t _input_dim;
+  size_t _output_dim;
 
 private:
   virtual FeatureTransform& operator = (const FeatureTransform& rhs) { return *this; };
 };
 
-// sigmoid mapping
-//    x     sigmoid(x) percentage
-// -4.5951    0.01	   1%
-// -3.8918    0.02         2%
-// -2.9444    0.05         5%
-// -2.1972    0.10        10%
-// -1.3863    0.20        20%
-//    0       0.50        50%
-//  4.5951    0.80        20%
-//  3.8918    0.90        10%
-//  2.9444    0.95         5%
-//  2.1972    0.98         2%
-//  1.3863    0.99         1%
-//
+class AffineTransform : public FeatureTransform {
+public:
+  AffineTransform(size_t input_dim, size_t output_dim);
+  AffineTransform(const mat& w);
+  AffineTransform(FILE* fid);
+  AffineTransform(const AffineTransform& src);
+
+  virtual void read(FILE* fid);
+  virtual void write(FILE* fid) const;
+
+  virtual AffineTransform* clone() const;
+  virtual string toString() const;
+  virtual void feedForward(mat& fout, const mat& fin);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+
+private:
+  /* \brief _w is the "augmented" matrix (include bias term)
+   *
+   */
+  mat _w;
+};
 
 class Sigmoid : public FeatureTransform {
 public:
-  Sigmoid(const mat& w);
+  Sigmoid(size_t input_dim, size_t output_dim);
+  Sigmoid(FILE* fid);
   Sigmoid(const Sigmoid& src);
+
+  virtual void read(FILE* fid);
+  virtual void write(FILE* fid) const;
 
   virtual Sigmoid* clone() const;
   virtual string toString() const;
@@ -61,8 +74,12 @@ private:
 
 class Softmax : public FeatureTransform {
 public:
-  Softmax(const mat& w);
+  Softmax(size_t input_dim, size_t output_dim);
+  Softmax(FILE* fid);
   Softmax(const Softmax& src);
+
+  virtual void read(FILE* fid);
+  virtual void write(FILE* fid) const;
 
   virtual Softmax* clone() const;
   virtual string toString() const;
