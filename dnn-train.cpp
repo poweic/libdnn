@@ -112,7 +112,8 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
   size_t Ein = 1;
   size_t MAX_EPOCH = dnn.getConfig().maxEpoch, epoch;
   std::vector<size_t> Eout;
-  Eout.reserve(MAX_EPOCH);
+
+  float lr = dnn.getConfig().learningRate / batchSize;
 
   size_t nTrain = train.size(),
 	 nValid = valid.size();
@@ -139,7 +140,7 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
 
       mat error = getError( data.y, fout, errorMeasure);
 
-      dnn.backPropagate(error, data.x, fout, dnn.getConfig().learningRate);
+      dnn.backPropagate(error, data.x, fout, lr);
     }
 
     Ein = dnn_predict(dnn, train, errorMeasure);

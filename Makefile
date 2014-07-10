@@ -20,7 +20,7 @@ SOURCES=cnn-utility.cu\
 	dnn.cu\
 	utility.cpp\
 	rbm.cu\
-	feature-transform.cu\
+	feature-transform.cpp\
 	dataset.cpp\
 	batch.cpp\
 	config.cpp

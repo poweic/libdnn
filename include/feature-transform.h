@@ -3,13 +3,12 @@
 
 #include <dnn-utility.h>
 
-string toString(std::vector<float> data, size_t rows, size_t cols);
+// string toString(std::vector<float> data, size_t rows, size_t cols);
 
 class FeatureTransform {
 public:
   FeatureTransform() { }
   FeatureTransform(size_t input_dim, size_t output_dim);
-  FeatureTransform(const FeatureTransform& source);
 
   virtual FeatureTransform* clone() const = 0;
   virtual string toString() const = 0;
@@ -37,7 +36,6 @@ public:
   AffineTransform(size_t input_dim, size_t output_dim);
   AffineTransform(const mat& w);
   AffineTransform(FILE* fid);
-  AffineTransform(const AffineTransform& src);
 
   virtual void read(FILE* fid);
   virtual void write(FILE* fid) const;
@@ -54,14 +52,19 @@ private:
   mat _w;
 };
 
-class Sigmoid : public FeatureTransform {
+class Activation : public FeatureTransform {
 public:
-  Sigmoid(size_t input_dim, size_t output_dim);
-  Sigmoid(FILE* fid);
-  Sigmoid(const Sigmoid& src);
+  Activation();
+  Activation(size_t input_dim, size_t output_dim);
 
   virtual void read(FILE* fid);
   virtual void write(FILE* fid) const;
+};
+
+class Sigmoid : public Activation {
+public:
+  Sigmoid(size_t input_dim, size_t output_dim);
+  Sigmoid(FILE* fid);
 
   virtual Sigmoid* clone() const;
   virtual string toString() const;
@@ -72,14 +75,10 @@ private:
   virtual Sigmoid& operator = (const Sigmoid& rhs) { return *this; }
 };
 
-class Softmax : public FeatureTransform {
+class Softmax : public Activation {
 public:
   Softmax(size_t input_dim, size_t output_dim);
   Softmax(FILE* fid);
-  Softmax(const Softmax& src);
-
-  virtual void read(FILE* fid);
-  virtual void write(FILE* fid) const;
 
   virtual Softmax* clone() const;
   virtual string toString() const;

@@ -42,21 +42,6 @@ size_t DNN::getNLayer() const {
   return _transforms.size() + 1;
 }
 
-#pragma GCC diagnostic ignored "-Wunused-result"
-void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
-
-  for (size_t i=0; i<rows - 1; ++i)
-    for (size_t j=0; j<cols; ++j)
-      fscanf(fid, "%f ", &(w[j * rows + i]));
-
-  fscanf(fid, "]\n<bias>\n [");
-
-  for (size_t j=0; j<cols; ++j)
-    fscanf(fid, "%f ", &(w[j * rows + rows - 1]));
-  fscanf(fid, "]\n");
-
-}
-
 void DNN::read(string fn) {
 
   FILE* fid = fopen(fn.c_str(), "r");
@@ -65,12 +50,6 @@ void DNN::read(string fn) {
     throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
 
   _transforms.clear();
-
-  //printf("+-------------------------------------+\n");
-  //printf("| File: %-30s"                       "|\n", fn.c_str());
-  //printf("+-------------------+--------+--------+\n");
-  //printf("| Feature Transform |  rows  |  cols  |\n");
-  //printf("+-------------------+--------+--------+\n");
 
   FeatureTransform* f;
   while ( f = FeatureTransform::create(fid) )

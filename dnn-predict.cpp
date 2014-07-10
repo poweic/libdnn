@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 #include <dnn.h>
-// #include <dnn-utility.h>
 #include <cmdparser.h>
 #include <batch.h>
 using namespace std;

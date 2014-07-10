@@ -6,6 +6,7 @@ FeatureTransform* FeatureTransform::create(FILE* fid) {
     return NULL;
 
   string type(c_type);
+  cout << "type = " << type << endl;
 
   if (type == "<AffineTransform>")
     return new AffineTransform(fid);
@@ -17,7 +18,6 @@ FeatureTransform* FeatureTransform::create(FILE* fid) {
   return NULL;
 }
 
-
 /*
  * class FeatureTransform
  *
@@ -25,9 +25,6 @@ FeatureTransform* FeatureTransform::create(FILE* fid) {
 
 FeatureTransform::FeatureTransform(size_t input_dim, size_t output_dim)
   : _input_dim(input_dim), _output_dim(output_dim) {
-}
-
-FeatureTransform::FeatureTransform(const FeatureTransform& source) {
 }
 
 /*
@@ -43,22 +40,21 @@ AffineTransform::AffineTransform(const mat& w)
   : FeatureTransform(w.getRows() - 1, w.getCols() - 1), _w(w) {
 }
 
-AffineTransform::AffineTransform(const AffineTransform& src): FeatureTransform(src) {
-}
-
 AffineTransform::AffineTransform(FILE* fid) {
   this->read(fid);
 }
 
+#pragma GCC diagnostic ignored "-Wunused-result"
 void AffineTransform::read(FILE* fid) {
+
   size_t rows, cols;
-  if ( fscanf(fid, "%lu %lu", &rows, &cols) == EOF)
+  if ( fscanf(fid, "%lu %lu\n", &rows, &cols) == EOF)
     throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
 
   hmat hw(rows + 1, cols + 1);
 
   // Read matrix
-  fscanf(fid, " [\n");
+  fscanf(fid, "[\n");
   for (size_t i=0; i<rows; ++i)
     for (size_t j=0; j<cols; ++j)
       fscanf(fid, "%f ", &hw(i, j) );
@@ -76,12 +72,13 @@ void AffineTransform::read(FILE* fid) {
 }
 
 void AffineTransform::write(FILE* fid) const {
+
   hmat data(_w);
-  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str()
-      , data.getRows() - 1, data.getCols() - 1);
 
   size_t rows = data.getRows(),
 	 cols = data.getCols();
+
+  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str() , rows - 1, cols - 1);
 
   // Write matrix
   fprintf(fid, "[");
@@ -134,23 +131,19 @@ void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout,
 }
 
 /*
- * class Sigmoid
+ * class Activation
  *
  * */
 
-Sigmoid::Sigmoid(size_t input_dim, size_t output_dim)
+Activation::Activation() {
+}
+
+Activation::Activation(size_t input_dim, size_t output_dim)
   : FeatureTransform(input_dim, output_dim) {
 
 }
 
-Sigmoid::Sigmoid(const Sigmoid& src): FeatureTransform(src) {
-}
-
-Sigmoid::Sigmoid(FILE* fid) {
-  this->read(fid);
-}
-
-void Sigmoid::read(FILE* fid) {
+void Activation::read(FILE* fid) {
   if ( fscanf(fid, "%lu %lu\n [\n", &_input_dim, &_output_dim) == EOF)
     throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
 
@@ -158,8 +151,22 @@ void Sigmoid::read(FILE* fid) {
     throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
 }
 
-void Sigmoid::write(FILE* fid) const {
+void Activation::write(FILE* fid) const {
   fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str(), _input_dim, _output_dim);
+}
+
+/*
+ * class Sigmoid
+ *
+ * */
+
+Sigmoid::Sigmoid(size_t input_dim, size_t output_dim)
+  : Activation(input_dim, output_dim) {
+
+}
+
+Sigmoid::Sigmoid(FILE* fid) {
+  this->read(fid);
 }
 
 Sigmoid* Sigmoid::clone() const {
@@ -185,27 +192,12 @@ void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float l
  * */
 
 Softmax::Softmax(size_t input_dim, size_t output_dim)
-  : FeatureTransform(input_dim, output_dim) {
+  : Activation(input_dim, output_dim) {
 
-}
-
-Softmax::Softmax(const Softmax& src): FeatureTransform(src) {
 }
 
 Softmax::Softmax(FILE* fid) {
   this->read(fid);
-}
-
-void Softmax::read(FILE* fid) {
-  if ( fscanf(fid, "%lu %lu\n [\n", &_input_dim, &_output_dim) == EOF)
-    throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
-
-  if (_input_dim != _output_dim)
-    throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
-}
-
-void Softmax::write(FILE* fid) const {
-  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str(), _input_dim, _output_dim);
 }
 
 Softmax* Softmax::clone() const {
