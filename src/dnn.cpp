@@ -1,5 +1,5 @@
 #include <dnn.h>
-#include <thrust/extrema.h>
+// #include <thrust/extrema.h>
 
 DNN::DNN(): _transforms(), _config() {}
 
@@ -70,18 +70,6 @@ void DNN::save(string fn) const {
 // ========================
 // ===== Feed Forward =====
 // ========================
-
-void print(const thrust::host_vector<float>& hv) {
-  cout << "\33[33m[";
-  for (size_t i=0; i<hv.size(); ++i)
-    cout << hv[i] << " ";
-  cout << " ] \33[0m" << endl << endl;
-}
-
-void print(const thrust::device_vector<float>& dv) {
-  thrust::host_vector<float> hv(dv.begin(), dv.end());
-  ::print(hv);
-}
 
 void DNN::adjustLearningRate(float trainAcc) {
   static size_t phase = 0;
@@ -168,7 +156,7 @@ Config DNN::getConfig() const {
 }
 
 void swap(DNN& lhs, DNN& rhs) {
-  using WHERE::swap;
+  using std::swap;
   swap(lhs._transforms, rhs._transforms);
   swap(lhs._config, rhs._config);
 }

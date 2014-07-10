@@ -6,7 +6,6 @@ FeatureTransform* FeatureTransform::create(FILE* fid) {
     return NULL;
 
   string type(c_type);
-  cout << "type = " << type << endl;
 
   if (type == "<AffineTransform>")
     return new AffineTransform(fid);

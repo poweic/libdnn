@@ -132,7 +132,7 @@ float StackedRbmTrainer::getReconstructionError(DataSet& data, const mat& W
     // v1 is input data, v2 is reconstructed data
     mat v1, v2, h1;
 
-    v1 = getBatchData(data, *itr, layer);
+    v1 = getBatchData(data, itr, layer);
     // v1 = data.getX(*itr);
     fill_bias(v1);
 
@@ -185,17 +185,16 @@ float StackedRbmTrainer::getFreeEnergyGap(DataSet& data, size_t batch_size, cons
   Batches batches(batch_size, nData);
   Batches::iterator ii = batches.begin();
 
-  float fe1 = getFreeEnergy(getBatchData(data, *ii, layer), W),
-	fe2 = getFreeEnergy(getBatchData(data, *(ii+1), layer), W);
+  float fe1 = getFreeEnergy(getBatchData(data, ii, layer), W),
+	fe2 = getFreeEnergy(getBatchData(data, ii+1, layer), W);
 
   data.getDataStream().rewind();
 
   return abs(fe1 - fe2);
 }
 
-mat StackedRbmTrainer::getBatchData(DataSet& data, const Batches::Batch& batch, int layer) {
-  // mat x = data.getX(batch);
-  mat x = (mat) data[batch].x;
+mat StackedRbmTrainer::getBatchData(DataSet& data, const Batches::iterator& itr, int layer) {
+  mat x = (mat) data[itr].x;
   for (int i=0; i<layer; ++i) 
     x = sigmoid(x * _weights[i]);
   return x;
@@ -247,7 +246,7 @@ void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, 
 
       mat v1, v2, h1, h2;
 
-      v1 = getBatchData(data, *itr, layer);
+      v1 = getBatchData(data, itr, layer);
       // v1 = data.getX(*itr);
       fill_bias(v1);
 

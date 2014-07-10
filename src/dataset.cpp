@@ -228,19 +228,27 @@ void DataSet::showSummary() const {
 
 }
 
-BatchData DataSet::operator [] (const Batches::Batch& b) {
-  // auto data = readMoreFeature(_stream, b.nData, _dim, _base, _sparse);
-  /*std::future<BatchData> f_data = std::async(std::launch::async, readMoreFeature,
-      std::ref(_stream), b.nData, _dim, _base, _sparse);
-  auto data = f_data.get();*/
+BatchData DataSet::operator [] (const Batches::iterator& b) {  
+  static std::future<BatchData> f_data;                        
 
-  auto data = readMoreFeature(_stream, b.nData, _dim, _base, _sparse);
+  if (!f_data.valid())                                         
+    f_data = std::async(std::launch::async, readMoreFeature,   
+	std::ref(_stream), b->nData, _dim, _base, _sparse);      
 
-  if (_normalizer)
-    _normalizer->normalize(data);
+  f_data.wait();                                               
 
-  return data;
-}
+  auto data = f_data.get();                                    
+
+  auto b_next = b+1;                                           
+  if ( !(b+1).isEnd() )                                        
+    f_data = std::async(std::launch::async, readMoreFeature,   
+	std::ref(_stream), (b+1)->nData, _dim, _base, _sparse);
+
+  if (_normalizer)                                             
+    _normalizer->normalize(data);                              
+
+  return data;                                                 
+}                                                              
 
 void DataSet::set_sparse(bool sparse) {
   _sparse = sparse;

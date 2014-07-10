@@ -3,12 +3,12 @@
 
 #include <dnn-utility.h>
 
-// string toString(std::vector<float> data, size_t rows, size_t cols);
-
 class FeatureTransform {
 public:
   FeatureTransform() { }
   FeatureTransform(size_t input_dim, size_t output_dim);
+
+  // FeatureTransform& operator = (const FeatureTransform& rhs) = delete;
 
   virtual FeatureTransform* clone() const = 0;
   virtual string toString() const = 0;
@@ -26,9 +26,6 @@ public:
 protected:
   size_t _input_dim;
   size_t _output_dim;
-
-private:
-  virtual FeatureTransform& operator = (const FeatureTransform& rhs) { return *this; };
 };
 
 class AffineTransform : public FeatureTransform {
@@ -36,6 +33,8 @@ public:
   AffineTransform(size_t input_dim, size_t output_dim);
   AffineTransform(const mat& w);
   AffineTransform(FILE* fid);
+
+  // AffineTransform& operator = (const AffineTransform& rhs) = delete;
 
   virtual void read(FILE* fid);
   virtual void write(FILE* fid) const;
@@ -57,6 +56,8 @@ public:
   Activation();
   Activation(size_t input_dim, size_t output_dim);
 
+  // Activation& operator = (const Activation& rhs) = delete;
+
   virtual void read(FILE* fid);
   virtual void write(FILE* fid) const;
 };
@@ -66,13 +67,12 @@ public:
   Sigmoid(size_t input_dim, size_t output_dim);
   Sigmoid(FILE* fid);
 
+  // Sigmoid& operator = (const Sigmoid& rhs) = delete;
+
   virtual Sigmoid* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
-
-private:
-  virtual Sigmoid& operator = (const Sigmoid& rhs) { return *this; }
 };
 
 class Softmax : public Activation {
@@ -80,13 +80,12 @@ public:
   Softmax(size_t input_dim, size_t output_dim);
   Softmax(FILE* fid);
 
+  // Softmax& operator = (const Softmax& rhs) = delete;
+
   virtual Softmax* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
-
-private:
-  virtual Softmax& operator = (const Softmax& rhs) { return *this; }
 };
 
 #endif // _FEATURE_TRANSFORM_H_

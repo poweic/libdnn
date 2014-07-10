@@ -124,7 +124,7 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
 
     Batches batches(batchSize, nTrain);
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
-      auto data = train[*itr];
+      auto data = train[itr];
 
       cnn.feedForward(fmiddle, data.x);
       dnn.feedForward(fout, fmiddle);
@@ -186,7 +186,7 @@ size_t cnn_predict(const DNN& dnn, CNN& cnn, DataSet& data,
 
   Batches batches(2048, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    auto d = data[*itr];
+    auto d = data[itr];
     cnn.feedForward(fmiddle, d.x);
     nError += zeroOneError(dnn.feedForward(fmiddle), d.y, errorMeasure);
   }

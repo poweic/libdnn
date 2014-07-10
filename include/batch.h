@@ -53,6 +53,10 @@ public:
 	return itr;
       }
 
+      bool isEnd () const {
+	return (_batch->offset == ceil((float) _totalSize / _batchSize) * _batchSize);
+      }
+
       const Batch& operator * () const {
 	return *_batch;
       }

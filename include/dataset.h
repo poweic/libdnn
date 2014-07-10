@@ -72,7 +72,7 @@ public:
   bool isLabeled() const;
   void showSummary() const;
 
-  BatchData operator [] (const Batches::Batch& b);
+  BatchData operator [] (const Batches::iterator& b);
 
   static void 
     split(const DataSet& data, DataSet& train, DataSet& valid, int ratio);

@@ -36,7 +36,7 @@ public:
   void train(DataSet& data);
   void rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TYPE hid_type);
 
-  mat getBatchData(DataSet& data, const Batches::Batch& batch, int layer);
+  mat getBatchData(DataSet& data, const Batches::iterator& itr, int layer);
 
   static const float initial_momentum, final_momentum, L2_penalty;
 

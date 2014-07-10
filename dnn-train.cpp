@@ -134,7 +134,7 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
       // Copy a batch of data from host to device
-      auto data = train[*itr];
+      auto data = train[itr];
 
       dnn.feedForward(fout, data.x);
 
@@ -179,7 +179,7 @@ size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure) {
 
   Batches batches(2048, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    auto d = data[*itr];
+    auto d = data[itr];
     mat prob = dnn.feedForward(d.x);
     nError += zeroOneError(prob, d.y, errorMeasure);
   }
