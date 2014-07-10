@@ -254,6 +254,54 @@ size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasur
   return nError;
 }
 
+mat MaxPerRow(mat& A) {
+  mat rmax(A.getRows(), 1);
+  mat At = ~A;
+
+  // allocate storage for per-row results and indices
+  thrust::device_vector< float > row_indices(A.getRows());
+  thrust::device_vector< float > row_results(A.getRows());
+
+  // compute row sums by summing values with equal row indices
+  thrust::reduce_by_key
+    (thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(A.getCols())),
+     thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(A.getCols())) + A.size(),
+     thrust::device_ptr<float>(At.getData()),
+     row_indices.begin(),
+     thrust::device_ptr<float>(rmax.getData()),
+     thrust::equal_to<float>(),
+     thrust::maximum<float>());
+
+  return rmax;
+}
+
+__global__ void substract_max_per_row_kernel(float* const A, float* const rmax, unsigned int rows, unsigned int cols) {
+  // Matrix index
+  int x = blockIdx.x*blockDim.x + threadIdx.x;
+  int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+  if (x >= cols || y >= rows)
+    return;
+
+  A[x * rows + y] -= rmax[y];
+}
+
+void SubstractMaxPerRow(mat& x) {
+  mat rmax = MaxPerRow(x);
+
+  ALLOCATE_GRIDS_AND_THREADS(x.getRows(), x.getCols());
+  substract_max_per_row_kernel<<< grids, threads >>>
+    (x.getData(), rmax.getData(), x.getRows(), x.getCols());
+
+  CCE(cudaDeviceSynchronize());
+}
+
 device_matrix<float> log(const device_matrix<float>& x) {
   return transform(x, func::log<float>());
 }
+
+void fillLastColumnWith(device_matrix<float>& A, const float value) {
+  thrust::device_ptr<float> ptr(A.getData());
+  thrust::fill(ptr + A.size() - A.getRows(), ptr + A.size(), value);
+}
+

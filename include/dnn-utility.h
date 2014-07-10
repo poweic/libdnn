@@ -83,6 +83,12 @@ bool hasNAN(const host_matrix<T>& x) {
   return false;
 }
 
+void SubstractMaxPerRow(mat& x);
+mat MaxPerRow(mat& A);
+
+device_matrix<float> log(const device_matrix<float>& x);
+
+
 /*! \brief Copy a block memory.
  * Copy a block (of size h by w) of memory from src to dest.
  * Both the number of rows of src and dest must be greater or equal to h.
@@ -109,11 +115,17 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
       dest.getData() + c1 * dest.getRows() + r1, dest.getRows());
 }
 
+void fillLastColumnWith(device_matrix<float>& A, const float value);
+
+// convert a linear index to a row index
 template <typename T>
-void fillLastColumnWith(device_matrix<T>& A, const T value) {
-  thrust::device_ptr<T> ptr(A.getData());
-  thrust::fill(ptr + A.size() - A.getRows(), ptr + A.size(), value);
-}
+struct linear_index_to_row_index : public thrust::unary_function<T,T> {
+  T cols; // number of columns
+
+  __host__ __device__ linear_index_to_row_index(T cols) : cols(cols) {}
+
+  __host__ __device__ T operator()(T i) { return i / cols; }
+};
 
 template <typename T>
 device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& B) {
@@ -130,7 +142,27 @@ device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& 
   return C;
 }
 
-device_matrix<float> log(const device_matrix<float>& x);
+template <typename T>
+device_matrix<T> softmax(const device_matrix<T>& cx) {
+  mat x(cx);
+  x.resize(x.getRows(), x.getCols() - 1);
+  SubstractMaxPerRow(x);
+
+  mat p(x.getRows(), x.getCols());
+
+  thrust::device_ptr<float> xPtr(x.getData());
+  thrust::device_ptr<float> pPtr(p.getData());
+  thrust::transform(xPtr, xPtr + x.size(), pPtr, func::exp<float>());
+
+  mat sumOfProb = p * mat(p.getCols(), p.getCols(), 1);
+
+  mat y(p.getRows(), p.getCols() + 1);
+  thrust::device_ptr<float> yPtr(y.getData());
+  thrust::device_ptr<float> sPtr(sumOfProb.getData());
+  thrust::transform(pPtr, pPtr + p.size(), sPtr, yPtr, thrust::divides<float>());
+
+  return y;
+}
 
 template <typename T>
 device_matrix<T> sigmoid(const device_matrix<T>& x) {
