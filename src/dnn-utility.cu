@@ -27,8 +27,16 @@ inline __device__ void get_curand_uniform(float& x, curandState* state) {
   x = curand_uniform(state);
 }
 
+inline __device__ void sample_gaussian(float& x, curandState* state) {
+  x += curand_normal(state);
+}
+
+inline __device__ void sample_bernoulli(float& x, curandState* state) {
+  x = (float) (x >= curand_uniform(state));
+}
+
 template <Operation op>
-__global__ void rand_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
+__global__ void element_wise_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -45,6 +53,24 @@ __global__ void rand_kernel(float* const data, curandState* globalState, unsigne
   __syncthreads();
 }
 
+void sample(mat &prob, UNIT_TYPE type) {
+  static CURAND_STATE state;
+
+  ALLOCATE_GRIDS_AND_THREADS(prob.getRows(), prob.getCols());
+
+  switch (type) {
+    case GAUSSIAN:
+      element_wise_kernel<sample_gaussian><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      break;
+    case BERNOULLI:
+      element_wise_kernel<sample_bernoulli><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      break;
+  }
+
+  CCE(cudaDeviceSynchronize());
+  fill_bias(prob);
+}
+
 mat randn(int m, int n) {
 
 #ifdef DEBUG
@@ -58,7 +84,7 @@ mat randn(int m, int n) {
   mat x(m, n);
 
   ALLOCATE_GRIDS_AND_THREADS(m, n);
-  rand_kernel<get_curand_normal><<<grids, threads>>>(x.getData(), state.get(), m, n);
+  element_wise_kernel<get_curand_normal><<<grids, threads>>>(x.getData(), state.get(), m, n);
   CCE(cudaDeviceSynchronize());
 
   return x;
@@ -78,7 +104,7 @@ mat rand(int m, int n) {
   mat x(m, n);
 
   ALLOCATE_GRIDS_AND_THREADS(m, n);
-  rand_kernel<get_curand_uniform><<<grids, threads>>>(x.getData(), state.get(), m, n);
+  element_wise_kernel<get_curand_uniform><<<grids, threads>>>(x.getData(), state.get(), m, n);
   CCE(cudaDeviceSynchronize());
 
   return x;
@@ -304,11 +330,6 @@ void SubstractMaxPerRow(device_matrix<T>& x) {
 }
 
 template <typename T>
-device_matrix<T> log(const device_matrix<T>& x) {
-  return transform(x, func::log<T>());
-}
-
-template <typename T>
 void fillLastColumnWith(device_matrix<T>& A, const T value) {
   thrust::device_ptr<T> ptr(A.getData());
   thrust::fill(ptr + A.size() - A.getRows(), ptr + A.size(), value);
@@ -327,6 +348,16 @@ device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& 
   thrust::transform(aPtr, aPtr + A.size(), bPtr, cPtr, thrust::multiplies<T>());
 
   return C;
+}
+
+template <typename T>
+device_matrix<T> log(const device_matrix<T>& x) {
+  return transform(x, func::log<T>());
+}
+
+template <typename T>
+device_matrix<T> log1pexp(const device_matrix<T>& x) {
+  return transform(x, func::log_of_one_plus_exp<T>());
 }
 
 template <typename T>
@@ -358,8 +389,9 @@ device_matrix<T> softmax(const device_matrix<T>& x) {
 
 #define register_device_matrix_utility(T) \
   template device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& B); \
-  template device_matrix<T> log(const device_matrix<T>& x); \
   template void fillLastColumnWith(device_matrix<T>& A, const T value); \
+  template device_matrix<T> log(const device_matrix<T>& x); \
+  template device_matrix<T> log1pexp(const device_matrix<T>& x); \
   template device_matrix<T> sigmoid(const device_matrix<T>& x); \
   template device_matrix<T> softmax(const device_matrix<T>& x); \
   template device_matrix<T> MaxPerRow(device_matrix<T>& A); \

@@ -1,37 +1,9 @@
 #include <rbm.h>
 #include <cstdlib>
-#define fill_bias(x) { fillLastColumnWith(x, 1.0f); }
 
 const float StackedRbmTrainer::initial_momentum = 0.5;
 const float StackedRbmTrainer::final_momentum = 0.9;
 const float StackedRbmTrainer::L2_penalty = 0.0002;
-
-inline __device__ void gaussian(float& x, curandState* state) {
-  x += curand_normal(state);
-}
-
-inline __device__ void bernoulli(float& x, curandState* state) {
-  x = (float) (x >= curand_uniform(state));
-}
-
-template <Operation op>
-__global__ void sampling_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-
-  // Matrix index
-  int x = blockIdx.x*blockDim.x + tx;
-  int y = blockIdx.y*blockDim.y + ty;
-
-  if (x >= cols || y >= rows)
-    return;
-
-  int i = x * rows + y;
-  int j = tx * blockDim.y + ty;
-  op(data[i], globalState +j);
-  // data[i] = data[i] + curand_normal(globalState + j);
-  __syncthreads();
-}
 
 ostream& operator << (ostream& os, const UNIT_TYPE& type) {
   switch (type) {
@@ -66,24 +38,6 @@ void StackedRbmTrainer::train(DataSet& data) {
     vis_type = hid_type;
     hid_type = BERNOULLI;
   }
-}
-
-void sample(mat &prob, UNIT_TYPE type) {
-  static CURAND_STATE state;
-
-  ALLOCATE_GRIDS_AND_THREADS(prob.getRows(), prob.getCols());
-
-  switch (type) {
-    case GAUSSIAN:
-      sampling_kernel<gaussian><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
-      break;
-    case BERNOULLI:
-      sampling_kernel<bernoulli><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
-      break;
-  }
-
-  CCE(cudaDeviceSynchronize());
-  fill_bias(prob);
 }
 
 void StackedRbmTrainer::up_propagate(const mat& W, const mat& visible, mat& hidden, UNIT_TYPE type) {
@@ -166,7 +120,7 @@ float StackedRbmTrainer::getFreeEnergy(const mat& visible, const mat& W) {
 
   fillLastColumnWith(hidden, -1000.0f);
 
-  transform(hidden, func::log_of_one_plus_exp<float>());
+  log1pexp(hidden);
 
   mat e = hidden * mat(hidden.getCols(), 1, 1) + va;
   mat sum_of_e = mat(1, N, 1) * e;
@@ -219,9 +173,11 @@ void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, 
 
   mat &W = _weights[layer];
 
-  W.resize(_dims[layer] + 1, _dims[layer + 1] + 1);
-  mat dW(W.getRows(), W.getCols(), 0);
-  ext::randn(W, 0, 0.1 / W.getCols());
+  size_t m = _dims[layer] + 1,
+	 n = _dims[layer + 1] + 1;
+
+  W = randn(m, n) * sqrt(0.1 / n);
+  mat dW(m, n, 0);
 
   size_t minEpoch = 5, maxEpoch = 32;
 

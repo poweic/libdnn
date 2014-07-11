@@ -29,6 +29,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
+#define fill_bias(x) { fillLastColumnWith(x, 1.0f); }
 typedef host_matrix<float> hmat;
 
 map<int, int> getLabelMapping(const hmat& labels);
@@ -51,6 +52,13 @@ private:
 
 typedef void (*Operation)(float&, curandState*);
 __global__ void setupCuRandState( curandState * state, unsigned long seed );
+
+enum UNIT_TYPE {
+  BERNOULLI,
+  GAUSSIAN
+};
+
+void sample(mat &prob, UNIT_TYPE type);
 
 mat randn(int m, int n);
 mat rand(int m, int n);
@@ -129,9 +137,11 @@ device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& 
 
 template <typename T> device_matrix<T> log(const device_matrix<T>& x);
 
-template <typename T> device_matrix<T> softmax(const device_matrix<T>& x);
+template <typename T> device_matrix<T> log1pexp(const device_matrix<T>& x);
 
 template <typename T> device_matrix<T> sigmoid(const device_matrix<T>& x);
+
+template <typename T> device_matrix<T> softmax(const device_matrix<T>& x);
 
 template <typename T, typename UnaryFunction>
 device_matrix<T> transform(const device_matrix<T>& x, UnaryFunction op) {

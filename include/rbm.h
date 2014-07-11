@@ -7,11 +7,6 @@
 #include <host_matrix.h>
 #include <feature-transform.h>
 
-enum UNIT_TYPE {
-  BERNOULLI,
-  GAUSSIAN
-};
-
 ostream& operator << (ostream& os, const UNIT_TYPE& type);
 
 class StackedRbmTrainer {
@@ -47,8 +42,6 @@ private:
   float _slopeThres;
   float _learning_rate;
 };
-
-void sample(mat &prob);
 
 size_t getOutputDimension();
 
