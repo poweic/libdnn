@@ -36,7 +36,7 @@ inline __device__ void sample_bernoulli(float& x, curandState* state) {
 }
 
 template <Operation op>
-__global__ void element_wise_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
+__global__ void element_wise_curand_kernel(float* const data, curandState* globalState, unsigned int rows, unsigned int cols) {
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -60,10 +60,10 @@ void sample(mat &prob, UNIT_TYPE type) {
 
   switch (type) {
     case GAUSSIAN:
-      element_wise_kernel<sample_gaussian><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      element_wise_curand_kernel<sample_gaussian><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
       break;
     case BERNOULLI:
-      element_wise_kernel<sample_bernoulli><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
+      element_wise_curand_kernel<sample_bernoulli><<< grids, threads >>>(prob.getData(), state.get(), prob.getRows(), prob.getCols());
       break;
   }
 
@@ -84,7 +84,7 @@ mat randn(int m, int n) {
   mat x(m, n);
 
   ALLOCATE_GRIDS_AND_THREADS(m, n);
-  element_wise_kernel<get_curand_normal><<<grids, threads>>>(x.getData(), state.get(), m, n);
+  element_wise_curand_kernel<get_curand_normal><<<grids, threads>>>(x.getData(), state.get(), m, n);
   CCE(cudaDeviceSynchronize());
 
   return x;
@@ -104,7 +104,7 @@ mat rand(int m, int n) {
   mat x(m, n);
 
   ALLOCATE_GRIDS_AND_THREADS(m, n);
-  element_wise_kernel<get_curand_uniform><<<grids, threads>>>(x.getData(), state.get(), m, n);
+  element_wise_curand_kernel<get_curand_uniform><<<grids, threads>>>(x.getData(), state.get(), m, n);
   CCE(cudaDeviceSynchronize());
 
   return x;
@@ -387,14 +387,17 @@ device_matrix<T> softmax(const device_matrix<T>& x) {
   return y;
 }
 
+/* \brief Explicit instantiation definition of template functions
+ */
+
 #define register_device_matrix_utility(T) \
-  template device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& B); \
-  template void fillLastColumnWith(device_matrix<T>& A, const T value); \
-  template device_matrix<T> log(const device_matrix<T>& x); \
-  template device_matrix<T> log1pexp(const device_matrix<T>& x); \
-  template device_matrix<T> sigmoid(const device_matrix<T>& x); \
-  template device_matrix<T> softmax(const device_matrix<T>& x); \
-  template device_matrix<T> MaxPerRow(device_matrix<T>& A); \
-  template void SubstractMaxPerRow(device_matrix<T>& x);
+  template device_matrix<T> operator &<T> (const device_matrix<T>& A, const device_matrix<T>& B); \
+  template void fillLastColumnWith<T>(device_matrix<T>& A, const T value); \
+  template device_matrix<T> log<T>(const device_matrix<T>& x); \
+  template device_matrix<T> log1pexp<T>(const device_matrix<T>& x); \
+  template device_matrix<T> sigmoid<T>(const device_matrix<T>& x); \
+  template device_matrix<T> softmax<T>(const device_matrix<T>& x); \
+  template device_matrix<T> MaxPerRow<T>(device_matrix<T>& A); \
+  template void SubstractMaxPerRow<T>(device_matrix<T>& x);
 
 register_device_matrix_utility(float);

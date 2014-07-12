@@ -111,11 +111,12 @@ void AffineTransform::feedForward(mat& fout, const mat& fin) {
 void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
   mat delta = error;
 
-  // The last row of _w is bias, and the last column of _w is saved only for computational efficiency.
-  // Therefore, ignore last column, which is the bias.
-  size_t traceLength = delta.getCols() - 1;
-
   error.resize(delta.getRows(), _w.getRows());
+
+  // Perform error = delta(1:end-1) * _w(:, 1:end-1)^T
+  // The last row of _w is bias. The last column of _w is reserved for
+  // computational efficiency. Therefore, ignore the last column in _w.
+  size_t traceLength = delta.getCols() - 1;
 
   device_matrix<float>::cublas_gemm(
       CUBLAS_OP_N, CUBLAS_OP_T,

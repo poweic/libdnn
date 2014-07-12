@@ -1,10 +1,6 @@
 #include <rbm.h>
 #include <cstdlib>
 
-const float StackedRbmTrainer::initial_momentum = 0.5;
-const float StackedRbmTrainer::final_momentum = 0.9;
-const float StackedRbmTrainer::L2_penalty = 0.0002;
-
 ostream& operator << (ostream& os, const UNIT_TYPE& type) {
   switch (type) {
     case GAUSSIAN: os << "Gaussian"; break;
@@ -13,7 +9,20 @@ ostream& operator << (ostream& os, const UNIT_TYPE& type) {
   return os;
 }
 
-void StackedRbmTrainer::train(DataSet& data) {
+/* \brief class StackedRbm
+ *
+ * */
+
+const float StackedRbm::initial_momentum = 0.5;
+const float StackedRbm::final_momentum = 0.9;
+const float StackedRbm::L2_penalty = 0.0002;
+
+StackedRbm::StackedRbm(UNIT_TYPE vis_type, const vector<size_t>& dims,
+    float slopeThres, float learning_rate)
+  : _vis_type(vis_type), _dims(dims), _slopeThres(slopeThres), _learning_rate(learning_rate) {
+}
+
+void StackedRbm::train(DataSet& data) {
 
   _weights.resize(_dims.size() - 1);
 
@@ -40,7 +49,7 @@ void StackedRbmTrainer::train(DataSet& data) {
   }
 }
 
-void StackedRbmTrainer::up_propagate(const mat& W, const mat& visible, mat& hidden, UNIT_TYPE type) {
+void StackedRbm::up_propagate(const mat& W, const mat& visible, mat& hidden, UNIT_TYPE type) {
   hidden = visible * W;
 
   if (type == BERNOULLI)
@@ -49,7 +58,7 @@ void StackedRbmTrainer::up_propagate(const mat& W, const mat& visible, mat& hidd
   fill_bias(hidden);
 }
 
-void StackedRbmTrainer::down_propagate(const mat& W, mat& visible, const mat& hidden, UNIT_TYPE type) {
+void StackedRbm::down_propagate(const mat& W, mat& visible, const mat& hidden, UNIT_TYPE type) {
   visible = hidden * ~W;
 
   if (type == BERNOULLI)
@@ -58,7 +67,7 @@ void StackedRbmTrainer::down_propagate(const mat& W, mat& visible, const mat& hi
   fill_bias(visible);
 }
 
-void StackedRbmTrainer::antiWeightExplosion(mat& W, const mat& v1, const mat& v2, float &learning_rate) {
+void StackedRbm::antiWeightExplosion(mat& W, const mat& v1, const mat& v2, float &learning_rate) {
   float v1_avg_std = calcAverageStandardDeviation(v1),
 	v2_avg_std = calcAverageStandardDeviation(v2),
 	std_ratio = v2_avg_std / v1_avg_std;
@@ -72,8 +81,8 @@ void StackedRbmTrainer::antiWeightExplosion(mat& W, const mat& v1, const mat& v2
   }
 }
 
-float StackedRbmTrainer::getReconstructionError(DataSet& data, const mat& W
-    , UNIT_TYPE vis_type, UNIT_TYPE hid_type, int layer) {
+float StackedRbm::getReconstructionError(DataSet& data, const mat& W,
+    UNIT_TYPE vis_type, UNIT_TYPE hid_type, int layer) {
 
   float r_error = 0;
 
@@ -109,7 +118,7 @@ float StackedRbmTrainer::getReconstructionError(DataSet& data, const mat& W
   return r_error;
 }
 
-float StackedRbmTrainer::getFreeEnergy(const mat& visible, const mat& W) {
+float StackedRbm::getFreeEnergy(const mat& visible, const mat& W) {
   int N = visible.getRows();
   mat hidden = visible * W;
 
@@ -133,7 +142,7 @@ float StackedRbmTrainer::getFreeEnergy(const mat& visible, const mat& W) {
   return free_energy;
 }
 
-float StackedRbmTrainer::getFreeEnergyGap(DataSet& data, size_t batch_size, const mat& W, int layer) {
+float StackedRbm::getFreeEnergyGap(DataSet& data, size_t batch_size, const mat& W, int layer) {
 
   size_t nData = data.size();
   Batches batches(batch_size, nData);
@@ -147,14 +156,14 @@ float StackedRbmTrainer::getFreeEnergyGap(DataSet& data, size_t batch_size, cons
   return abs(fe1 - fe2);
 }
 
-mat StackedRbmTrainer::getBatchData(DataSet& data, const Batches::iterator& itr, int layer) {
+mat StackedRbm::getBatchData(DataSet& data, const Batches::iterator& itr, int layer) {
   mat x = (mat) data[itr].x;
   for (int i=0; i<layer; ++i) 
     x = sigmoid(x * _weights[i]);
   return x;
 }
 
-void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TYPE hid_type) {
+void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TYPE hid_type) {
 
   clog << "Training \33[34m" << vis_type << " - " << hid_type << "\33[0m RBM ..." << endl;
 
@@ -181,7 +190,7 @@ void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, 
 
   size_t minEpoch = 5, maxEpoch = 32;
 
-  std::vector<float> errors;
+  vector<float> errors;
 
   float initialSlope = 0;
 
@@ -258,7 +267,7 @@ void StackedRbmTrainer::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, 
   printf("# of epoch = %lu, average time for each epoch = %f\n", epoch, t_end / epoch);
 }
 
-void StackedRbmTrainer::save(const string& fn) {
+void StackedRbm::save(const string& fn) {
   FILE* fid = fopen(fn.c_str(), "w");
 
   if (!fid)
@@ -292,28 +301,14 @@ void StackedRbmTrainer::save(const string& fn) {
   fclose(fid);
 }
 
-// Show a dialogue and ask user for the output dimension
-size_t getOutputDimension() {
-  string userInput = "";
-
-  while (!is_number(userInput)) {
-    printf("\33[33m Since RBM is a kind of UNSUPERVISED pre-training. "
-	   "Please enter how many nodes you want in the output layer.\33[0m "
-	   "[      ]\b\b\b\b\b");
-    cin >> userInput;
-  }
-
-  return atoi(userInput.c_str());
-}
-
-std::vector<size_t> getDimensionsForRBM(
+vector<size_t> StackedRbm::parseDimensions(
     size_t input_dim, 
     const string& hidden_structure, 
     size_t output_dim) {
 
   // ===========================================================================
   // Initialize hidden structure
-  std::vector<size_t> dims = splitAsInt(hidden_structure, '-');
+  vector<size_t> dims = splitAsInt(hidden_structure, '-');
   dims.insert(dims.begin(), input_dim);
   dims.push_back((size_t) output_dim);
 
@@ -326,6 +321,20 @@ std::vector<size_t> getDimensionsForRBM(
   // ===========================================================================
 
   return dims;
+}
+
+// Show a dialogue and ask user for the output dimension
+size_t StackedRbm::AskUserForOutputDimension() {
+  string userInput = "";
+
+  while (!is_number(userInput)) {
+    printf("\33[33m Since RBM is a kind of UNSUPERVISED pre-training. "
+	   "Please enter how many nodes you want in the output layer.\33[0m "
+	   "[      ]\b\b\b\b\b");
+    cin >> userInput;
+  }
+
+  return atoi(userInput.c_str());
 }
 
 // Calculuate standard deviation of each dimension of x.
@@ -350,13 +359,12 @@ float calcAverageStandardDeviation(const mat& x) {
   return s;
 }
 
-
-float getSlope(const std::vector<float> &seq, size_t N) {
-  std::vector<float> x(N);
+float getSlope(const vector<float> &seq, size_t N) {
+  vector<float> x(N);
   for (size_t i=0; i<N; ++i)
     x[i] = N - 1 - i;
 
-  std::vector<float> y(N);
+  vector<float> y(N);
   for (size_t i=seq.size() - N; i<seq.size(); ++i)
     y[i - (seq.size() - N)] = seq[i];
 
@@ -366,12 +374,12 @@ float getSlope(const std::vector<float> &seq, size_t N) {
   return m;
 }
 
-float getAsymptoticBound(const std::vector<float> &error, size_t epoch, size_t maxEpoch, size_t N) {
-  std::vector<float> x(N);
+float getAsymptoticBound(const vector<float> &error, size_t epoch, size_t maxEpoch, size_t N) {
+  vector<float> x(N);
   for (size_t i=0; i<N; ++i)
     x[i] = epoch - (N - 1 - i);
 
-  std::vector<float> y(N);
+  vector<float> y(N);
   for (size_t i=error.size() - N; i<error.size(); ++i)
     y[i - (error.size() - N)] = error[i];
 
@@ -380,10 +388,3 @@ float getAsymptoticBound(const std::vector<float> &error, size_t epoch, size_t m
 
   return m * (float) maxEpoch + c;
 }
-
-/*mat sum(mat& m, size_t dimension = 1) {
-  if (dimension == 1)
-    return mat(1, m.getRows(), 1) * m;
-  else
-    return m * mat(m.getCols(), 1, 1);
-} */
