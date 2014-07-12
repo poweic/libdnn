@@ -228,19 +228,27 @@ void DataSet::showSummary() const {
 
 }
 
-BatchData DataSet::operator [] (const Batches::Batch& b) {
-  // auto data = readMoreFeature(_stream, b.nData, _dim, _base, _sparse);
-  /*std::future<BatchData> f_data = std::async(std::launch::async, readMoreFeature,
-      std::ref(_stream), b.nData, _dim, _base, _sparse);
-  auto data = f_data.get();*/
+BatchData DataSet::operator [] (const Batches::iterator& b) {  
+  static std::future<BatchData> f_data;                        
 
-  auto data = readMoreFeature(_stream, b.nData, _dim, _base, _sparse);
+  if (!f_data.valid())                                         
+    f_data = std::async(std::launch::async, readMoreFeature,   
+	std::ref(_stream), b->nData, _dim, _base, _sparse);      
 
-  if (_normalizer)
-    _normalizer->normalize(data);
+  f_data.wait();                                               
 
-  return data;
-}
+  auto data = f_data.get();                                    
+
+  auto b_next = b+1;                                           
+  if ( !(b+1).isEnd() )                                        
+    f_data = std::async(std::launch::async, readMoreFeature,   
+	std::ref(_stream), (b+1)->nData, _dim, _base, _sparse);
+
+  if (_normalizer)                                             
+    _normalizer->normalize(data);                              
+
+  return data;                                                 
+}                                                              
 
 void DataSet::set_sparse(bool sparse) {
   _sparse = sparse;
@@ -349,5 +357,187 @@ size_t countLines(const string& fn) {
 
   printf("\t\33[32m[Done]\33[0m\n");
   return N;
+}
+
+
+/* 
+ * Class StandardScore (inherited from Normalization)
+ */
+
+StandardScore::StandardScore() {}
+
+StandardScore::StandardScore(const StandardScore& src):
+  _mean(src._mean), _dev(src._dev) {
+}
+
+void StandardScore::load(const string& fn) {
+  mat dx(fn);
+  hmat x(dx);
+
+  size_t dim = x.getCols();
+
+  _mean.resize(dim);
+  _dev.resize(dim);
+
+  for (size_t i=0; i<dim; ++i) {
+    _mean[i] = x(0, i);
+    _dev[i] = x(1, i);
+  }
+}
+
+void StandardScore::normalize(BatchData& data) const {
+  size_t nData = data.x.getRows(),
+	 dim = _mean.size();
+
+  for (size_t i=0; i<dim; ++i) {
+    for (size_t j=0; j<nData; ++j)
+      data.x(j, i) -= _mean[i];
+
+    if (_dev[i] == 0)
+      continue;
+
+    for (size_t j=0; j<nData; ++j)
+      data.x(j, i) /= _dev[i];
+  }
+}
+
+void StandardScore::stat(DataSet& data) {
+
+  DataStream& stream = data._stream;
+  size_t N = stream.count_lines(),
+	 dim = data._dim,
+	 base = data._base,
+	 sparse = data._sparse;
+
+  assert(dim > 0);
+  assert(N > 0);
+
+  _mean.resize(dim);
+  _dev.resize(dim);
+
+  for (size_t j=0; j<dim; ++j)
+    _mean[j] = _dev[j] = 0;
+
+  Batches batches(1024, N);
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    BatchData data = readMoreFeature(stream, itr->nData, dim, base, sparse);
+
+    for (size_t i=0; i<data.x.getRows(); ++i) {
+      for (size_t j=0; j<dim; ++j) {
+	_mean[j] += data.x(i, j);
+	_dev[j] += pow( (double) data.x(i, j), 2);
+      }
+    }
+  }
+
+  for (size_t j=0; j<dim; ++j) {
+    _mean[j] /= N;
+    _dev[j] = sqrt((_dev[j] / N) - pow(_mean[j], 2));
+  }
+
+  stream.rewind();
+}
+
+Normalization* StandardScore::clone() const {
+  return new StandardScore(*this);
+}
+
+void StandardScore::print(FILE* fid) const {
+  fprintf(fid, "_mean = [ ");
+  for (size_t i=0; i<_mean.size(); ++i)
+    fprintf(fid, "%.14e ", _mean[i]); 
+  fprintf(fid, "];\n");
+
+  fprintf(fid, "_dev = [ ");
+  for (size_t i=0; i<_dev.size(); ++i)
+    fprintf(fid, "%.14e ", _dev[i]); 
+  fprintf(fid, "];");
+}
+
+/*
+ * Class ZeroOne (inherited from Normalization)
+ */
+
+ZeroOne::ZeroOne() {}
+
+ZeroOne::ZeroOne(const ZeroOne& src): _min(src._min), _max(src._max) {}
+
+void ZeroOne::load(const string& fn) {
+  mat dx(fn);
+  hmat x(dx);
+
+  size_t dim = x.getCols();
+
+  _min.resize(dim);
+  _max.resize(dim);
+
+  for (size_t i=0; i<dim; ++i) {
+    _min[i] = x(0, i);
+    _max[i] = x(1, i);
+  }
+}
+
+void ZeroOne::normalize(BatchData& data) const {
+  size_t nData = data.x.getRows(), 
+	 dim = _min.size();
+
+  for (size_t i=0; i<dim; ++i) {
+    float r = _max[i] - _min[i];
+    if (r == 0)
+      continue;
+
+    for (size_t j=0; j<nData; ++j)
+      data.x(j, i) = (data.x(j, i) - _min[i]) / r;
+  }
+}
+
+void ZeroOne::stat(DataSet& data) {
+
+  DataStream& stream = data._stream;
+  size_t N = stream.count_lines(),
+	 dim = data._dim,
+	 base = data._base,
+	 sparse = data._sparse;
+
+  assert(dim > 0);
+  assert(N > 0);
+
+  _min.resize(dim);
+  _max.resize(dim);
+
+  for (size_t j=0; j<dim; ++j) {
+    _min[j] = std::numeric_limits<double>::max();
+    _max[j] = -std::numeric_limits<double>::max();
+  }
+
+  Batches batches(1024, N);
+  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    BatchData data = readMoreFeature(stream, itr->nData, dim, base, sparse);
+
+    for (size_t i=0; i<data.x.getRows(); ++i) {
+      for (size_t j=0; j<dim; ++j) {
+	_min[j] = min( (float) _min[j], data.x(i, j));
+	_max[j] = max( (float) _max[j], data.x(i, j));
+      }
+    }
+  }
+
+  stream.rewind();
+}
+
+Normalization* ZeroOne::clone() const {
+  return new ZeroOne(*this);
+}
+
+void ZeroOne::print(FILE* fid) const {
+  fprintf(fid, "_min = [ ");
+  for (size_t i=0; i<_min.size(); ++i)
+    fprintf(fid, "%.14e ", _min[i]); 
+  fprintf(fid, "];\n");
+
+  fprintf(fid, "_max = [ ");
+  for (size_t i=0; i<_max.size(); ++i)
+    fprintf(fid, "%.14e ", _max[i]); 
+  fprintf(fid, "];");
 }
 

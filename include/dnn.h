@@ -25,7 +25,6 @@ public:
 
   void setConfig(const Config& config);
   size_t getNLayer() const;
-  std::vector<size_t> getDimensions() const;
 
   Config getConfig() const;
   void adjustLearningRate(float trainAcc);

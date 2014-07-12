@@ -1,5 +1,5 @@
 #include <dnn.h>
-#include <thrust/extrema.h>
+// #include <thrust/extrema.h>
 
 DNN::DNN(): _transforms(), _config() {}
 
@@ -11,18 +11,17 @@ DNN::DNN(const Config& config): _transforms(), _config(config) {
 }
 
 DNN::DNN(const DNN& source): _transforms(source._transforms.size()), _config() {
-
   for (size_t i=0; i<_transforms.size(); ++i)
     _transforms[i] = source._transforms[i]->clone();
 }
 
 void DNN::init(const std::vector<mat>& weights) {
-  _transforms.resize(weights.size());
+  throw std::runtime_error("\33[31m[Error]\33[0m Not implemented yet!!");
+  /*_transforms.resize(weights.size());
 
   for (size_t i=0; i<_transforms.size() - 1; ++i)
       _transforms[i] = new Sigmoid(weights[i]);
-  _transforms.back() = new Softmax(weights.back());
-  // _transforms.back() = new Sigmoid(weights.back());
+  _transforms.back() = new Softmax(weights.back());*/
 }
 
 DNN::~DNN() {
@@ -43,29 +42,6 @@ size_t DNN::getNLayer() const {
   return _transforms.size() + 1;
 }
 
-std::vector<size_t> DNN::getDimensions() const {
-  std::vector<size_t> dims;
-  for (int i=0; i<_transforms.size(); ++i)
-    dims.push_back(_transforms[i]->getInputDimension());
-  dims.push_back(_transforms.back()->getOutputDimension());
-  return dims;
-}
-
-#pragma GCC diagnostic ignored "-Wunused-result"
-void readweight(FILE* fid, float* w, size_t rows, size_t cols) {
-
-  for (size_t i=0; i<rows - 1; ++i)
-    for (size_t j=0; j<cols; ++j)
-      fscanf(fid, "%f ", &(w[j * rows + i]));
-
-  fscanf(fid, "]\n<bias>\n [");
-
-  for (size_t j=0; j<cols; ++j)
-    fscanf(fid, "%f ", &(w[j * rows + rows - 1]));
-  fscanf(fid, "]\n");
-
-}
-
 void DNN::read(string fn) {
 
   FILE* fid = fopen(fn.c_str(), "r");
@@ -75,35 +51,9 @@ void DNN::read(string fn) {
 
   _transforms.clear();
 
-  //printf("+-------------------------------------+\n");
-  //printf("| File: %-30s"                       "|\n", fn.c_str());
-  //printf("+-------------------+--------+--------+\n");
-  //printf("| Feature Transform |  rows  |  cols  |\n");
-  //printf("+-------------------+--------+--------+\n");
-
-  char type[80];
-
-  while (fscanf(fid, "%s", type) != EOF) {
-    size_t rows, cols;
-    fscanf(fid, "%lu %lu\n [\n", &rows, &cols);
-
-    // printf("|     %-13s |  %-5lu |  %-5lu |\n", type, rows, cols);
-
-    float* hw = new float[(rows + 1) * (cols + 1)];
-    readweight(fid, hw, rows + 1, cols);
-
-    // Reserve one more column/row for bias
-    mat w(hw, rows + 1, cols + 1);
-
-    string transformType = string(type);
-    if (transformType == "<sigmoid>")
-      _transforms.push_back(new Sigmoid(w));
-    else if (transformType == "<softmax>")
-      _transforms.push_back(new Softmax(w));
-
-    delete [] hw;
-  }
-  //printf("+-------------------+--------+--------+\n\n");
+  FeatureTransform* f;
+  while ( f = FeatureTransform::create(fid) )
+    _transforms.push_back(f);
 
   fclose(fid);
 }
@@ -112,7 +62,7 @@ void DNN::save(string fn) const {
   FILE* fid = fopen(fn.c_str(), "w");
 
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->print(fid);
+    _transforms[i]->write(fid);
   
   fclose(fid);
 }
@@ -120,18 +70,6 @@ void DNN::save(string fn) const {
 // ========================
 // ===== Feed Forward =====
 // ========================
-
-void print(const thrust::host_vector<float>& hv) {
-  cout << "\33[33m[";
-  for (size_t i=0; i<hv.size(); ++i)
-    cout << hv[i] << " ";
-  cout << " ] \33[0m" << endl << endl;
-}
-
-void print(const thrust::device_vector<float>& dv) {
-  thrust::host_vector<float> hv(dv.begin(), dv.end());
-  ::print(hv);
-}
 
 void DNN::adjustLearningRate(float trainAcc) {
   static size_t phase = 0;
@@ -218,7 +156,7 @@ Config DNN::getConfig() const {
 }
 
 void swap(DNN& lhs, DNN& rhs) {
-  using WHERE::swap;
+  using std::swap;
   swap(lhs._transforms, rhs._transforms);
   swap(lhs._config, rhs._config);
 }

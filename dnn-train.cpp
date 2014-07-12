@@ -33,7 +33,7 @@ int main (int argc, char* argv[]) {
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "100000")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
-     .add("--learning-rate", "learning rate in back-propagation", "0.01")
+     .add("--learning-rate", "learning rate in back-propagation", "0.1")
      .add("--variance", "the variance of normal distribution when initializing the weights", "0.01")
      .add("--batch-size", "number of data per mini-batch", "32")
      .add("--type", "choose one of the following:\n"
@@ -112,12 +112,21 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
   size_t Ein = 1;
   size_t MAX_EPOCH = dnn.getConfig().maxEpoch, epoch;
   std::vector<size_t> Eout;
-  Eout.reserve(MAX_EPOCH);
+
+  float lr = dnn.getConfig().learningRate / batchSize;
 
   size_t nTrain = train.size(),
 	 nValid = valid.size();
 
   mat fout;
+
+  printf("._______._________________________._________________________.\n"
+         "|       |                         |                         |\n"
+         "|       |        In-Sample        |      Out-of-Sample      |\n"
+         "| Epoch |__________.______________|__________.______________|\n"
+         "|       |          |              |          |              |\n"
+         "|       | Accuracy | # of correct | Accuracy | # of correct |\n"
+         "|_______|__________|______________|__________|______________|\n");
 
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
 
@@ -125,13 +134,13 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
       // Copy a batch of data from host to device
-      auto data = train[*itr];
+      auto data = train[itr];
 
       dnn.feedForward(fout, data.x);
 
       mat error = getError( data.y, fout, errorMeasure);
 
-      dnn.backPropagate(error, data.x, fout, dnn.getConfig().learningRate);
+      dnn.backPropagate(error, data.x, fout, lr);
     }
 
     Ein = dnn_predict(dnn, train, errorMeasure);
@@ -146,8 +155,8 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
 
     float validAcc = 1.0f - (float) Eout[epoch] / nValid;
 
-    printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu )\n",
-      epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout[epoch], nValid); 
+    printf("|%4lu   |  %.2f %% |  %7lu     |  %.2f %% |  %7lu     |\n",
+      epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eout[epoch]);
 
     if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
       break;
@@ -170,7 +179,7 @@ size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure) {
 
   Batches batches(2048, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    auto d = data[*itr];
+    auto d = data[itr];
     mat prob = dnn.feedForward(d.x);
     nError += zeroOneError(prob, d.y, errorMeasure);
   }

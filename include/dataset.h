@@ -72,10 +72,7 @@ public:
   bool isLabeled() const;
   void showSummary() const;
 
-  BatchData operator [] (const Batches::Batch& b);
-
-  /*mat getX(const Batches::Batch& b);
-  mat getY(const Batches::Batch& b);*/
+  BatchData operator [] (const Batches::iterator& b);
 
   static void 
     split(const DataSet& data, DataSet& train, DataSet& valid, int ratio);
@@ -107,6 +104,17 @@ private:
   Normalization* _normalizer;
 };
 
+
+bool isFileSparse(string train_fn);
+
+size_t getLineNumber(ifstream& fin);
+size_t findMaxDimension(ifstream& fin);
+size_t findDimension(ifstream& fin);
+
+std::ifstream& goToLine(std::ifstream& file, unsigned long num);
+size_t countLines(const string& fn);
+
+
 class Normalization {
 public:
   virtual void load(const string& fn) = 0;
@@ -117,81 +125,15 @@ public:
 
 class StandardScore : public Normalization {
 public:
-  StandardScore() {}
+  StandardScore();
+  StandardScore(const StandardScore& src);
 
-  StandardScore(const StandardScore& src): _mean(src._mean), _dev(src._dev) {}
+  virtual void load(const string& fn);
+  virtual void normalize(BatchData& data) const;
+  virtual void stat(DataSet& data);
+  virtual Normalization* clone() const;
 
-  virtual void load(const string& fn) {
-    mat dx(fn);
-    hmat x(dx);
-
-    size_t dim = x.getCols();
-
-    _mean.resize(dim);
-    _dev.resize(dim);
-    
-    for (size_t i=0; i<dim; ++i) {
-      _mean[i] = x(0, i);
-      _dev[i] = x(1, i);
-    }
-  }
-
-  virtual void normalize(BatchData& data) const {
-    size_t nData = data.x.getRows(),
-	   dim = _mean.size();
-
-    for (size_t i=0; i<dim; ++i) {
-      for (size_t j=0; j<nData; ++j)
-	data.x(j, i) -= _mean[i];
-
-      if (_dev[i] == 0)
-	continue;
-
-      for (size_t j=0; j<nData; ++j)
-	data.x(j, i) /= _dev[i];
-    }
-  }
-
-  virtual void stat(DataSet& data) {
-
-    DataStream& stream = data._stream;
-    size_t N = stream.count_lines(),
-	   dim = data._dim,
-	   base = data._base,
-	   sparse = data._sparse;
-
-    assert(dim > 0);
-    assert(N > 0);
-
-    _mean.resize(dim);
-    _dev.resize(dim);
-
-    for (size_t j=0; j<dim; ++j)
-      _mean[j] = _dev[j] = 0;
-
-    Batches batches(1024, N);
-    for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-      BatchData data = readMoreFeature(stream, itr->nData, dim, base, sparse);
-
-      for (size_t i=0; i<data.x.getRows(); ++i) {
-	for (size_t j=0; j<dim; ++j) {
-	  _mean[j] += data.x(i, j);
-	  _dev[j] += pow( (double) data.x(i, j), 2);
-	}
-      }
-    }
-
-    for (size_t j=0; j<dim; ++j) {
-      _mean[j] /= N;
-      _dev[j] = sqrt((_dev[j] / N) - pow(_mean[j], 2));
-    }
-
-    stream.rewind();
-  }
-
-  virtual Normalization* clone() const {
-    return new StandardScore(*this);
-  }
+  virtual void print(FILE* fid = stdout) const;
 
 private:
   vector<double> _mean;
@@ -200,90 +142,19 @@ private:
 
 class ZeroOne : public Normalization {
 public:
-  ZeroOne() {}
+  ZeroOne();
+  ZeroOne(const ZeroOne& src);
 
-  ZeroOne(const ZeroOne& src): _min(src._min), _max(src._max) {}
+  virtual void load(const string& fn);
+  virtual void normalize(BatchData& data) const;
+  virtual void stat(DataSet& data);
+  virtual Normalization* clone() const;
 
-  virtual void load(const string& fn) {
-    mat dx(fn);
-    hmat x(dx);
-
-    size_t dim = x.getCols();
-
-    _min.resize(dim);
-    _max.resize(dim);
-    
-    for (size_t i=0; i<dim; ++i) {
-      _min[i] = x(0, i);
-      _max[i] = x(1, i);
-    }
-  }
-
-  virtual void normalize(BatchData& data) const {
-    size_t nData = data.x.getRows(), 
-	   dim = _min.size();
-
-    for (size_t i=0; i<dim; ++i) {
-      float r = _max[i] - _min[i];
-      if (r == 0)
-	continue;
-
-      for (size_t j=0; j<nData; ++j)
-	data.x(j, i) = (data.x(j, i) - _min[i]) / r;
-    }
-  }
-
-  virtual void stat(DataSet& data) {
-
-    DataStream& stream = data._stream;
-    size_t N = stream.count_lines(),
-	   dim = data._dim,
-	   base = data._base,
-	   sparse = data._sparse;
-
-    assert(dim > 0);
-    assert(N > 0);
-
-    _min.resize(dim);
-    _max.resize(dim);
-
-    for (size_t j=0; j<dim; ++j) {
-      _min[j] = std::numeric_limits<double>::max();
-      _max[j] = -std::numeric_limits<double>::max();
-    }
-
-    Batches batches(1024, N);
-    for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-      BatchData data = readMoreFeature(stream, itr->nData, dim, base, sparse);
-
-      for (size_t i=0; i<data.x.getRows(); ++i) {
-	for (size_t j=0; j<dim; ++j) {
-	  _min[j] = min( (float) _min[j], data.x(i, j));
-	  _max[j] = max( (float) _max[j], data.x(i, j));
-	}
-      }
-    }
-
-    stream.rewind();
-  }
-
-  virtual Normalization* clone() const {
-    return new ZeroOne(*this);
-  }
+  virtual void print(FILE* fid = stdout) const;
 
 private:
   vector<double> _min;
   vector<double> _max;
 };
-
-
-bool isFileSparse(string train_fn);
-
-size_t getLineNumber(ifstream& fin);
-size_t findMaxDimension(ifstream& fin);
-size_t findDimension(ifstream& fin);
-
-std::ifstream& goToLine(std::ifstream& file, unsigned long num);
-size_t countLines(const string& fn);
 
 #endif

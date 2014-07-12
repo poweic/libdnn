@@ -70,14 +70,14 @@ int main (int argc, char* argv[]) {
   data.showSummary();
 
   if (output_dim == 0)
-    output_dim = getOutputDimension();
+    output_dim = StackedRbm::AskUserForOutputDimension();
 
-  auto dims = getDimensionsForRBM(input_dim, structure, output_dim);
+  auto dims = StackedRbm::parseDimensions(input_dim, structure, output_dim);
 
   // Initialize using RBM
-  StackedRbmTrainer trainer(type, dims, slopeThres, learning_rate);
-  trainer.train(data);
-  trainer.save(model_fn);
+  StackedRbm srbm(type, dims, slopeThres, learning_rate);
+  srbm.train(data);
+  srbm.save(model_fn);
 
   return 0;
 }

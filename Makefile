@@ -9,18 +9,18 @@ CUMATRIX_ROOT=tools/libcumatrix/
 INCLUDE= -I include/ \
 	 -I $(BOTON_UTIL_ROOT)/include/ \
 	 -I $(CUMATRIX_ROOT)/include \
- 	 -isystem /usr/local/cuda/samples/common/inc/ \
-	 -isystem /usr/local/cuda/include
+ 	 -I /usr/local/cuda/samples/common/inc/ \
+	 -I /usr/local/cuda/include
 
 CPPFLAGS= -std=c++0x $(CFLAGS) $(INCLUDE) #-Werror -Wall 
 
 SOURCES=cnn-utility.cu\
-	cnn.cu\
+	cnn.cpp\
 	dnn-utility.cu\
-	dnn.cu\
+	dnn.cpp\
 	utility.cpp\
-	rbm.cu\
-	feature-transform.cu\
+	rbm.cpp\
+	feature-transform.cpp\
 	dataset.cpp\
 	batch.cpp\
 	config.cpp

@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 #include <dnn.h>
-// #include <dnn-utility.h>
 #include <cmdparser.h>
 #include <batch.h>
 using namespace std;
@@ -73,7 +72,7 @@ int main (int argc, char* argv[]) {
 
   Batches batches(1024, test.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    auto data = test[*itr];
+    auto data = test[itr];
     mat prob = dnn.feedForward(data.x);
 
     if (calcAcc && !silent)
