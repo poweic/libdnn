@@ -7,11 +7,13 @@ FeatureTransform* FeatureTransform::create(FILE* fid) {
 
   string type(c_type);
 
-  if (type == "<AffineTransform>")
+  std::transform(type.begin(), type.end(), type.begin(), ::toupper);
+
+  if (type == "<AFFINETRANSFORM>")
     return new AffineTransform(fid);
-  else if (type == "<Sigmoid>")
+  else if (type == "<SIGMOID>")
     return new Sigmoid(fid);
-  else if (type == "<Softmax>")
+  else if (type == "<SOFTMAX>")
     return new Softmax(fid);
 
   return NULL;
