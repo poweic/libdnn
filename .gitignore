@@ -5,6 +5,7 @@ dnn-predict
 dnn-train
 dnn-init
 cnn-train
+dnn-info
 *.model
 *.dat
 log

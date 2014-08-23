@@ -42,6 +42,23 @@ size_t DNN::getNLayer() const {
   return _transforms.size() + 1;
 }
 
+void DNN::status() const {
+  
+  const auto& t = _transforms;
+
+  size_t nAffines=0;
+  for (size_t i=0; i<t.size(); ++i)
+    nAffines += (t[i]->toString() == "AffineTransform");
+
+  printf("\33[33m[INFO]\33[0m # of hidden layers: %2lu \n", nAffines - 1);
+
+  for (size_t i=0; i<t.size(); ++i) {
+    printf("  %-16s %4lu x %4lu [%-2lu]\n", t[i]->toString().c_str(),
+	t[i]->getInputDimension(), t[i]->getOutputDimension(), i);
+  }
+
+}
+
 void DNN::read(string fn) {
 
   FILE* fid = fopen(fn.c_str(), "r");
