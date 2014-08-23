@@ -9,7 +9,7 @@ int main (int argc, char* argv[]) {
   CmdParser cmd(argc, argv);
 
   cmd.add("input-model")
-     .add("output-model");
+     .add("output-model", false);
 
   cmd.addGroup("Options: ")
      .add("--layer", "Specify which layers to copy (or dump). "
@@ -24,7 +24,7 @@ int main (int argc, char* argv[]) {
   string output_model_fn = cmd[2];
   string layer		 = cmd["--layer"];
 
-  FILE* fid = fopen(output_model_fn.c_str(), "w");
+  FILE* fid = output_model_fn == "" ? stdout : fopen(output_model_fn.c_str(), "w");
   if (!fid)
     throw std::runtime_error(RED_ERROR + "Cannot open file " + output_model_fn);
 
@@ -48,6 +48,9 @@ int main (int argc, char* argv[]) {
     else
       cerr << YELLOW_WARNING << "Model does not have transform[" << l << "]" << endl;
   }
+
+  if (fid != stdout)
+    fclose(fid);
 
   return 0;
 }
