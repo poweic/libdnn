@@ -84,6 +84,14 @@ void DNN::save(string fn) const {
   fclose(fid);
 }
 
+std::vector<FeatureTransform*>& DNN::getTransforms() {
+  return _transforms;
+}
+
+const std::vector<FeatureTransform*>& DNN::getTransforms() const {
+  return _transforms;
+}
+
 // ========================
 // ===== Feed Forward =====
 // ========================

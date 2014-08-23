@@ -34,6 +34,9 @@ public:
   void read(string fn);
   void save(string fn) const;
 
+  std::vector<FeatureTransform*>& getTransforms();
+  const std::vector<FeatureTransform*>& getTransforms() const;
+
   friend void swap(DNN& lhs, DNN& rhs);
 
 private:

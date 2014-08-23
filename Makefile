@@ -25,7 +25,7 @@ SOURCES=cnn-utility.cu\
 	batch.cpp\
 	config.cpp
 
-EXECUTABLES=dnn-train dnn-predict dnn-init cnn-train dnn-info 
+EXECUTABLES=dnn-train dnn-predict dnn-init cnn-train dnn-info dnn-print
 .PHONY: debug all o3 ctags dump_nrv
 all: $(EXECUTABLES) ctags
 
