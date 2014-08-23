@@ -25,7 +25,15 @@ SOURCES=cnn-utility.cu\
 	batch.cpp\
 	config.cpp
 
-EXECUTABLES=dnn-train dnn-predict dnn-init cnn-train dnn-info dnn-print
+EXECUTABLES=dnn-train\
+	    dnn-predict\
+	    dnn-init\
+	    cnn-train\
+	    dnn-info\
+	    dnn-print
+
+EXECUTABLES:=$(addprefix bin/, $(EXECUTABLES))
+
 .PHONY: debug all o3 ctags dump_nrv
 all: $(EXECUTABLES) ctags
 
@@ -49,7 +57,7 @@ LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/
 test: test.cpp
 	g++ -std=c++0x $(INCLUDE) $(LIBRARY_PATH) -o test test.cpp -lpthread  $(CUDA_LIBRARY)
 
-$(EXECUTABLES): % : obj/%.o $(OBJ)
+$(EXECUTABLES): bin/% : obj/%.o $(OBJ)
 	$(CXX) -o $@ $(CFLAGS) -std=c++0x $(INCLUDE) $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
 
 #%.o: %.cpp

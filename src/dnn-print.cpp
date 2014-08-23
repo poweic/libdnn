@@ -29,7 +29,6 @@ int main (int argc, char* argv[]) {
     throw std::runtime_error(RED_ERROR + "Cannot open file " + output_model_fn);
 
   DNN dnn(input_model_fn);
-  dnn.status();
 
   const auto& t = dnn.getTransforms();
 
