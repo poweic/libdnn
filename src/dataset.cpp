@@ -390,7 +390,7 @@ void StandardScore::normalize(BatchData& data) const {
 	 dim = _mean.size();
 
   for (size_t i=0; i<dim; ++i) {
-    printf("mean[%lu] = %f, dev[%lu] = %f\n", i, _mean[i], i, _dev[i]);
+    // printf("mean[%lu] = %f, dev[%lu] = %f\n", i, _mean[i], i, _dev[i]);
     for (size_t j=0; j<nData; ++j)
       data.x(j, i) -= _mean[i];
 
