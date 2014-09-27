@@ -12,16 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <batch.h>
+#include <iostream>
+#include <string>
+#include <dnn.h>
+#include <cmdparser.h>
+using namespace std;
 
-Batches::Batches(size_t batchSize, size_t totalSize):
-  _batchSize(batchSize), _totalSize(totalSize),
-  _begin(0, _batchSize, _totalSize),
-  _end(-1, _batchSize, _totalSize) { }
+int main (int argc, char* argv[]) {
 
+  CmdParser cmd(argc, argv);
 
-void swap(Batches::iterator& lhs, Batches::iterator& rhs) {
-  std::swap(lhs._batchSize, rhs._batchSize);
-  std::swap(lhs._totalSize, rhs._totalSize);
-  std::swap(lhs._batch, rhs._batch);
+  cmd.add("model_file");
+
+  cmd.addGroup("Example usage: dnn-info train.dat.model");
+
+  if (!cmd.isOptionLegal())
+    cmd.showUsageAndExit();
+
+  string model_fn = cmd[1];
+
+  DNN dnn(model_fn);
+
+  dnn.status();
+
+  return 0;
 }

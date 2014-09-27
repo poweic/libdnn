@@ -1,8 +1,5 @@
 #include <dnn-utility.h>
 #include <iomanip>
-#define RED_ERROR (string("\33[31m[Error]\33[0m In function \"") \
-    + __func__ + string("\" (at ") + __FILE__ + string(":") \
-    + to_string(__LINE__) + string("): "))
 
 struct SIZE {
   size_t m, n;

@@ -29,8 +29,13 @@ public:
   Config getConfig() const;
   void adjustLearningRate(float trainAcc);
 
+  void status() const;
+
   void read(string fn);
   void save(string fn) const;
+
+  std::vector<FeatureTransform*>& getTransforms();
+  const std::vector<FeatureTransform*>& getTransforms() const;
 
   friend void swap(DNN& lhs, DNN& rhs);
 

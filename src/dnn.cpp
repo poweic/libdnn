@@ -1,5 +1,18 @@
+// Copyright 2013-2014 [Author: Po-Wei Chou]
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <dnn.h>
-// #include <thrust/extrema.h>
 
 DNN::DNN(): _transforms(), _config() {}
 
@@ -42,6 +55,23 @@ size_t DNN::getNLayer() const {
   return _transforms.size() + 1;
 }
 
+void DNN::status() const {
+  
+  const auto& t = _transforms;
+
+  size_t nAffines=0;
+  for (size_t i=0; i<t.size(); ++i)
+    nAffines += (t[i]->toString() == "AffineTransform");
+
+  printf("\33[33m[INFO]\33[0m # of hidden layers: %2lu \n", nAffines - 1);
+
+  for (size_t i=0; i<t.size(); ++i) {
+    printf("  %-16s %4lu x %4lu [%-2lu]\n", t[i]->toString().c_str(),
+	t[i]->getInputDimension(), t[i]->getOutputDimension(), i);
+  }
+
+}
+
 void DNN::read(string fn) {
 
   FILE* fid = fopen(fn.c_str(), "r");
@@ -65,6 +95,14 @@ void DNN::save(string fn) const {
     _transforms[i]->write(fid);
   
   fclose(fid);
+}
+
+std::vector<FeatureTransform*>& DNN::getTransforms() {
+  return _transforms;
+}
+
+const std::vector<FeatureTransform*>& DNN::getTransforms() const {
+  return _transforms;
 }
 
 // ========================
