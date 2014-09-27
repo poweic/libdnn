@@ -15,25 +15,37 @@
 #include <iostream>
 #include <string>
 #include <dnn.h>
+#include <dnn-utility.h>
 #include <cmdparser.h>
 using namespace std;
 
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
+  cmd.printArgs();
 
-  cmd.add("model_file");
+  cmd.add("model_in")
+     .add("model_out");
 
-  cmd.addGroup("Example usage: dnn-info train.dat.model");
+  cmd.addGroup("Example usage: dnn-transpose a.mdl aT.mdl");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
 
-  string model_fn = cmd[1];
+  string model_in     = cmd[1];
+  string model_out    = cmd[2];
 
-  DNN dnn(model_fn);
+  // Load model
+  DNN dnn(model_in);
 
-  dnn.status();
+  if (AffineTransform* T = dynamic_cast<AffineTransform*>(dnn.getTransforms()[0])) {
+    mat M(351, 351);
+    memcpy2D(M, T->get_w(), 0, 0, 351, 351, 0, 0);
+    M = ~M;
+    memcpy2D(T->get_w(), M, 0, 0, 351, 351, 0, 0);
+  }
+
+  dnn.save(model_out);
 
   return 0;
 }

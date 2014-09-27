@@ -30,7 +30,9 @@ EXECUTABLES=dnn-train\
 	    dnn-init\
 	    cnn-train\
 	    dnn-info\
-	    dnn-print
+	    dnn-print\
+	    data-statistics\
+	    dnn-transpose
 
 EXECUTABLES:=$(addprefix bin/, $(EXECUTABLES))
 

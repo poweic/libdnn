@@ -112,3 +112,6 @@ For example:
 ```
 dnn-predict test.dat train.dat.model
 ```
+
+# License
+Copyright (c) 20013-2014 Po-Wei Chou Licensed under the Apache License.
