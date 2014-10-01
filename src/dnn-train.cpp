@@ -48,11 +48,7 @@ int main (int argc, char* argv[]) {
      .add("--max-epoch", "number of maximum epochs", "100000")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
      .add("--learning-rate", "learning rate in back-propagation", "0.1")
-     .add("--variance", "the variance of normal distribution when initializing the weights", "0.01")
-     .add("--batch-size", "number of data per mini-batch", "32")
-     .add("--type", "choose one of the following:\n"
-	"0 -- classfication\n"
-	"1 -- regression", "0");
+     .add("--batch-size", "number of data per mini-batch", "32");
 
   cmd.addGroup("Hardward options:")
      .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
@@ -74,7 +70,6 @@ int main (int argc, char* argv[]) {
   int ratio	      = cmd["-v"];
   size_t batchSize    = cmd["--batch-size"];
   float learningRate  = cmd["--learning-rate"];
-  float variance      = cmd["--variance"];
   float minValidAcc   = cmd["--min-acc"];
   size_t maxEpoch     = cmd["--max-epoch"];
 
@@ -83,7 +78,6 @@ int main (int argc, char* argv[]) {
 
   // Set configurations
   Config config;
-  config.variance = variance;
   config.learningRate = learningRate;
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;

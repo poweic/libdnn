@@ -31,7 +31,7 @@ int main (int argc, char* argv[]) {
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
-	"2 -- Normalize to standard score. z = (x-u)/sigma .", "0");
+	"2 -- Normalize to standard score. z = (x-u)/sigma .");
 
   cmd.addGroup("Example usage: data-statistics data/train3.dat train3.stat --input-dim 351 --normalize 2");
 

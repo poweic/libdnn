@@ -44,6 +44,9 @@ public:
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
+  mat& get_w();
+  mat const& get_w() const;
+
 private:
   /* \brief _w is the "augmented" matrix (include bias term)
    *

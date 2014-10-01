@@ -204,6 +204,11 @@ DataSet& DataSet::operator = (DataSet that) {
   return *this;
 }
 
+Normalization* DataSet::getNormalizer() const {
+  return _normalizer;
+}
+
+
 void DataSet::loadPrecomputedStatistics(string fn) {
   if (fn.empty())
     return;
@@ -404,7 +409,6 @@ void StandardScore::normalize(BatchData& data) const {
 	 dim = _mean.size();
 
   for (size_t i=0; i<dim; ++i) {
-    // printf("mean[%lu] = %f, dev[%lu] = %f\n", i, _mean[i], i, _dev[i]);
     for (size_t j=0; j<nData; ++j)
       data.x(j, i) -= _mean[i];
 
@@ -458,15 +462,16 @@ Normalization* StandardScore::clone() const {
 }
 
 void StandardScore::print(FILE* fid) const {
-  fprintf(fid, "_mean = [ ");
+  // fprintf(fid, "_mean = [ ");
   for (size_t i=0; i<_mean.size(); ++i)
     fprintf(fid, "%.14e ", _mean[i]); 
-  fprintf(fid, "];\n");
+  fprintf(fid, "\n");
+  //fprintf(fid, "];\n");
 
-  fprintf(fid, "_dev = [ ");
+  // fprintf(fid, "_dev = [ ");
   for (size_t i=0; i<_dev.size(); ++i)
     fprintf(fid, "%.14e ", _dev[i]); 
-  fprintf(fid, "];");
+  // fprintf(fid, "];");
 }
 
 /*

@@ -7,4 +7,5 @@ cd tools/utility && make o3 && cd -
 git clone https://github.com/botonchou/libcumatrix.git tools/libcumatrix
 cd tools/libcumatrix && make o3 && cd -
 
+mkdir bin/ obj/
 make o3

@@ -67,6 +67,8 @@ public:
 
   size_t getFeatureDimension() const;
 
+  Normalization* getNormalizer() const;
+
   size_t size() const;
 
   bool isLabeled() const;
@@ -121,6 +123,8 @@ public:
   virtual void normalize(BatchData& data) const = 0;
   virtual void stat(DataSet& data) = 0;
   virtual Normalization* clone() const = 0;
+
+  virtual void print(FILE* fid = stdout) const = 0;
 };
 
 class StandardScore : public Normalization {

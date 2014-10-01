@@ -146,6 +146,13 @@ void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout,
   gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
 }
 
+mat& AffineTransform::get_w() {
+  return _w;
+}
+
+mat const& AffineTransform::get_w() const {
+  return _w;
+}
 /*
  * class Activation
  *

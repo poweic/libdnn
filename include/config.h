@@ -10,7 +10,6 @@ struct Config {
     
   float learningRate;
   size_t maxEpoch;
-  float variance;
   size_t batchSize;
   size_t trainValidRatio;
   size_t nNonIncEpoch;
