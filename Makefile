@@ -83,6 +83,6 @@ obj/%.d: %.cpp
 
 .PHONY: ctags
 ctags:
-	@ctags -R --langmap=C:+.cu *
+	@if command -v ctags >/dev/null 2>&1; then ctags -R --langmap=C:+.cu *; fi
 clean:
 	rm -rf $(EXECUTABLES) obj/*
