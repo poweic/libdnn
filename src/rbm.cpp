@@ -280,9 +280,10 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
 }
 
 void StackedRbm::save(const string& fn) {
-  FILE* fid = fopen(fn.c_str(), "w");
 
-  if (!fid)
+  ofstream fout(fn.c_str());
+
+  if (!fout.is_open())
     throw std::runtime_error("Cannot open file: \"" + fn + "\"");
 
   FeatureTransform *affine, *activation;
@@ -290,27 +291,27 @@ void StackedRbm::save(const string& fn) {
 
   for (size_t i=0; i<_weights.size() - 1; ++i) {
     affine = new AffineTransform(_weights[i]);
-    affine->write(fid);
+    fout << affine;
 
     dim = affine->getOutputDimension();
     activation = new Sigmoid(dim, dim);
-    activation->write(fid);
+    fout << activation;
 
     delete affine;
     delete activation;
   }
 
   affine = new AffineTransform(_weights.back());
-  affine->write(fid);
+  fout << affine;
 
   dim = affine->getOutputDimension();
   activation = new Softmax(dim, dim);
-  activation->write(fid);
+  fout << activation;
 
   delete affine;
   delete activation;
 
-  fclose(fid);
+  fout.close();
 }
 
 vector<size_t> StackedRbm::parseDimensions(

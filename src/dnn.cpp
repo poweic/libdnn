@@ -74,27 +74,30 @@ void DNN::status() const {
 
 void DNN::read(string fn) {
 
-  FILE* fid = fopen(fn.c_str(), "r");
+  ifstream fin(fn.c_str());
 
-  if (!fid)
+  if (!fin.is_open())
     throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
 
   _transforms.clear();
 
   FeatureTransform* f;
-  while ( f = FeatureTransform::create(fid) )
+  while ( fin >> f )
     _transforms.push_back(f);
 
-  fclose(fid);
+  fin.close();
 }
 
 void DNN::save(string fn) const {
-  FILE* fid = fopen(fn.c_str(), "w");
+  ofstream fout(fn.c_str());
+
+  if (!fout.is_open())
+    throw std::runtime_error("\33[31m[Error]\33[0m Cannot open file: " + fn);
 
   for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->write(fid);
+    fout << _transforms[i];
   
-  fclose(fid);
+  fout.close();
 }
 
 std::vector<FeatureTransform*>& DNN::getTransforms() {

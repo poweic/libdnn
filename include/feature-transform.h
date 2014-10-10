@@ -8,8 +8,6 @@ public:
   FeatureTransform() { }
   FeatureTransform(size_t input_dim, size_t output_dim);
 
-  // FeatureTransform& operator = (const FeatureTransform& rhs) = delete;
-
   virtual FeatureTransform* clone() const = 0;
   virtual string toString() const = 0;
   virtual void feedForward(mat& fout, const mat& fin) = 0;
@@ -18,26 +16,29 @@ public:
   virtual size_t getInputDimension() const { return _input_dim; }
   virtual size_t getOutputDimension() const { return _output_dim; }
 
-  virtual void read(FILE* fid) = 0;
-  virtual void write(FILE* fid) const = 0;
-
-  static FeatureTransform* create(FILE* fid);
+  virtual void read(istream& is) = 0;
+  virtual void write(ostream& os) const = 0;
+  friend ostream& operator << (ostream& os, FeatureTransform* ft);
+  friend istream& operator >> (istream& is, FeatureTransform* &ft);
 
 protected:
   size_t _input_dim;
   size_t _output_dim;
 };
 
+ostream& operator << (ostream& os, FeatureTransform* ft);
+istream& operator >> (istream& is, FeatureTransform* &ft);
+
 class AffineTransform : public FeatureTransform {
 public:
   AffineTransform(size_t input_dim, size_t output_dim);
   AffineTransform(const mat& w);
-  AffineTransform(FILE* fid);
+  AffineTransform(istream& is);
 
   // AffineTransform& operator = (const AffineTransform& rhs) = delete;
 
-  virtual void read(FILE* fid);
-  virtual void write(FILE* fid) const;
+  virtual void read(istream& is);
+  virtual void write(ostream& os) const;
 
   virtual AffineTransform* clone() const;
   virtual string toString() const;
@@ -61,14 +62,14 @@ public:
 
   // Activation& operator = (const Activation& rhs) = delete;
 
-  virtual void read(FILE* fid);
-  virtual void write(FILE* fid) const;
+  virtual void read(istream& is);
+  virtual void write(ostream& os) const;
 };
 
 class Sigmoid : public Activation {
 public:
   Sigmoid(size_t input_dim, size_t output_dim);
-  Sigmoid(FILE* fid);
+  Sigmoid(istream& is);
 
   // Sigmoid& operator = (const Sigmoid& rhs) = delete;
 
@@ -81,7 +82,7 @@ public:
 class Softmax : public Activation {
 public:
   Softmax(size_t input_dim, size_t output_dim);
-  Softmax(FILE* fid);
+  Softmax(istream& is);
 
   // Softmax& operator = (const Softmax& rhs) = delete;
 

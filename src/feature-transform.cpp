@@ -14,23 +14,33 @@
 
 #include <feature-transform.h>
 
-FeatureTransform* FeatureTransform::create(FILE* fid) {
-  char c_type[128];
-  if ( fscanf(fid, "%s", c_type) == EOF )
-    return NULL;
+#define PARSE_ASSERT(x) { if (!(x)) \
+  throw std::runtime_error("\33[31m[Error]\33[0m failed when reading"); }
 
-  string type(c_type);
+ostream& operator << (ostream& os, FeatureTransform* ft) {
+  ft->write(os);
+  return os;
+}
+
+istream& operator >> (istream& is, FeatureTransform* &ft) {
+  string type;
+  if (!(is >> type)) {
+    ft = NULL;
+    return is;
+  }
 
   std::transform(type.begin(), type.end(), type.begin(), ::toupper);
 
   if (type == "<AFFINETRANSFORM>")
-    return new AffineTransform(fid);
+    ft = new AffineTransform(is);
   else if (type == "<SIGMOID>")
-    return new Sigmoid(fid);
+    ft = new Sigmoid(is);
   else if (type == "<SOFTMAX>")
-    return new Softmax(fid);
+    ft = new Softmax(is);
+  else 
+    ft = NULL;
 
-  return NULL;
+  return is;
 }
 
 /*
@@ -55,60 +65,61 @@ AffineTransform::AffineTransform(const mat& w)
   : FeatureTransform(w.getRows() - 1, w.getCols() - 1), _w(w) {
 }
 
-AffineTransform::AffineTransform(FILE* fid) {
-  this->read(fid);
+AffineTransform::AffineTransform(istream& is) {
+  this->read(is);
 }
+ 
+void AffineTransform::read(istream& is) {
 
-#pragma GCC diagnostic ignored "-Wunused-result"
-void AffineTransform::read(FILE* fid) {
+  string dummy;
 
   size_t rows, cols;
-  if ( fscanf(fid, "%lu %lu\n", &rows, &cols) == EOF)
-    throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+  PARSE_ASSERT(is >> rows);
+  PARSE_ASSERT(is >> cols);
 
   hmat hw(rows + 1, cols + 1);
 
   // Read matrix
-  fscanf(fid, "[\n");
+  PARSE_ASSERT(is >> dummy);
   for (size_t i=0; i<rows; ++i)
     for (size_t j=0; j<cols; ++j)
-      fscanf(fid, "%f ", &hw(i, j) );
-  fscanf(fid, "]\n");
+      PARSE_ASSERT( is >> hw(i, j) );
+  PARSE_ASSERT(is >> dummy);
 
   // Read vector (bias)
-  fscanf(fid, "[");
+  PARSE_ASSERT(is >> dummy);
   for (size_t j=0; j<cols; ++j)
-    fscanf(fid, "%f ", &hw(rows, j) );
-  fscanf(fid, "]\n");
+    PARSE_ASSERT( is >> hw(rows, j) );
+  PARSE_ASSERT(is >> dummy);
 
   _w = (mat) hw;
   _input_dim = _w.getRows();
   _output_dim = _w.getCols();
 }
 
-void AffineTransform::write(FILE* fid) const {
+void AffineTransform::write(ostream& os) const {
 
   hmat data(_w);
 
   size_t rows = data.getRows(),
 	 cols = data.getCols();
 
-  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str() , rows - 1, cols - 1);
+  os << "<" << this->toString() << "> " << (rows - 1) << " " << (cols - 1) << endl;
 
   // Write matrix
-  fprintf(fid, "[");
+  os << "[";
   for (size_t j=0; j<rows-1; ++j) {
-    fprintf(fid, "\n  ");
+    os << "\n  ";
     for (size_t k=0; k<cols-1; ++k)
-      fprintf(fid, "%g ", data[k * rows + j]);
+      os << data[k * rows + j] << " ";
   }
-  fprintf(fid, "]\n");
+  os << "]\n";
 
   // Write vector (bias)
-  fprintf(fid, "[ ");
+  os << "[ ";
   for (size_t j=0; j<cols-1; ++j)
-    fprintf(fid, "%g ", data[j * rows + rows - 1]);
-  fprintf(fid, "]\n");
+    os << data[j * rows + rows - 1] << " ";
+  os << "]\n";
 }
 
 AffineTransform* AffineTransform::clone() const {
@@ -166,16 +177,24 @@ Activation::Activation(size_t input_dim, size_t output_dim)
 
 }
 
-void Activation::read(FILE* fid) {
-  if ( fscanf(fid, "%lu %lu\n [\n", &_input_dim, &_output_dim) == EOF)
-    throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+void Activation::read(istream& is) {
 
+  bool success;
+  success = is >> _input_dim;
+  if (!success) throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+  success = is >> _output_dim;
+  if (!success) throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+
+  string remaining;
+  success = std::getline(is, remaining);
+  if (!success) throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+  
   if (_input_dim != _output_dim)
     throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
 }
 
-void Activation::write(FILE* fid) const {
-  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str(), _input_dim, _output_dim);
+void Activation::write(ostream& os) const {
+  os << "<" << this->toString() << "> " << _input_dim << " " << _output_dim << endl;
 }
 
 /*
@@ -188,8 +207,8 @@ Sigmoid::Sigmoid(size_t input_dim, size_t output_dim)
 
 }
 
-Sigmoid::Sigmoid(FILE* fid) {
-  this->read(fid);
+Sigmoid::Sigmoid(istream& is) {
+  this->read(is);
 }
 
 Sigmoid* Sigmoid::clone() const {
@@ -219,8 +238,8 @@ Softmax::Softmax(size_t input_dim, size_t output_dim)
 
 }
 
-Softmax::Softmax(FILE* fid) {
-  this->read(fid);
+Softmax::Softmax(istream& is) {
+  this->read(is);
 }
 
 Softmax* Softmax::clone() const {
