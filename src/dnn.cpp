@@ -31,12 +31,20 @@ DNN::DNN(const DNN& source): _transforms(source._transforms.size()), _config() {
 }
 
 void DNN::init(const std::vector<mat>& weights) {
-  throw std::runtime_error("\33[31m[Error]\33[0m Not implemented yet!!");
-  /*_transforms.resize(weights.size());
+  // throw std::runtime_error("\33[31m[Error]\33[0m Not implemented yet!!");
+  _transforms.clear();
 
-  for (size_t i=0; i<_transforms.size() - 1; ++i)
-      _transforms[i] = new Sigmoid(weights[i]);
-  _transforms.back() = new Softmax(weights.back());*/
+  for (size_t i=0; i<weights.size(); ++i) {
+    _transforms.push_back(new AffineTransform(weights[i]));
+
+    size_t dim = weights[i].getCols() - 1;
+    if (i < weights.size() - 1)
+      _transforms.push_back(new Sigmoid(dim, dim));
+    else
+      _transforms.push_back(new Softmax(dim, dim));
+  }
+
+  this->save("xxx.xml");
 }
 
 DNN::~DNN() {

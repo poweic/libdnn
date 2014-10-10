@@ -147,7 +147,7 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
       mat error = getError( data.y, fout, errorMeasure);
       // matlog(error);
 
-      dnn.backPropagate(error, fmiddle, fout, 1.0f / itr->nData );
+      dnn.backPropagate(error, fmiddle, fout, 0.1f / itr->nData );
       // matlog(error);
       cnn.backPropagate(error, data.x, fmiddle, 1);
       // matlog(error);
