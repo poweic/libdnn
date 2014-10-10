@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <dnn.h>
+#include "tools/rapidxml-1.13/rapidxml_utils.hpp"
+#include "tools/rapidxml-1.13/rapidxml_print.hpp"
 
 DNN::DNN(): _transforms(), _config() {}
 
@@ -63,7 +65,7 @@ void DNN::status() const {
   for (size_t i=0; i<t.size(); ++i)
     nAffines += (t[i]->toString() == "AffineTransform");
 
-  printf("\33[33m[INFO]\33[0m # of hidden layers: %2lu \n", nAffines - 1);
+  printf("\33[33m[INFO]\33[0m # of hidden layers: %2lu \n", nAffines == 0 ? 0 : nAffines - 1);
 
   for (size_t i=0; i<t.size(); ++i) {
     printf("  %-16s %4lu x %4lu [%-2lu]\n", t[i]->toString().c_str(),
@@ -79,13 +81,61 @@ void DNN::read(string fn) {
   if (!fin.is_open())
     throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
 
+  stringstream ss;
+  ss << fin.rdbuf() << '\0';
+  fin.close();
+
   _transforms.clear();
 
   FeatureTransform* f;
-  while ( fin >> f )
-    _transforms.push_back(f);
 
-  fin.close();
+  if (isXmlFormat(ss)) {
+    rapidxml::xml_document<> doc;
+
+    vector<char> buffer((istreambuf_iterator<char>(ss)), istreambuf_iterator<char>());
+    buffer.push_back('\0');
+    doc.parse<0>(&buffer[0]);
+
+    for (auto node = doc.first_node("transform"); node; node = node->next_sibling()) {
+
+      auto x = node->first_attribute("type");
+
+      string token = node->first_attribute("type")->value();
+      FeatureTransform::Type type = FeatureTransform::token2type(token);
+
+      switch (type) {
+	case FeatureTransform::Affine :
+	  f = new AffineTransform;
+	  break;
+	case FeatureTransform::Sigmoid :
+	  f = new Sigmoid;
+	  break;
+	case FeatureTransform::Softmax :
+	  f = new Softmax;
+	  break;
+	case FeatureTransform::Convolution : 
+	  break;
+	case FeatureTransform::SubSample :
+	  break;
+	default:
+	  cerr << "\33[31m[Error]\33[0m Not such type " << token << endl;
+	  break;
+      }
+      
+
+      if (f) {
+	f->read(node);
+	_transforms.push_back(f);
+      }
+    }
+
+  }
+  else {
+    clog << "\33[33m[Warning]\33[0m The original model format is \33[36mdeprecated\33[0m. "
+      << "Please use XML format." << endl;
+    while ( ss >> f )
+      _transforms.push_back(f);
+  }
 }
 
 void DNN::save(string fn) const {

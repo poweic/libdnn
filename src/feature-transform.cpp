@@ -15,7 +15,54 @@
 #include <feature-transform.h>
 
 #define PARSE_ASSERT(x) { if (!(x)) \
-  throw std::runtime_error("\33[31m[Error]\33[0m failed when reading"); }
+  throw std::runtime_error("\33[31m[Error]\33[0m Failed when executing \33[33m"#x"\33[0m"); }
+
+std::map<FeatureTransform::Type, string> FeatureTransform::type2token = {
+  {FeatureTransform::Affine, "affine"},
+  {FeatureTransform::Sigmoid, "sigmoid"},
+  {FeatureTransform::Softmax, "softmax"},
+  {FeatureTransform::Convolution, "convolution"},
+  {FeatureTransform::SubSample, "subsample"}
+};
+
+FeatureTransform::Type FeatureTransform::token2type(string token) {
+  std::transform(token.begin(), token.end(), token.begin(), ::tolower);
+
+  FeatureTransform::Type type;
+
+  for (const auto& itr : type2token) {
+    if (itr.second == token)
+      return itr.first;
+  }
+
+  throw std::runtime_error("Unknown transform type: " + token);
+}
+
+string peek_a_token(istream& is) {
+
+  string token;
+  
+  if (!is) return token;
+
+  char buffer;
+  is.read(&buffer, 1);
+
+  while (buffer != ' ') {
+    token.push_back(buffer);
+    is.read(&buffer, 1);
+  }
+
+  is.putback(' ');
+  for (int i=token.size() - 1; i>=0; --i)
+    is.putback(token[i]);
+
+  return token;
+}
+
+bool isXmlFormat(istream& is) {
+  string token = peek_a_token(is);
+  return token == "<transform" || token == "<?xml";
+}
 
 ostream& operator << (ostream& os, FeatureTransform* ft) {
   ft->write(os);
@@ -68,6 +115,50 @@ AffineTransform::AffineTransform(const mat& w)
 AffineTransform::AffineTransform(istream& is) {
   this->read(is);
 }
+
+void AffineTransform::read(xml_node<> * node) {
+
+  auto attr = node->first_attribute("input-dim");
+  if (!attr)
+    throw std::runtime_error("\33[31m[Error]\33[0m Missing input-dim");
+  size_t rows = stol(attr->value());
+
+  attr = node->first_attribute("output-dim");
+  if (!attr)
+    throw std::runtime_error("\33[31m[Error]\33[0m Missing output-dim");
+  size_t cols = stol(attr->value());
+
+  attr = node->first_attribute("learning-rate");
+  float learning_rate = (attr) ? stof(attr->value()) : 0.1;
+
+  attr = node->first_attribute("momentum");
+  float momentum = (attr) ? stof(attr->value()) : 0.1;
+
+  auto weight = node->first_node("weight");
+  auto bias = node->first_node("bias");
+
+  if (!weight)
+    throw std::runtime_error("Cannot find weight in affine transform");
+
+  if (!bias)
+    throw std::runtime_error("Cannot find bias in affine transform");
+
+  hmat hw(rows + 1, cols + 1);
+  stringstream ss;
+  
+  ss << weight->value();
+  for (size_t i=0; i<rows; ++i)
+    for (size_t j=0; j<cols; ++j)
+      PARSE_ASSERT( ss >> hw(i, j) );
+
+  ss << bias->value();
+  for (size_t j=0; j<cols; ++j)
+    PARSE_ASSERT( ss >> hw(rows, j) );
+
+  _w = (mat) hw;
+  _input_dim = _w.getRows();
+  _output_dim = _w.getCols();
+}
  
 void AffineTransform::read(istream& is) {
 
@@ -104,6 +195,45 @@ void AffineTransform::write(ostream& os) const {
   size_t rows = data.getRows(),
 	 cols = data.getCols();
 
+  char buffer[512];
+
+  sprintf(buffer, "<transform type=\"%s\" input-dim=\"%lu\" output-dim=\"%lu\""
+      " momentum=\"%f\" learning-rate=\"%f\" >", this->toString().c_str(),
+      rows - 1, cols - 1, 0.1, 0.1);
+  os << buffer << endl;
+
+
+  sprintf(buffer, "  <weight rows=\"%lu\" cols=\"%lu\">", rows - 1, cols - 1);
+  os << buffer << endl;
+
+  // Write matrix
+  for (size_t j=0; j<rows-1; ++j) {
+    os << "    ";
+    for (size_t k=0; k<cols-1; ++k)
+      os << data[k * rows + j] << " ";
+    os << endl;
+  }
+
+  os << "  </weight>" << endl;
+
+  sprintf(buffer, "  <bias rows=\"%d\" cols=\"%lu\">", 1, cols - 1);
+  os << buffer << endl;
+
+  os << "    ";
+  for (size_t j=0; j<cols-1; ++j)
+    os << data[j * rows + rows - 1] << " ";
+
+  os << endl
+     << "  </bias>" << endl
+     << "</transform>" << endl;
+  
+
+#if 0
+  hmat data(_w);
+
+  size_t rows = data.getRows(),
+	 cols = data.getCols();
+
   os << "<" << this->toString() << "> " << (rows - 1) << " " << (cols - 1) << endl;
 
   // Write matrix
@@ -120,6 +250,7 @@ void AffineTransform::write(ostream& os) const {
   for (size_t j=0; j<cols-1; ++j)
     os << data[j * rows + rows - 1] << " ";
   os << "]\n";
+#endif
 }
 
 AffineTransform* AffineTransform::clone() const {
@@ -127,7 +258,7 @@ AffineTransform* AffineTransform::clone() const {
 }
 
 string AffineTransform::toString() const {
-  return "AffineTransform";
+  return "Affine";
 }
 
 void AffineTransform::feedForward(mat& fout, const mat& fin) {
@@ -164,6 +295,7 @@ mat& AffineTransform::get_w() {
 mat const& AffineTransform::get_w() const {
   return _w;
 }
+
 /*
  * class Activation
  *
@@ -177,24 +309,34 @@ Activation::Activation(size_t input_dim, size_t output_dim)
 
 }
 
+void Activation::read(xml_node<> * node) {
+  _input_dim = stol(node->first_attribute("input-dim")->value());
+  _output_dim = stol(node->first_attribute("output-dim")->value());
+
+  if (_input_dim != _output_dim)
+    throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
+}
+
 void Activation::read(istream& is) {
 
-  bool success;
-  success = is >> _input_dim;
-  if (!success) throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
-  success = is >> _output_dim;
-  if (!success) throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
-
   string remaining;
-  success = std::getline(is, remaining);
-  if (!success) throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+  PARSE_ASSERT(is >> _input_dim);
+  PARSE_ASSERT(is >> _output_dim);
+
+  PARSE_ASSERT(std::getline(is, remaining));
   
   if (_input_dim != _output_dim)
     throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
 }
 
 void Activation::write(ostream& os) const {
+
+  os << "<transform type=\"" << this->toString() 
+     << "\" input-dim=\"" << _input_dim
+     << "\" output-dim=\"" << _output_dim << "\"/>" << endl;
+#if 0
   os << "<" << this->toString() << "> " << _input_dim << " " << _output_dim << endl;
+#endif
 }
 
 /*

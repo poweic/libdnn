@@ -2,6 +2,8 @@
 #define _FEATURE_TRANSFORM_H_
 
 #include <dnn-utility.h>
+#include "tools/rapidxml-1.13/rapidxml_utils.hpp"
+using namespace rapidxml;
 
 class FeatureTransform {
 public:
@@ -16,27 +18,44 @@ public:
   virtual size_t getInputDimension() const { return _input_dim; }
   virtual size_t getOutputDimension() const { return _output_dim; }
 
+  virtual void read(xml_node<> *node) = 0;
   virtual void read(istream& is) = 0;
   virtual void write(ostream& os) const = 0;
+
   friend ostream& operator << (ostream& os, FeatureTransform* ft);
   friend istream& operator >> (istream& is, FeatureTransform* &ft);
+
+  enum Type {
+    Affine,
+    Sigmoid,
+    Softmax,
+    Convolution,
+    SubSample
+  };
+
+  static Type token2type(string token);
+  static std::map<Type, string> type2token;
 
 protected:
   size_t _input_dim;
   size_t _output_dim;
 };
 
+bool isXmlFormat(istream& is);
+
 ostream& operator << (ostream& os, FeatureTransform* ft);
 istream& operator >> (istream& is, FeatureTransform* &ft);
 
 class AffineTransform : public FeatureTransform {
 public:
+  AffineTransform() {}
   AffineTransform(size_t input_dim, size_t output_dim);
   AffineTransform(const mat& w);
   AffineTransform(istream& is);
 
   // AffineTransform& operator = (const AffineTransform& rhs) = delete;
 
+  virtual void read(xml_node<> *node);
   virtual void read(istream& is);
   virtual void write(ostream& os) const;
 
@@ -62,12 +81,14 @@ public:
 
   // Activation& operator = (const Activation& rhs) = delete;
 
+  virtual void read(xml_node<> *node);
   virtual void read(istream& is);
   virtual void write(ostream& os) const;
 };
 
 class Sigmoid : public Activation {
 public:
+  Sigmoid() {}
   Sigmoid(size_t input_dim, size_t output_dim);
   Sigmoid(istream& is);
 
@@ -81,6 +102,7 @@ public:
 
 class Softmax : public Activation {
 public:
+  Softmax() {}
   Softmax(size_t input_dim, size_t output_dim);
   Softmax(istream& is);
 
