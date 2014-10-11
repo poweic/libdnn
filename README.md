@@ -16,18 +16,18 @@ Mine is **Ubuntu 14.04** and **NVIDIA GTX-660**.
 # Quick Start
 
 ### Install
-1. ```git clone https://github.com/botonchou/libdnn.git```
-2. ```cd libdnn/```
-3. ```./install-sh```
+1. `git clone https://github.com/botonchou/libdnn.git`
+2. `cd libdnn/`
+3. `./install-sh`
 
 ### Examples
 
-There're 3 example scripts in ```example/```, you should give it a try:
-- ```./example1.sh```
-- ```./example2.sh```
-- ```./example3.sh```
+There're 3 example scripts in `example/`, you should give it a try:
+- `./example1.sh`
+- `./example2.sh`
+- `./example3.sh`
 
-Alternatively, you can run all of them by ```./go_all.sh```
+Alternatively, you can run all of them by `./go_all.sh`
 
 # Tutorial
 
@@ -79,8 +79,7 @@ The data can be provided either in the LIBSVM format (sparse) or in dense format
 ```
 
 Each row is one data (**label** + **feature vector**). In this case, 7 rows means 7 feature vector (i.e. 7 training data or 7 patients in the previous example)
-The first column of each row are the labels (e.g., 1 for cancer, -1 for no cancer) , and the rest are feature vectors (e.g., the height and the weight of a patient) in the sparse format. Take the first row for example: ``` -1 5:1 6:1 15:1 22:1 36:1 42:1 ```
-**-1** is the label. The **n**:**x** format means the value of **n**-th dimension of this vector is **x**. In this example, it's a vector consists most of 0 with only few exceptions at 5, 6, 15, 22, 36, 42.
+The first column of each row are the labels (e.g., 1 for cancer, -1 for no cancer) , and the rest are feature vectors (e.g., the height and the weight of a patient) in the sparse format. Take the first row for example: `-1 5:1 6:1 15:1 22:1 36:1 42:1`, **-1** is the label. The **n**:**x** format means the value of **n**-th dimension of this vector is **x**. In this example, it's a vector consists most of 0 with only few exceptions at 5, 6, 15, 22, 36, 42.
 
 ##### Dense Format:
 
@@ -96,7 +95,7 @@ The first column of each row are the labels (e.g., 1 for cancer, -1 for no cance
 You can also store the data in a dense format, this is the same data as the above (but in dense format).
 
 ## How to Use ?
-There're mainly 3 programs, **dnn-init**, **dnn-train**, **dnn-predict**.
+There're mainly 3 programs, `dnn-init`, `dnn-train`, `dnn-predict`.
 
 ### dnn-init
 ```
@@ -106,14 +105,14 @@ This program will initialize a deep belief network (DBN) using stacked Restricte
 ```
 dnn-init --input-dim 1024 --nodes 1024-1024 --output-dim 12 train.dat
 ```
-```--input-dim``` stands for the dimensional of input feature vector, ```--output-dim``` is the number of target classes.
-In this example, ```dnn-init``` will built you a new neural network model of the structure ```1024-1024-1024-12```.
+`--input-dim` stands for the dimensional of input feature vector, `--output-dim` is the number of target classes.
+In this example, `dnn-init` will built you a new neural network model of the structure `1024-1024-1024-12`.
 
 ### dnn-train
 ```
 dnn-train [options] training_data model_in [model_out]
 ```
-This program will use mini-batch stochastic gradient descent (mini-batch SGD) to train the model initialized by ```dnn-init```.
+This program will use mini-batch stochastic gradient descent (mini-batch SGD) to train the model initialized by `dnn-init`.
 ```
 dnn-train train.dat train.dat.model
 ```
@@ -147,18 +146,18 @@ libdnn 中文說明
 # 快速上手
 
 ### 安裝
-1. ```git clone https://github.com/botonchou/libdnn.git```
-2. ```cd libdnn/```
-3. ```./install-sh```
+1. `git clone https://github.com/botonchou/libdnn.git`
+2. `cd libdnn/`
+3. `./install-sh`
 
 ### 使用範例
 
-在```example/```下有三個使用範例：
-- ```./example1.sh```
-- ```./example2.sh```
-- ```./example3.sh```
+在`example/`下有三個使用範例：
+- `./example1.sh`
+- `./example2.sh`
+- `./example3.sh`
 
-如果想要一次執行全部的範例，你也可以執行位在```example/```下的```./go_all.sh```
+如果想要一次執行全部的範例，你也可以執行位在`example/`下的`./go_all.sh`
 
 # 使用教學 
 
@@ -200,7 +199,7 @@ libdnn 中文說明
 +1 5:1 6:1 15:1 22:1 36:1 40:1
 ```
 
-每一個橫列(row)代表一筆資料（**正確答案**加上**特徵向量**）。在上面的例子中，7 列就代表有 7 筆資料 (e.g. 前述例子中的 7 位病人)。每一橫列的第一欄是正確答案（例如：用 1 代表有癌症，用 -1 代表沒癌症），該列剩下的部份就是特徵向量，以稀疏矩陣的方式表示（例如：身高多少，體重多少等等）。以第一橫列作為例子: ```-1 5:1 6:1 15:1 22:1 36:1 42:1```，其中**-1**是正確答案。剩下的部份用 **n**:**x** 的方式代表該向量的第**n**維的值為**x**。在這個例子中，這個向量大部分的值都是0，只有少數幾維的值為1（第5, 6, 15, 22, 36, 42維）。
+每一個橫列(row)代表一筆資料（**正確答案**加上**特徵向量**）。在上面的例子中，7 列就代表有 7 筆資料 (e.g. 前述例子中的 7 位病人)。每一橫列的第一欄是正確答案（例如：用 1 代表有癌症，用 -1 代表沒癌症），該列剩下的部份就是特徵向量，以稀疏矩陣的方式表示（例如：身高多少，體重多少等等）。以第一橫列作為例子: `-1 5:1 6:1 15:1 22:1 36:1 42:1`，其中**-1**是正確答案。剩下的部份用 **n**:**x** 的方式代表該向量的第**n**維的值為**x**。在這個例子中，這個向量大部分的值都是0，只有少數幾維的值為1（第5, 6, 15, 22, 36, 42維）。
 
 ##### Dense Format:
 
@@ -218,7 +217,7 @@ libdnn 中文說明
 
 ## 如何使用 
 
-主要有三個程式，一個是**dnn-init**, **dnn-train**, **dnn-predict**.
+主要有三個程式，一個是`dnn-init`, `dnn-train`, `dnn-predict`.
 
 ### dnn-init
 ```
@@ -228,13 +227,13 @@ dnn-init [options] training_data [model_out]
 ```
 dnn-init --input-dim 1024 --nodes 1024-1024 --output-dim 12 train.dat
 ```
-```--input-dim```就是資料（或特徵向量）的維度，而```--output-dim```則是**總共要分成幾類**。在上述的例子中，```dnn-init```會建立一個結構為```1024-1024-1024-12```的神經網路模型。
+`--input-dim`就是資料（或特徵向量）的維度，而`--output-dim`則是**總共要分成幾類**。在上述的例子中，`dnn-init`會建立一個結構為`1024-1024-1024-12`的神經網路模型。
 
 ### dnn-train
 ```
 dnn-train [options] training_data model_in [model_out]
 ```
-有了上述```dnn-init```產生出來的神經網路模型後，你可以透過```dnn-train```所提供的mini-batch stochastic gradient descent (mini-batch SGD)對神經網路模型進行訓練。
+有了上述`dnn-init`產生出來的神經網路模型後，你可以透過`dnn-train`所提供的mini-batch stochastic gradient descent (mini-batch SGD)對神經網路模型進行訓練。
 ```
 dnn-train train.dat train.dat.model
 ```
@@ -243,10 +242,11 @@ dnn-train train.dat train.dat.model
 ```
 dnn-predict testing_data model_in [predict_out]
 ```
-當你訓練完神經網路模型後，即可用```dnn-predict```對新的資料進行預測。
+當你訓練完神經網路模型後，即可用`dnn-predict`對新的資料進行預測。
 ```
 dnn-predict test.dat train.dat.model
 ```
 
 # License
 Copyright (c) 20013-2014 Po-Wei Chou Licensed under the Apache License.
+
