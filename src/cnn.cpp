@@ -186,8 +186,6 @@ ConvolutionalLayer::ConvolutionalLayer(size_t nInputs, size_t nOutputs, int h, i
 
   assert(nInputs > 0 && nOutputs > 0 && h > 0 && w > 0);
 
-  static int counter = 0;
-
   printf("Initializing %lu x %lu kernels of size %d x %d\n", nInputs, nOutputs, h, w);
 
   size_t fan_in = nInputs * w * h,

@@ -43,7 +43,6 @@ int main (int argc, char* argv[]) {
 
   size_t input_dim    = cmd["--input-dim"];
   NormType n_type     = (NormType) (int) cmd["--normalize"];
-  int base	      = 0;
 
   DataSet data(data_fn, input_dim);
   data.setNormType(n_type);

@@ -14,8 +14,6 @@
 
 #include <dataset.h>
 #include <dnn-utility.h>
-#include <thread>
-#include <future>
 
 BatchData readMoreFeature(DataStream& stream, int N, size_t dim, size_t base, bool sparse) {
 
@@ -248,25 +246,24 @@ void DataSet::showSummary() const {
 }
 
 BatchData DataSet::operator [] (const Batches::iterator& b) {  
-  static std::future<BatchData> f_data;                        
 
-  if (!f_data.valid())                                         
-    f_data = std::async(std::launch::async, readMoreFeature,   
-	std::ref(_stream), b->nData, _dim, _base, _sparse);      
+  if (!f_data.valid())
+    f_data = std::async(std::launch::async, readMoreFeature,
+	std::ref(_stream), b->nData, _dim, _base, _sparse);
 
-  f_data.wait();                                               
+  f_data.wait();
 
-  auto data = f_data.get();                                    
+  auto data = f_data.get();
 
-  auto b_next = b+1;                                           
-  if ( !(b+1).isEnd() )                                        
-    f_data = std::async(std::launch::async, readMoreFeature,   
+  auto b_next = b+1;
+  if ( !b_next.isEnd() )
+    f_data = std::async(std::launch::async, readMoreFeature,
 	std::ref(_stream), (b+1)->nData, _dim, _base, _sparse);
 
-  if (_normalizer)                                             
-    _normalizer->normalize(data);                              
+  if (_normalizer)
+    _normalizer->normalize(data);
 
-  return data;                                                 
+  return data;
 }                                                              
 
 void DataSet::set_sparse(bool sparse) {
@@ -295,8 +292,10 @@ void DataSet::setLabelBase(int base) {
   _base = base;
 }
 
-DataStream& DataSet::getDataStream() {
-  return _stream;
+void DataSet::rewind() {
+  if (f_data.valid())
+    f_data.wait();
+  this->_stream.rewind();
 }
 
 /* Other Utility Functions 

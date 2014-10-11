@@ -4,6 +4,8 @@
 #include <device_matrix.h>
 #include <host_matrix.h>
 #include <batch.h>
+#include <thread>
+#include <future>
 typedef device_matrix<float> mat;
 typedef host_matrix<float> hmat;
 
@@ -63,7 +65,7 @@ public:
   void setNormType(NormType type);
 
   void setLabelBase(int base);
-  DataStream& getDataStream();
+  void rewind();
 
   size_t getFeatureDimension() const;
 
@@ -92,6 +94,7 @@ public:
   }
 
 private:
+  std::future<BatchData> f_data;
 
   void setDimension(size_t dim);
 

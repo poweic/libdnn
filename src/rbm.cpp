@@ -40,8 +40,6 @@ void StackedRbm::train(DataSet& data) {
 
   _weights.resize(_dims.size() - 1);
 
-  size_t nData = data.size();
-
   // FIXME For NOW, hidden units are only allowed to be Bernoulli
   UNIT_TYPE vis_type = _vis_type, hid_type = BERNOULLI;
 
@@ -127,7 +125,7 @@ float StackedRbm::getReconstructionError(DataSet& data, const mat& W,
 
   r_error = sqrt(r_error) / nData;
 
-  data.getDataStream().rewind();
+  data.rewind();
 
   return r_error;
 }
@@ -165,14 +163,14 @@ float StackedRbm::getFreeEnergyGap(DataSet& data, size_t batch_size, const mat& 
   float fe1 = getFreeEnergy(getBatchData(data, ii, layer), W),
 	fe2 = getFreeEnergy(getBatchData(data, ii+1, layer), W);
 
-  data.getDataStream().rewind();
+  data.rewind();
 
   return abs(fe1 - fe2);
 }
 
 mat StackedRbm::getBatchData(DataSet& data, const Batches::iterator& itr, int layer) {
   mat x = (mat) data[itr].x;
-  for (int i=0; i<layer; ++i) 
+  for (int i=0; i<layer; ++i)
     x = sigmoid(x * _weights[i]);
   return x;
 }

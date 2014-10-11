@@ -823,13 +823,12 @@ void test_convn_with_and_without_shm(string type, const int N) {
     }
     else {
       printf("\33[31m[Failed]\33[0m\n");
-      throw std::runtime_error("\33[31m[Failed]\33[0m");
       all_pass = false;
     }
   }
 
   if (all_pass)
-    printf("\33[32m !!! Congrats! ALL %lu test cases PASSED !!! \33[0m\n", N);
+    printf("\33[32m !!! Congrats! ALL %d test cases PASSED !!! \33[0m\n", N);
   else
     printf("\33[31m !!! Oh oh! some test cases FAILED !!! \33[0m\n");
 }
