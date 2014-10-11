@@ -1,11 +1,9 @@
 libdnn
 ======
 
-[libdnn](https://github.com/botonchou/libdnn) is an open source CUDA-based C++ Library of Deep Neural Network.
+[libdnn](https://github.com/botonchou/libdnn) is an open source CUDA-based C++ Library of Deep Neural Network. It aims to provide an user-friendly neural network library, which allow researchers, developers, or anyone interested in it to harness and experience the power of DNN and extend it whenever you need.
 
 Neural Network (NN), esp. the **Deep Neural Network (DNN)**, is a very powerful machine learning (ML) algorithm which have shown significant success on numerous difficult supervised ML tasks such as **Automatic Speech Recognition (ASR)**, **Pattern Recognition and Computer Vision (CV)**, **Natural Language Processing (NLP)**, etc.
-
-It aims to provide an user-friendly neural network library, which allow researchers, developers, or anyone interested in it to harness and experience the power of DNN and extend it whenever you need.
 
 # Prerequisite
 You need
@@ -64,12 +62,10 @@ Neural network, on the other hand, is a **multiclass classifier**, which is know
 #### Training data and testing data
 
 In general, you'll need two data, training data (with labels) and test data (optionally labelled).
-Of course, you can always split your data into two, using a ratio about 5:1 or something like that (5 for training, 1 for testing).  
-If you just want to play around but without your own data, you can download some from the [LibSVM website](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/). 
+Of course, you can always split your data into two, using a ratio about 5:1 or something like that (5 for training, 1 for testing). If you just want to play around but without your own data, you can simply run through the **example** provided above or download some from the [LibSVM website](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/). 
 
 #### Data Format
 The data can be provided either in the LIBSVM format (sparse) or in dense format.
-
 
 ##### LibSVM Format:
 ```
@@ -84,7 +80,7 @@ The data can be provided either in the LIBSVM format (sparse) or in dense format
 
 Each row is one data (**label** + **feature vector**). In this case, 7 rows means 7 feature vector (i.e. 7 training data or 7 patients in the previous example)
 The first column of each row are the labels (e.g., 1 for cancer, -1 for no cancer) , and the rest are feature vectors (e.g., the height and the weight of a patient) in the sparse format. Take the first row for example: ``` -1 5:1 6:1 15:1 22:1 36:1 42:1 ```
-**-1** is the label. The "**n**:**x**" format means the value of **n**-th dimension of this vector is **x**. In this example, it's a vector consists most of 0 with only few exceptions at 5, 6, 15, 22, 36, 42.
+**-1** is the label. The **n**:**x** format means the value of **n**-th dimension of this vector is **x**. In this example, it's a vector consists most of 0 with only few exceptions at 5, 6, 15, 22, 36, 42.
 
 ##### Dense Format:
 
@@ -110,7 +106,7 @@ This program will initialize a deep belief network (DBN) using stacked Restricte
 ```
 dnn-init --input-dim 1024 --nodes 1024-1024 --output-dim 12 train.dat
 ```
-**--input-dim** stands for the dimensional of input feature vector, **--output-dim** is the number of target classes.
+```--input-dim``` stands for the dimensional of input feature vector, ```--output-dim``` is the number of target classes.
 In this example, ```dnn-init``` will built you a new neural network model of the structure ```1024-1024-1024-12```.
 
 ### dnn-train
@@ -134,11 +130,10 @@ dnn-predict test.dat train.dat.model
 libdnn 中文說明
 ======
 
-[libdnn](https://github.com/botonchou/libdnn) 是一個用CUDA C++寫成的**深層神經網路**開源函式庫。
+[libdnn](https://github.com/botonchou/libdnn) 是一個用CUDA C++寫成的**深層神經網路**開源函式庫。目標是提供一個簡易易懂的神經網路函式庫 (library)，讓開發人員、研究員、或任何有興趣的人都可以輕鬆體驗並駕馭深層神經網路所帶來的威力。
+
 
 **深層神經網路 (deep neural network)**是一種非常強大的機器學習演算法。近年來，由於硬體技術的逐漸成熟（主要是來自家用顯示卡的所提供的高效能運算，一般民眾或研究單位與實驗室均可用很便宜的價格輕易取得），深層神經網路在諸多領域上皆獲得前所未有的成功，其中包括了**語音辨識** (automatic speech recognition, ASR)，**圖像辨識**，以及**自然語言處理** (natural language processing, NLP)等。
-
-我的目標是提供一個簡易易懂的神經網路函式庫 (library)，讓開發人員、研究員、或任何有興趣的人都可以輕鬆體驗並駕馭深層神經網路所帶來的威力。
 
 # 系統配備需求 
 
@@ -178,9 +173,9 @@ libdnn 中文說明
 舉個例子，假設你想弄出一台可以單從照片就分辨出蘋果還是橘子的機器，作法很簡單：拿一堆橘子和蘋果的照片給機器看，告訴它哪個是橘子哪個是蘋果（這個過程叫做學習）。當它看完了這些照片後，你就可以隨手拍一堆新的照片並問它「哪些是蘋果？」或是「請問這張比較像橘子還是蘋果？」之類的問題。
 （你當然也可以拿一些很像橘子的蘋果耍它。）
 
-另一個例子是健康診斷系統：試圖從病人的病歷中和各種資料中，找出潛在疾病的可能性。你可以拿年齡、性別、身高、體重、習慣、家族病史、藥物過敏等等當作判別的依據。假設我拿*年齡* (0 - 150歲)、*性別* (0是女性，1是男性)、*身高* (0 - 250公尺)、*體重* (0 - 500公斤)，如此一來，這四個**特徵**所組成的4維**特徵向量**就可以用來代表一位病人。
+另一個例子是健康診斷系統：試圖從病人的病歷中和各種資料中，找出潛在疾病的可能性。你可以拿年齡、性別、身高、體重、習慣、家族病史、藥物過敏等等當作判別的依據。假設我拿**年齡** (0 - 150歲)、**性別** (0是女性，1是男性)、**身高** (0 - 250公尺)、**體重** (0 - 500公斤)當作我的診斷依據，那我就可以用這四個**特徵**所組成的4維**特徵向量**來代表一位病人。
 
-在機器學習的領域中，大多數的分類器都屬於**二元分類器** (例如: 蘋果與橘子，男人或女人，有生病還是沒有生病）。支持向量機（Support Vector Machine, SVM. 我找不到更好的翻譯了）也是二元分類器的其中一種。這些二元分類器當然也是可以透過「一對多」或是「兩兩相比」的方法，對兩種以上的類別進行多類別的分類。
+在機器學習的領域中，大多數的分類器都屬於**二元分類器** (例如: 蘋果與橘子，男人或女人，有生病還是沒有生病）。支持向量機（Support Vector Machine, SVM. 我找不到更好的翻譯了@_@）也是二元分類器的其中一種。這些二元分類器當然也是可以透過「一對多」或是「兩兩相比」的方法，對兩種以上的類別進行多類別的分類。
 
 神經網路則是一種非常著名的**多類別分類器**，可以成千上萬的類別進行分類。（見 [clarifai](http://www.clarifai.com/) 以及 [Google在YouTube上做的語音辨識](http://static.googleusercontent.com/media/research.google.com/zh-TW//pubs/archive/41403.pdf))
 
@@ -188,8 +183,7 @@ libdnn 中文說明
 
 #### 訓練資料與測試資料
 
-一般來說，你會需要準備兩種資料：訓練資料（有答案）和測試資料（答案可有可無）。你也可以用大約5:1的比例，將你手邊的資料切成兩份，一份當作訓練資料(5)，另一份當作測試資料(1)。
-如果你還沒有準備好自己的資料，只是想要玩玩看，你可以到[LibSVM website](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/)下載。
+一般來說，你會需要準備兩種資料：訓練資料（有答案）和測試資料（答案可有可無）。你也可以用大約5:1的比例，將你手邊的資料切成兩份，一份當作訓練資料(5)，另一份當作測試資料(1)。如果你還沒有準備好自己的資料，只是想要簡單玩玩看，你可以簡單走過一遍上面所提供的**example**，或是到[LibSVM website](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/)下載。
 
 #### 資料格式
 
@@ -206,8 +200,7 @@ libdnn 中文說明
 +1 5:1 6:1 15:1 22:1 36:1 40:1
 ```
 
-一橫列(row)代表一筆資料（**正確答案**加上**特徵向量**）。上面的例子中，7 列資料代表有 7 筆特徵向量 (i.e. 7 筆訓練資料 或是前述例子中的 7 病人)
-每一橫列的第一欄是正確答案（例如：用 1 代表有癌症，用 0 代表沒癌症），該橫列剩下的部份就是特徵向量，以稀疏矩陣的方式紀錄（例如：身高多少，體重多少等等）。以第一橫列作為例子: ``` -1 5:1 6:1 15:1 22:1 36:1 42:1 ```，其中**-1**是正確答案。剩下的部份用"**n**:**x**"的方式代表該向量的第**n**維的值為**x**。在這個例子中，這個向量大部分的值都是0，只有少數幾維(5, 6, 15, 22, 36, 42)上值為1。
+每一個橫列(row)代表一筆資料（**正確答案**加上**特徵向量**）。在上面的例子中，7 列就代表有 7 筆資料 (e.g. 前述例子中的 7 位病人)。每一橫列的第一欄是正確答案（例如：用 1 代表有癌症，用 -1 代表沒癌症），該列剩下的部份就是特徵向量，以稀疏矩陣的方式表示（例如：身高多少，體重多少等等）。以第一橫列作為例子: ```-1 5:1 6:1 15:1 22:1 36:1 42:1```，其中**-1**是正確答案。剩下的部份用 **n**:**x** 的方式代表該向量的第**n**維的值為**x**。在這個例子中，這個向量大部分的值都是0，只有少數幾維的值為1（第5, 6, 15, 22, 36, 42維）。
 
 ##### Dense Format:
 
@@ -221,7 +214,7 @@ libdnn 中文說明
 +1 0 0 0 0 1 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0
 ```
 
-你也可以不管資料是否為0，將其每一維列出來，如上所示（同一組資料，只是換了格式）。
+你也可以不管資料是否為0，將其每一維的值列出來，如上所示。（同一組資料，只是換了格式。）
 
 ## 如何使用 
 
@@ -235,7 +228,7 @@ dnn-init [options] training_data [model_out]
 ```
 dnn-init --input-dim 1024 --nodes 1024-1024 --output-dim 12 train.dat
 ```
-**--input-dim**就是資料（或特徵向量）的維度，而**--output-dim**則是**總共要分成幾類**。在上述的例子中，```dnn-init```會建立一個結構為```1024-1024-1024-12```的神經網路模型。
+```--input-dim```就是資料（或特徵向量）的維度，而```--output-dim```則是**總共要分成幾類**。在上述的例子中，```dnn-init```會建立一個結構為```1024-1024-1024-12```的神經網路模型。
 
 ### dnn-train
 ```
