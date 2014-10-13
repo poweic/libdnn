@@ -401,25 +401,7 @@ mat convn(const mat& data, const mat& kernel, SIZE s, string type) {
   ALLOCATE_GRIDS_AND_THREADS(vH, vW);
   grids.z = N;
 
-  size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
-
-  while ( SHM_SIZE > MAX_SHARED_MEMORY_SIZE && threads.x * threads.y >= 32 ) {
-    if ( threads.x >= threads.y ) {
-      threads.x /= 2;
-      grids.x *= 2;
-    }
-    else {
-      threads.y /= 2;
-      grids.y *= 2;
-    }
-
-    SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
-  }
-
-  cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
-
-  if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE)
-    throw std::runtime_error(RED_ERROR + "Exceeds maximum shared memory available.");
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
 
   convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
       output.getData(),
