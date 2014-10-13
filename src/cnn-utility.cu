@@ -28,6 +28,10 @@
   const int y = y0 + ty;
 
 
+void test_batch_convn_full() {
+
+}
+
 void gogo() {
 
   mat x("sheep.mat");
@@ -256,6 +260,9 @@ __global__ void convn_full_kernel_with_shm(float *output, float *data, float *ke
   // fH, fW stands for full H and full W
   const int fH = H + kH - 1, fW = W + kW - 1;
 
+  data += blockIdx.z * H * W;
+  output += blockIdx.z * fH * fW;
+
   extern __shared__ float K[];
 
   // Copy kernel in global memory to shared memory
@@ -375,35 +382,59 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
 /* \brief compute convolution of a batch of data with a kernel.
  * \param data a batch of data, where the batch-size equals to data.getCols()
  * \param kernel the convolutional kernel (i.e. system's impulse response)
- * \param s size of a datum. That is, s.m * s.n = data.getRows()
+ * \param imgIn size of a datum. That is, imgIn.m * imgIn.n = data.getRows()
  * \param type type of convolution. Either "full", "same", or "valid"
  * */
-mat convn(const mat& data, const mat& kernel, SIZE s, ConvType type) {
+mat convn(const mat& data, const mat& kernel, SIZE imgIn, ConvType type) {
 
-  int H = s.m,
-      W = s.n,
+  int H = imgIn.m,
+      W = imgIn.n,
       kH = kernel.getRows(),
-      kW = kernel.getCols(),
-      vH = H - kH + 1,
-      vW = W - kW + 1;
+      kW = kernel.getCols();
+
+  SIZE imgOut = get_convn_size(imgIn, SIZE(kH, kW), type);
 
   if ( data.getRows() != H * W )
     throw std::runtime_error(DEBUG_STR(data.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
 
+  // i.e. batch_size
   int N = data.getCols();
 
-  mat output(vH * vW, N);
+  mat output(imgOut.m * imgOut.n, N);
 
-  ALLOCATE_GRIDS_AND_THREADS(vH, vW);
+  ALLOCATE_GRIDS_AND_THREADS(imgOut.m, imgOut.n);
   grids.z = N;
 
   size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
 
-  convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
-      output.getData(),
-      data.getData(),
-      kernel.getData(),
-      H, W, kH, kW);
+  switch (type) {
+    case SAME:
+      // TODO
+      break;
+    case SAME_SHM:
+      // TODO
+      break;
+    case VALID:
+      // TODO
+      break;
+    case VALID_SHM:
+      convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+    case FULL:
+      // TODO
+      break;
+    case FULL_SHM:
+      convn_full_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+  }
 
   CCE(cudaPeekAtLastError());
   CCE(cudaDeviceSynchronize());

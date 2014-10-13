@@ -71,6 +71,7 @@ float sum_all(const mat& x);
 
 // Codes for unit-testing
 void plotL2normInSemilogy();
+void test_batch_convn_full();
 void test_downsample();
 void test_convn(ConvType type);
 void test_convn_with_and_without_shm(ConvType type, const int N = 10000);

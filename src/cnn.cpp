@@ -256,27 +256,15 @@ void ConvolutionalLayer::feedBackward(
   SIZE s = this->get_input_img_size();
   size_t batch_size = deltas[0].getCols();
 
-  vector<vector<mat> > oImgs(nOutputs), iImgs(nInputs);
-  for (size_t j=0; j<nOutputs; ++j)
-    oImgs[j] = reshapeVectors2Images(deltas[j], this->get_output_img_size());
-
-  for (size_t i=0; i<nInputs; ++i)
-    iImgs[i].resize(batch_size);
-
-  for (size_t k=0; k<batch_size; ++k) {
-    for (size_t i=0; i<nInputs; ++i) {
-      iImgs[i][k].resize(s.m, s.n, 0);
-      for (size_t j=0; j<nOutputs; ++j)
-	iImgs[i][k] += convn(oImgs[j][k], rot180(_kernels[i][j]), FULL);
-    }
-  }
-
   if (errors.size() != nInputs)
     errors.resize(nInputs);
 
   for (size_t i=0; i<nInputs; ++i)
-    errors[i] = reshapeImages2Vectors(iImgs[i]);
+    errors[i].resize(s.m * s.n, batch_size, 0);
 
+  for (size_t i=0; i<nInputs; ++i)
+    for (size_t j=0; j<nOutputs; ++j)
+      errors[i] += convn(deltas[j], rot180(_kernels[i][j]), this->get_output_img_size(), FULL_SHM);
 }
 
 // NOTE: in MATLAB

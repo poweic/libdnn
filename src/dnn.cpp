@@ -43,8 +43,6 @@ void DNN::init(const std::vector<mat>& weights) {
     else
       _transforms.push_back(new Softmax(dim, dim));
   }
-
-  this->save("xxx.xml");
 }
 
 DNN::~DNN() {
