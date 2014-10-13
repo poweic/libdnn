@@ -241,7 +241,7 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
 
   for (size_t j=0; j<nOutputs; ++j) {
     for (size_t i=0; i<nInputs; ++i)
-      fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, "valid_shm");
+      fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, VALID_SHM);
     fouts[j] = sigmoid(fouts[j] + _bias[j]);
   }
 }
@@ -267,7 +267,7 @@ void ConvolutionalLayer::feedBackward(
     for (size_t i=0; i<nInputs; ++i) {
       iImgs[i][k].resize(s.m, s.n, 0);
       for (size_t j=0; j<nOutputs; ++j)
-	iImgs[i][k] += convn(oImgs[j][k], rot180(_kernels[i][j]), "full");
+	iImgs[i][k] += convn(oImgs[j][k], rot180(_kernels[i][j]), FULL);
     }
   }
 
@@ -326,7 +326,7 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
     for (size_t j=0; j<nOutputs; ++j) {
 
       for (size_t i=0; i<nInputs; ++i)
-	_kernels[i][j] -= convn(rot180(iImgs[i][k]), oImgs[j][k], "valid_shm") * lr;
+	_kernels[i][j] -= convn(rot180(iImgs[i][k]), oImgs[j][k], VALID_SHM) * lr;
 
       _bias[j] -= sum_all(oImgs[j][k]) * lr;
     }

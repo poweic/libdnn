@@ -36,7 +36,7 @@ void gogo() {
   showImage(x);
   showImage(gk);
 
-  mat y = convn(x, gk, "valid");
+  mat y = convn(x, gk, VALID);
 
   printf("\n\n\n");
   showImage(y);
@@ -325,32 +325,28 @@ __global__ void convn_full_kernel(float *output, float *data, float *kernel, int
   output[ x * fH + y ] = sum;
 }
 
-SIZE get_convn_size(SIZE data, SIZE kernel, string type) {
-  if (type == "same")
-    return data;
-  else if (type == "valid" || type == "valid_shm")
-    return max(data - kernel + 1, SIZE(0, 0));
-  else if (type == "full")
-    return data + kernel - 1;
-  else
-    throw std::runtime_error("No such type of convolution");
+SIZE get_convn_size(SIZE data, SIZE kernel, ConvType type) {
+  switch (type) {
+    case SAME:
+    case SAME_SHM:
+      return data;
+    case VALID:
+    case VALID_SHM:
+      return max(data - kernel + 1, SIZE(0, 0));
+    case FULL:
+    case FULL_SHM:
+      return data + kernel - 1;
+    default:
+      throw std::runtime_error("Unknown type of convolution.");
+  };
 }
 
-SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
+SIZE get_convn_size(const mat& data, const mat& kernel, ConvType type) {
 
-  int H = data.getRows(),
-      W = data.getCols(),
-      kH = kernel.getRows(),
-      kW = kernel.getCols();
+  SIZE dSize(data.getRows(), data.getCols());
+  SIZE kSize(kernel.getRows(), kernel.getCols());
 
-  if (type == "same")
-    return SIZE(H, W);
-  else if (type == "valid" || type == "valid_shm")
-    return SIZE(max(H - kH + 1, 0), max(W - kW + 1, 0));
-  else if (type == "full" || type == "full_shm")
-    return SIZE(H + kH - 1, W + kW - 1);
-  else
-    throw std::runtime_error("No such type of convolution");
+  return get_convn_size(dSize, kSize, type);
 }
 
 size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
@@ -382,7 +378,7 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
  * \param s size of a datum. That is, s.m * s.n = data.getRows()
  * \param type type of convolution. Either "full", "same", or "valid"
  * */
-mat convn(const mat& data, const mat& kernel, SIZE s, string type) {
+mat convn(const mat& data, const mat& kernel, SIZE s, ConvType type) {
 
   int H = s.m,
       W = s.n,
@@ -415,7 +411,7 @@ mat convn(const mat& data, const mat& kernel, SIZE s, string type) {
   return output;
 }
 
-mat convn(const mat& data, const mat& kernel, string type) {
+mat convn(const mat& data, const mat& kernel, ConvType type) {
 
   const size_t N_STREAM = 4;
   static vector<cudaStream_t> streams(N_STREAM);
@@ -444,39 +440,42 @@ mat convn(const mat& data, const mat& kernel, string type) {
   cudaStream_t stream = 0;
   counter = (counter + 1) % N_STREAM;
 
-  if (type == "same") {
-    convn_same_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "valid") {
-    convn_valid_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "valid_shm") {
+  switch (type) {
+    case SAME:
+      convn_same_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+    case SAME_SHM:
+      // TODO
+      break;
+    case VALID:
+      convn_valid_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+    case VALID_SHM: {
+      size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
 
-    size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
-
-    convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "full") {
-    convn_full_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "full_shm") {
-
+      convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+    } break;
+    case FULL:
+      convn_full_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+      
+    case FULL_SHM: {
     size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
 
     convn_full_kernel_with_shm<<< grids, threads, SHM_SIZE, stream >>>(
@@ -484,6 +483,9 @@ mat convn(const mat& data, const mat& kernel, string type) {
 	data.getData(),
 	kernel.getData(),
 	H, W, kH, kW);
+    } break;
+    default:
+      throw std::runtime_error("\33[31m[Error]\33[0m Unknown convolution type");
   }
 
   CCE(cudaPeekAtLastError());
@@ -492,8 +494,7 @@ mat convn(const mat& data, const mat& kernel, string type) {
   return output;
 }
 
-
-/*mat xcorrn(const mat& data, const mat& kernel, string type) {
+/*mat xcorrn(const mat& data, const mat& kernel, ConvType type) {
   // TODO
   return mat();
 }*/
@@ -752,7 +753,7 @@ void test_downsample() {
   plotL2normInSemilogy();
 }
 
-void test_convn(string type) {
+void test_convn(ConvType type) {
 
 // #undef matlog
 // #define matlog(x) { printf(#x" = [\n"); x.print(); printf("];\n"); }
@@ -773,7 +774,7 @@ void test_convn(string type) {
     matlog(kernel);
     matlog(z);
 
-    printf("z_gold = convn(data, kernel, '%s');\n", type.c_str());
+    printf("z_gold = convn(data, kernel, '%d');\n", type);
     printf("delta = z_gold - z;\n");
     printf("L2norm(%d) = norm(delta(:)) / norm(z_gold(:)) / 2;\n", i + 1);
   }
@@ -781,7 +782,7 @@ void test_convn(string type) {
   plotL2normInSemilogy();
 }
 
-void test_convn_with_and_without_shm(string type, const int N) {
+void test_convn_with_and_without_shm(ConvType type, const int N) {
 
   bool all_pass = true;
 
@@ -795,7 +796,7 @@ void test_convn_with_and_without_shm(string type, const int N) {
 	k = randn(kH, kW);
 
     mat z_gold = convn(x, k, type);
-    mat z = convn(x, k, type + "_shm");
+    mat z = convn(x, k, (ConvType) ((int) type + 1));
 
     float L2norm = nrm2(z - z_gold) / nrm2(z_gold);
     printf("L2norm = %.7e ...", L2norm);
@@ -822,8 +823,8 @@ void test_valid_shm_vs_valid_2() {
       printf("kernel: %d x %d\t", i, j);
       mat kernel = randn(i, j);
 
-      mat z1 = convn(x, kernel, "valid_shm");
-      mat z2 = convn(x, kernel, "valid");
+      mat z1 = convn(x, kernel, VALID_SHM);
+      mat z2 = convn(x, kernel, VALID);
 
       float a = nrm2(z1 - z2),
 	    b = nrm2(z2);
@@ -885,14 +886,14 @@ void benchmark_valid_and_valid_shm() {
 
       timer.start();
       for (size_t k = 1; k < N_TIMES; ++k) {
-	mat z1 = convn(x, kernel, "valid");
+	mat z1 = convn(x, kernel, VALID);
       }
       float t1 = timer.getTime();
       timer.reset();
 
       timer.start();
       for (size_t k = 1; k < N_TIMES; ++k) {
-	mat z2 = convn(x, kernel, "valid_shm");
+	mat z2 = convn(x, kernel, VALID_SHM);
       }
       float t2 = timer.getTime();
       printf("%7.2f , %7.2f \33[34m->\33[0m %4.1fx", t1, t2, t1 / t2);
@@ -928,14 +929,14 @@ void benchmark_batch_convn() {
     vector<mat> z_golds(nImages);
 
     for (int i=0; i<nImages; ++i)
-      z_golds[i] = convn(images[i], kernel, "valid_shm");
+      z_golds[i] = convn(images[i], kernel, VALID_SHM);
 
     mat z_gold = reshapeImages2Vectors(z_golds);
     timer1.stop();
 
     // Fast method
     timer2.start();
-    mat z = convn(X, kernel, s, "valid_shm");
+    mat z = convn(X, kernel, s, VALID_SHM);
     timer2.stop();
 
     printf("# of images = %3d, images size: %3d x %-3d, kernel: %3d x %-3d\t", 

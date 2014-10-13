@@ -217,7 +217,7 @@ void cuda_profiling_ground() {
   
   mat z;
   for (int i=0; i<10000; ++i) {
-    z = convn(x, h, "valid_shm");
+    z = convn(x, h, VALID_SHM);
   }
 
   CCE(cudaDeviceSynchronize());

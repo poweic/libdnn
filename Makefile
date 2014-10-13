@@ -7,7 +7,8 @@ BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
 KALDIIO_ROOT=tools/libkaldiio/
 
-INCLUDE= -I include/ \
+INCLUDE= -I ./ \
+	 -I include/ \
 	 -I $(BOTON_UTIL_ROOT)/include/ \
 	 -I $(CUMATRIX_ROOT)/include \
 	 -I $(KALDIIO_ROOT)/include \

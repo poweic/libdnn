@@ -2,7 +2,7 @@
 #define _FEATURE_TRANSFORM_H_
 
 #include <dnn-utility.h>
-#include "tools/rapidxml-1.13/rapidxml_utils.hpp"
+#include <tools/rapidxml-1.13/rapidxml_utils.hpp>
 using namespace rapidxml;
 
 class FeatureTransform {

@@ -98,7 +98,7 @@ public:
 
   SIZE get_output_img_size() const {
     SIZE kernel(getKernelHeight(), getKernelWidth());
-    return get_convn_size(_input_img_size, kernel, "valid");
+    return get_convn_size(_input_img_size, kernel, VALID);
   }
 
   /*vector<vector<mat> >& get_kernels();
