@@ -195,8 +195,12 @@ ConvolutionalLayer::ConvolutionalLayer(size_t nInputs, size_t nOutputs, int h, i
   _kernels.resize(nInputs);
   for (size_t i=0; i<nInputs; ++i) {
     _kernels[i].resize(nOutputs);
-    for (size_t j=0; j<nOutputs; ++j)
+    for (size_t j=0; j<nOutputs; ++j) {
       _kernels[i][j] = (rand(h, w) - 0.5f) * coeff;
+#ifdef DEBUG
+      _kernels[i][j].print();
+#endif
+    }
   }
 
   _bias.resize(nOutputs);

@@ -437,7 +437,7 @@ mat convn(const mat& data, const mat& kernel, SIZE imgIn, ConvType type) {
   }
 
   CCE(cudaPeekAtLastError());
-  CCE(cudaDeviceSynchronize());
+  // CCE(cudaDeviceSynchronize());
 
   return output;
 }

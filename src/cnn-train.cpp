@@ -21,15 +21,16 @@
 #include <dnn.h>
 #include <cnn.h>
 
+Config config;
+
 vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim);
+void cuda_profiling_ground();
 
 size_t cnn_predict(const DNN& dnn, CNN& cnn, DataSet& data,
     ERROR_MEASURE errorMeasure);
 
 void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
     size_t batchSize, ERROR_MEASURE errorMeasure);
-
-void cuda_profiling_ground();
 
 int main(int argc, char* argv[]) {
 
@@ -62,6 +63,9 @@ int main(int argc, char* argv[]) {
 
   cmd.addGroup("Training options:")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
+     .add("--max-epoch", "number of maximum epochs", "100000")
+     .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
+     .add("--learning-rate", "learning rate in back-propagation", "0.1")
      .add("--batch-size", "number of data per mini-batch", "32");
 
   cmd.addGroup("Example usage: cnn-train data/train3.dat --struct=12x5x5-2-8x3x3-2");
@@ -81,10 +85,18 @@ int main(int argc, char* argv[]) {
 
   int ratio	      = cmd["-v"];
   size_t batchSize    = cmd["--batch-size"];
+  float learningRate  = cmd["--learning-rate"];
+  float minValidAcc   = cmd["--min-acc"];
+  size_t maxEpoch     = cmd["--max-epoch"];
 
   // Parse input dimension
   SIZE imgSize = parseInputDimension(input_dim);
-  printf("Image dimension = %ld x %lu\n", imgSize.m, imgSize.n);
+  printf("\33[34m[Info]\33[0m Image dimension = %ld x %lu\n", imgSize.m, imgSize.n);
+
+  // Set configurations
+  config.learningRate = learningRate;
+  config.minValidAccuracy = minValidAcc;
+  config.maxEpoch = maxEpoch;
 
   // Load dataset
   DataSet data(train_fn, imgSize.m * imgSize.n, base, n_type);
@@ -106,6 +118,7 @@ int main(int argc, char* argv[]) {
 
   DNN dnn;
   dnn.init(getRandWeights(cnn.getOutputDimension(), nn_struct, output_dim));
+  dnn.save("cnn-dnn.xml");
 
   // Show CNN status
   cnn.status();
@@ -127,13 +140,15 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
   timer.start();
 
   const size_t MAX_EPOCH = 1024;
+  config.maxEpoch = std::min(config.maxEpoch, MAX_EPOCH);
+
   size_t nTrain = train.size(),
 	 nValid = valid.size();
 
   mat fmiddle, fout;
   float t_start = timer.getTime();
 
-  for (size_t epoch=0; epoch<MAX_EPOCH; ++epoch) {
+  for (size_t epoch=0; epoch<config.maxEpoch; ++epoch) {
 
     Batches batches(batchSize, nTrain);
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
@@ -147,11 +162,10 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
       mat error = getError( data.y, fout, errorMeasure);
       // matlog(error);
 
-      dnn.backPropagate(error, fmiddle, fout, 0.1f / itr->nData );
+      dnn.backPropagate(error, fmiddle, fout, config.learningRate / itr->nData );
       // matlog(error);
       cnn.backPropagate(error, data.x, fmiddle, 1);
       // matlog(error);
-      // exit(-1);
     }
 
     size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),
@@ -166,7 +180,7 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
   }
 
   timer.elapsed();
-  printf("# of total epoch = %lu\n", MAX_EPOCH);
+  printf("# of total epoch = %lu\n", config.maxEpoch);
 }
 
 vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim) {

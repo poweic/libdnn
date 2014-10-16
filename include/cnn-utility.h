@@ -17,7 +17,7 @@ struct SIZE {
 
   bool operator == (const SIZE& rhs) const { return m == rhs.m && n == rhs.n; }
 
-  SIZE operator + (const SIZE& rhs) const { return SIZE(m - rhs.m, n - rhs.n); }
+  SIZE operator + (const SIZE& rhs) const { return SIZE(m + rhs.m, n + rhs.n); }
   SIZE operator - (const SIZE& rhs) const { return SIZE(m - rhs.m, n - rhs.n); }
 
   SIZE operator + (size_t x) const { return SIZE(m + x, n + x); }
@@ -54,6 +54,7 @@ SIZE get_convn_size(const mat& data, const mat& kernel, ConvType type = FULL);
 mat convn(const mat& data, const mat& kernel, SIZE s, ConvType type);
 mat convn(const mat& data, const mat& kernel, ConvType type = FULL);
 // mat xcorrn(const mat& data, const mat& kernel, ConvType type = FULL);
+mat cross_convn(const mat& dataIn, const mat& dataOut, SIZE imgIn, SIZE imgOut, ConvType type);
 
 vector<mat> de_concat(const mat& concated_features, int n);
 mat concat(const vector<mat>& smalls);
