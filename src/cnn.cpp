@@ -15,6 +15,36 @@
 #include <cnn.h>
 #define matslog(x) { for (int i=0; i<x.size(); ++i) { printf(#x"[%d] = [\n", i); x[i].print(); printf("]\n"); } }
 
+/*!
+ * Implementation of MIMOFeatureTransform goes here.
+ */
+
+MIMOFeatureTransform::MIMOFeatureTransform(size_t n_input_maps, size_t n_output_maps):
+  _n_input_maps(n_input_maps), _n_output_maps(n_output_maps) {
+  // nothing to do  
+}
+
+void MIMOFeatureTransform::set_input_img_size(const SIZE& s) {
+  _input_img_size = s;
+}
+
+SIZE MIMOFeatureTransform::get_input_img_size() const {
+  return _input_img_size;
+}
+
+size_t MIMOFeatureTransform::getNumInputMaps() const {
+  return _n_input_maps;
+}
+
+size_t MIMOFeatureTransform::getNumOutputMaps() const {
+  return _n_output_maps;
+}
+
+ostream& operator << (ostream& os, const MIMOFeatureTransform *ft) {
+  os << ft->get_input_img_size() << " => " << ft->get_output_img_size();
+  return os;
+}
+
 /*! 
  * Implementation of CNN goes here.
  */
@@ -340,6 +370,11 @@ size_t ConvolutionalLayer::getKernelHeight() const {
   return _kernels[0][0].getRows();
 }
 
+SIZE ConvolutionalLayer::get_output_img_size() const {
+  SIZE kernel(getKernelHeight(), getKernelWidth());
+  return get_convn_size(_input_img_size, kernel, VALID);
+}
+
 /*size_t ConvolutionalLayer::getNumInputMaps() const {
   return _kernels.size();
 }
@@ -359,6 +394,10 @@ void SubSamplingLayer::status() const {
   
 size_t SubSamplingLayer::getScale() const {
   return _scale;
+}
+
+SIZE SubSamplingLayer::get_output_img_size() const {
+  return _input_img_size / _scale;
 }
 
 void SubSamplingLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) {

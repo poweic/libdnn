@@ -7,8 +7,7 @@
 class MIMOFeatureTransform {
 public:
 
-  MIMOFeatureTransform(size_t n_input_maps, size_t n_output_maps):
-    _n_input_maps(n_input_maps), _n_output_maps(n_output_maps) {}
+  MIMOFeatureTransform(size_t n_input_maps, size_t n_output_maps);
 
   virtual void feedForward(vector<mat>& fouts, const vector<mat>& fins) = 0;
   virtual void feedBackward(vector<mat>& errors, const vector<mat>& deltas) = 0;
@@ -16,17 +15,14 @@ public:
   virtual void backPropagate(vector<mat>& errors, const vector<mat>& fins,
       const vector<mat>& fouts, float learning_rate) = 0;
 
-  friend ostream& operator << (ostream& os, const MIMOFeatureTransform *ft) {
-    os << ft->get_input_img_size() << " => " << ft->get_output_img_size();
-    return os;
-  }
+  friend ostream& operator << (ostream& os, const MIMOFeatureTransform *ft);
 
-  void set_input_img_size(const SIZE& s) { _input_img_size = s; }
-  SIZE get_input_img_size() const { return _input_img_size; }
+  void set_input_img_size(const SIZE& s);
+  SIZE get_input_img_size() const;
   virtual SIZE get_output_img_size() const = 0;
 
-  size_t getNumInputMaps() const { return _n_input_maps; }
-  size_t getNumOutputMaps() const { return _n_output_maps; }
+  size_t getNumInputMaps() const;
+  size_t getNumOutputMaps() const;
 
   virtual void status() const = 0;
 
@@ -38,6 +34,8 @@ protected:
   size_t _n_output_maps;
 };
 
+ostream& operator << (ostream& os, const MIMOFeatureTransform *ft);
+
 class CNN {
 public:
 
@@ -45,7 +43,6 @@ public:
   CNN(const string& model_fn);
   ~CNN();
 
-  // mat feedForward(const mat& fin) const;
   void feedForward(mat& fout, const mat& fin);
   void backPropagate(mat& error, const mat& fin, const mat& fout,
       float learning_rate);
@@ -89,23 +86,9 @@ public:
   void status() const;
 
   size_t getKernelWidth() const;
-
   size_t getKernelHeight() const;
 
-  /*size_t getNumInputMaps() const;
-
-  size_t getNumOutputMaps() const;*/
-
-  SIZE get_output_img_size() const {
-    SIZE kernel(getKernelHeight(), getKernelWidth());
-    return get_convn_size(_input_img_size, kernel, VALID);
-  }
-
-  /*vector<vector<mat> >& get_kernels();
-  vector<vector<mat> > const & get_kernels() const;
-
-  vector<float>& get_bias();
-  vector<float> const& get_bias() const;*/
+  virtual SIZE get_output_img_size() const;
 
 private:
   vector<vector<mat> > _kernels;
@@ -120,9 +103,7 @@ public:
 
   size_t getScale() const;
 
-  SIZE get_output_img_size() const {
-    return _input_img_size / _scale;
-  }
+  virtual SIZE get_output_img_size() const;
 
   void feedForward(vector<mat>& fouts, const vector<mat>& fins);
   void feedBackward(vector<mat>& errors, const vector<mat>& deltas);
