@@ -14,6 +14,7 @@
 
 #include <dataset.h>
 #include <dnn-utility.h>
+#define CFRE(x) { if (!x) throw std::runtime_error(RED_ERROR + "Failed when read features"); }
 
 string read_docid(FILE* fid) {
   char buffer[512];
@@ -46,8 +47,8 @@ void readKaldiFeature(DataStream& stream, int N, size_t dim, size_t base, BatchD
   data.y.resize(N, 1, 0);
 
   // Read kaldi feature
-  FILE* &fis = stream._feat_ps;
-  FILE* &lis = stream._label_ps;
+  FILE* &fis = stream._ffid;
+  FILE* &lis = stream._lfid;
 
   int counter = 0;
   int& r = stream._remained;
@@ -71,23 +72,21 @@ void readKaldiFeature(DataStream& stream, int N, size_t dim, size_t base, BatchD
       char s[6]; 
       int frame;
 
-      fread((void*) s, 1, 6, fis); // fis.read(s, 6);
-      fread((void*) &frame, 4, 1, fis); // fis.read((char*) &frame, 4);
-      fread((void*) s, 1, 1, fis); // fis.read(s, 1);
-      fread((void*) s, 4, 1, fis); // fis.read((char*) &dim, 4);
+      CFRE(fread((void*) s, 6, 1, fis));
+      CFRE(fread((void*) &frame, 4, 1, fis));
+      CFRE(fread((void*) s, 1, 1, fis));
+      CFRE(fread((void*) s, 4, 1, fis));
 
       r = frame;
     }
 
     for(int i = 0; i < r; i++) {
-      for(int j = 0; j < dim; j++) {
-	fread((void*) &data.x(counter, j), sizeof(float), 1, fis);
-	// fis.read((char*) &data.x(counter, j), sizeof(float));
-      }
+      for(int j = 0; j < dim; j++)
+	CFRE(fread((void*) &data.x(counter, j), sizeof(float), 1, fis));
       data.x(counter, dim) = 1;
 
       size_t y;
-      fscanf(lis, "%lu", &y);
+      CFRE(fscanf(lis, "%lu", &y));
       data.y[counter] = y;
 
       if (++counter == N) {

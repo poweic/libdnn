@@ -67,8 +67,8 @@ void DataStream::init(const string& filename, size_t start, size_t end) {
     // FIXME _end is useless when the input is from pipe
     _end = -999;
 
-    _feat_ps = popen(_feat_command.c_str(), "r");
-    _label_ps = popen(_label_command.c_str(), "r");
+    _ffid = popen(_feat_command.c_str(), "r");
+    _lfid = popen(_label_command.c_str(), "r");
   }
   else {
     // Read from normal file
@@ -108,11 +108,11 @@ string DataStream::getline() {
 
 void DataStream::rewind() {
   if (_is_pipe) {
-    pclose(_feat_ps);
-    _feat_ps = popen(_feat_command.c_str(), "r");
+    pclose(_ffid);
+    _ffid = popen(_feat_command.c_str(), "r");
 
-    pclose(_label_ps);
-    _label_ps = popen(_label_command.c_str(), "r");
+    pclose(_lfid);
+    _lfid = popen(_label_command.c_str(), "r");
   }
   else {
     _fs.clear();
@@ -130,12 +130,10 @@ size_t DataStream::get_line_number() const {
 }
 
 void swap(DataStream& a, DataStream& b) { 
+  // No need to swap, _fs, _ffid, _lfid because they're non-copiable.
   std::swap(a._nLines, b._nLines);
   std::swap(a._line_number, b._line_number);
   std::swap(a._filename, b._filename);
-  // std::swap(a._fs, b._fs);
-  // std::swap(a._feat_ps, b._feat_ps);
-  // std::swap(a._label_ps, b._label_ps);
   std::swap(a._feat_command, b._feat_command);
   std::swap(a._label_command, b._label_command);
   std::swap(a._is_pipe, b._is_pipe);

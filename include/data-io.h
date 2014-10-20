@@ -33,8 +33,8 @@ public:
 
   int _remained;
 
-  FILE* _feat_ps;
-  FILE* _label_ps;
+  FILE* _ffid;
+  FILE* _lfid;
 
   string _feat_command;
   string _label_command;
