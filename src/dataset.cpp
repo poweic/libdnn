@@ -12,174 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <functional>
 #include <dataset.h>
 #include <dnn-utility.h>
-#define CFRE(x) { if (!x) throw std::runtime_error(RED_ERROR + "Failed when read features"); }
-
-string read_docid(FILE* fid) {
-  char buffer[512];
-  int result = fscanf(fid, "%s ", buffer);
-
-  return (result != 1) ? "" : string(buffer);
-}
-
-void readKaldiFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data);
-
-BatchData readMoreFeature(DataStream& stream, int N, size_t dim, size_t base, bool sparse) {
-
-  BatchData data;
-  if (stream.is_pipe()) {
-    readKaldiFeature(stream, N, dim, base, data);
-  }
-  else {
-    if (sparse)
-      readSparseFeature(stream, N, dim, base, data);
-    else
-      readDenseFeature(stream, N, dim, base, data);
-  }
-
-  return data;
-}
-
-void readKaldiFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data) {
-
-  data.x.resize(N, dim + 1, 0);
-  data.y.resize(N, 1, 0);
-
-  // Read kaldi feature
-  FILE* &fis = stream._ffid;
-  FILE* &lis = stream._lfid;
-
-  int counter = 0;
-  int& r = stream._remained;
-
-  while (true) {
-
-    if (r == 0) {
-      string docid1, docid2;
-      docid1 = read_docid(fis);
-      docid2 = read_docid(lis);
-
-      if (docid1.empty() or docid2.empty()) {
-	stream.rewind();
-	docid1 = read_docid(fis);
-	docid2 = read_docid(lis);
-      }
-
-      if (docid1 != docid2)
-	throw std::runtime_error(RED_ERROR + "Cannot find " + docid2 + " in label");
-
-      char s[6]; 
-      int frame;
-
-      CFRE(fread((void*) s, 6, 1, fis));
-      CFRE(fread((void*) &frame, 4, 1, fis));
-      CFRE(fread((void*) s, 1, 1, fis));
-      CFRE(fread((void*) s, 4, 1, fis));
-
-      r = frame;
-    }
-
-    for(int i = 0; i < r; i++) {
-      for(int j = 0; j < dim; j++)
-	CFRE(fread((void*) &data.x(counter, j), sizeof(float), 1, fis));
-      data.x(counter, dim) = 1;
-
-      size_t y;
-      CFRE(fscanf(lis, "%lu", &y));
-      data.y[counter] = y;
-
-      if (++counter == N) {
-	r -= i + 1;
-	return;
-      }
-    }
-
-    r = 0;
-  }
-
-  // Read label
-  // TODO Use "comm" to remove un-alignmented feature
-}
-
-void readSparseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data) {
-
-  data.x.resize(N, dim + 1, 0);
-  data.y.resize(N, 1, 0);
-
-  string token;
-
-  for (int i=0; i<N; ++i) {
-    stringstream ss(stream.getline());
-  
-    ss >> token;
-    data.y[i] = str2float(token);
-
-    while (ss >> token) {
-      size_t pos = token.find(':');
-      if (pos == string::npos)
-	continue;
-
-      size_t j = str2float(token.substr(0, pos)) - 1;
-      float value = str2float(token.substr(pos + 1));
-
-      data.x(i, j) = value;
-    }
-  
-    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
-    // not by CNN or other classifier.
-    data.x(i, dim) = 1;
-  }
-
-  for (int i=0; i<N; ++i)
-    data.y[i] -= base;
-}
-
-void readDenseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data) {
-
-  data.x.resize(N, dim + 1, 0);
-  data.y.resize(N, 1, 0);
-  
-  string token;
-
-  for (int i=0; i<N; ++i) {
-    stringstream ss(stream.getline());
-  
-    ss >> token;
-    data.y[i] = str2float(token);
-
-    size_t j = 0;
-    while (ss >> token)
-      data.x(i, j++) = str2float(token);
-
-    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
-    // not by CNN or other classifier.
-    data.x(i, dim) = 1;
-  }
-
-  for (int i=0; i<N; ++i)
-    data.y[i] -= base;
-}
+using namespace std::placeholders;
 
 /* \brief Constructors for DataSet
  *
- *
  */
-DataSet::DataSet(): _normalizer(NULL) {
+DataSet::DataSet(): _normalizer(nullptr) {
 }
 
 DataSet::DataSet(const string &fn, size_t dim, int base, size_t start, size_t end)
-  : _dim(dim), _stream(fn, start, end), _sparse(isFileSparse(fn)),
-  _base(base), _normalizer(NULL) {
+  : _dim(dim), _base(base), _normalizer(nullptr) {
+    this->_stream = DataStream::create(fn, start, end);
 }
 
 void DataSet::init(const string &fn, size_t dim, int base, size_t start, size_t end) {
-  // TODO;
+  // TODO
 }
 
 DataSet::DataSet(const DataSet& src)
-  : _dim(src._dim), _stream(src._stream), _sparse(src._sparse), _type(src._type),
-  _base(src._base), _normalizer(NULL) {
+  : _dim(src._dim), _stream(src._stream->clone()), _type(src._type),
+  _base(src._base), _normalizer(nullptr) {
     if (src._normalizer)
       _normalizer = src._normalizer->clone();
 }
@@ -225,7 +80,7 @@ void DataSet::setNormType(NormType type) {
 }
 
 size_t DataSet::size() const {
-  return _stream.get_line_number();
+  return _stream->size();
 }
 
 void DataSet::showSummary() const {
@@ -237,11 +92,12 @@ void DataSet::showSummary() const {
 
 }
 
-BatchData DataSet::operator [] (const Batches::iterator& b) {  
+BatchData DataSet::operator [] (const Batches::iterator& b) {
+
+  auto f = std::bind(&DataStream::read, _stream, _1, _2, _3);
 
   if (!f_data.valid())
-    f_data = std::async(std::launch::async, readMoreFeature,
-	std::ref(_stream), b->nData, _dim, _base, _sparse);
+    f_data = std::async(std::launch::async, f, b->nData, _dim, _base);
 
   f_data.wait();
 
@@ -249,17 +105,12 @@ BatchData DataSet::operator [] (const Batches::iterator& b) {
 
   auto b_next = b+1;
   if ( !b_next.isEnd() )
-    f_data = std::async(std::launch::async, readMoreFeature,
-	std::ref(_stream), (b+1)->nData, _dim, _base, _sparse);
+    f_data = std::async(std::launch::async, f, b_next->nData, _dim, _base);
 
   if (_normalizer)
     _normalizer->normalize(data);
 
   return data;
-}                                                              
-
-void DataSet::set_sparse(bool sparse) {
-  _sparse = sparse;
 }
 
 void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ratio) {
@@ -272,12 +123,8 @@ void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ra
   train = data;
   valid = data;
 
-  train._stream.init(data._stream.get_filename(), 0, nTrain);
-  valid._stream.init(data._stream.get_filename(), nTrain, -1);
-}
-
-void DataSet::setDimension(size_t dim) {
-  _dim = dim;
+  train._stream = DataStream::create(data._stream->get_filename(), 0, nTrain);
+  valid._stream = DataStream::create(data._stream->get_filename(), nTrain, -1);
 }
 
 void DataSet::setLabelBase(int base) {
@@ -285,65 +132,10 @@ void DataSet::setLabelBase(int base) {
 }
 
 void DataSet::rewind() {
-  /*if (f_data.valid())
-    f_data.wait();*/
-  this->_stream.rewind();
+  if (f_data.valid())
+    f_data.wait();
+  _stream->rewind();
 }
-
-/* Other Utility Functions 
- *
- * */
-bool isFileSparse(string fn) {
-  ifstream fin(fn.c_str());
-  string line;
-  std::getline(fin, line);
-  fin.close();
-  return line.find(':') != string::npos;
-}
-
-/*size_t findMaxDimension(ifstream& fin) {
-  int previous_pos = fin.tellg();
-
-  string token;
-  size_t maxDimension = 0;
-  while (fin >> token) {
-    size_t pos = token.find(':');
-    if (pos == string::npos)
-      continue;
-
-    size_t dim = atoi(token.substr(0, pos).c_str());
-    if (dim > maxDimension)
-      maxDimension = dim;
-  }
-
-  fin.clear();
-  fin.seekg(previous_pos);
-
-  return maxDimension;
-}*/
-
-/*size_t findDimension(ifstream& fin) {
-
-  size_t dim = 0;
-
-  int previous_pos = fin.tellg();
-
-  string line;
-  std::getline(fin, line);
-  stringstream ss(line);
-
-  // First token is class label
-  string token;
-  ss >> token;
-
-  while (ss >> token)
-    ++dim;
-  
-  fin.clear();
-  fin.seekg(previous_pos);
-
-  return dim;
-}*/
 
 /* 
  * Class StandardScore (inherited from Normalization)
@@ -386,13 +178,11 @@ void StandardScore::normalize(BatchData& data) const {
   }
 }
 
-void StandardScore::stat(DataSet& data) {
+void StandardScore::stat(DataSet& dataset) {
 
-  DataStream& stream = data._stream;
-  size_t N = data.size(),
-	 dim = data._dim,
-	 base = data._base,
-	 sparse = data._sparse;
+  size_t N = dataset.size(),
+	 dim = dataset._dim,
+	 base = dataset._base;
 
   assert(dim > 0);
   assert(N > 0);
@@ -405,7 +195,7 @@ void StandardScore::stat(DataSet& data) {
 
   Batches batches(1024, N);
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    BatchData data = readMoreFeature(stream, itr->nData, dim, base, sparse);
+    auto data = dataset._stream->read(itr->nData, dim, base);
 
     for (size_t i=0; i<data.x.getRows(); ++i) {
       for (size_t j=0; j<dim; ++j) {
@@ -420,7 +210,7 @@ void StandardScore::stat(DataSet& data) {
     _dev[j] = sqrt((_dev[j] / N) - pow(_mean[j], 2));
   }
 
-  data.rewind();
+  dataset.rewind();
 }
 
 Normalization* StandardScore::clone() const {
@@ -477,13 +267,11 @@ void ZeroOne::normalize(BatchData& data) const {
   }
 }
 
-void ZeroOne::stat(DataSet& data) {
+void ZeroOne::stat(DataSet& dataset) {
 
-  DataStream& stream = data._stream;
-  size_t N = data.size(),
-	 dim = data._dim,
-	 base = data._base,
-	 sparse = data._sparse;
+  size_t N = dataset.size(),
+	 dim = dataset._dim,
+	 base = dataset._base;
 
   assert(dim > 0);
   assert(N > 0);
@@ -498,7 +286,7 @@ void ZeroOne::stat(DataSet& data) {
 
   Batches batches(1024, N);
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    BatchData data = readMoreFeature(stream, itr->nData, dim, base, sparse);
+    auto data = dataset._stream->read(itr->nData, dim, base);
 
     for (size_t i=0; i<data.x.getRows(); ++i) {
       for (size_t j=0; j<dim; ++j) {
@@ -508,7 +296,7 @@ void ZeroOne::stat(DataSet& data) {
     }
   }
 
-  stream.rewind();
+  dataset.rewind();
 }
 
 Normalization* ZeroOne::clone() const {
