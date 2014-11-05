@@ -25,14 +25,12 @@
  * */
 
 DataStream::DataStream() : _size(0) {
-
 }
 
 DataStream::DataStream(const string& filename) : _filename(filename), _size(0) {
-
 }
 
-DataStream::DataStream(const DataStream& src) : _size(src._size), _filename(src._filename) {
+DataStream::DataStream(const DataStream& src) : _filename(src._filename), _size(src._size) {
 }
 
 DataStream* DataStream::create(const string& filename, size_t start, size_t end) {
@@ -71,7 +69,7 @@ BasicStream::BasicStream(): _sparse(true), _line_number(0), _start(0), _end(-1) 
 }
 
 BasicStream::BasicStream(const string& filename, size_t start, size_t end):
-  DataStream(filename), _line_number(0), _start(start), _end(end) {
+  DataStream(filename), _sparse(isFileSparse(filename)), _line_number(0), _start(start), _end(end) {
   this->init(start, end);
 }
 
@@ -118,6 +116,7 @@ DataStream* BasicStream::clone() const {
 }
 
 BatchData BasicStream::read(int N, size_t dim, size_t base) {
+
   if (_sparse)
     return this->readSparseFeature(N, dim, base);
   else
@@ -156,6 +155,8 @@ BatchData BasicStream::readSparseFeature(int N, size_t dim, size_t base) {
 
   for (int i=0; i<N; ++i)
     data.y[i] -= base;
+
+  return data;
 }
 
 BatchData BasicStream::readDenseFeature(int N, size_t dim, size_t base) {
@@ -183,6 +184,8 @@ BatchData BasicStream::readDenseFeature(int N, size_t dim, size_t base) {
 
   for (int i=0; i<N; ++i)
     data.y[i] -= base;
+  
+  return data;
 }
 
 string BasicStream::getline() {

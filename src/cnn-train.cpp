@@ -87,8 +87,7 @@ int main(int argc, char* argv[]) {
   printf("Image dimension = %ld x %lu\n", imgSize.m, imgSize.n);
 
   // Load dataset
-  DataSet data(train_fn, imgSize.m * imgSize.n, base);
-  data.setNormType(n_type);
+  DataSet data(train_fn, imgSize.m * imgSize.n, base, n_type);
   data.showSummary();
 
   DataSet train, valid;

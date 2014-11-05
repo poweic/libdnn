@@ -78,9 +78,7 @@ int main (int argc, char* argv[]) {
   if (model_fn.empty())
     model_fn = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
-  DataSet data(train_fn, input_dim);
-  // data.loadPrecomputedStatistics(n_filename);
-  data.setNormType(n_type);
+  DataSet data(train_fn, input_dim, 0, n_type);
   data.showSummary();
 
   if (output_dim == 0)

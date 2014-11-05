@@ -31,8 +31,8 @@ int main (int argc, char* argv[]) {
 
   cmd.add("training_set_file")
      .add("model_in")
-     .add("valid_set_file")
-     .add("model_out", false);
+     .add("model_out", false)
+     .add("valid_set_file", false);
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
@@ -61,8 +61,8 @@ int main (int argc, char* argv[]) {
 
   string train_fn     = cmd[1];
   string model_in     = cmd[2];
-  string valid_fn     = cmd[3];
-  string model_out    = cmd[4];
+  string model_out    = cmd[3];
+  string valid_fn     = cmd[4];
 
   size_t input_dim    = cmd["--input-dim"];
   NormType n_type     = (NormType) (int) cmd["--normalize"];
@@ -83,22 +83,26 @@ int main (int argc, char* argv[]) {
   config.learningRate = learningRate;
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
+  config.print();
 
   // Load model
   DNN dnn(model_in);
   dnn.setConfig(config);
 
-  // Load train
-  DataSet train(train_fn, input_dim, base);
-  train.setNormType(n_type);
+  // Load data
+  DataSet train, valid;
+
+  if (valid_fn.empty() && ratio != 0) {
+    DataSet data(train_fn, input_dim, base, n_type);
+    DataSet::split(data, train, valid, ratio);
+  }
+  else {
+    train = DataSet(train_fn, input_dim, base, n_type);
+    valid = DataSet(valid_fn, input_dim, base, n_type);
+  }
+
   train.showSummary();
-
-  // Load valid
-  DataSet valid(valid_fn, input_dim, base);
-  valid.setNormType(n_type);
   valid.showSummary();
-
-  config.print();
 
   // Start Training
   ERROR_MEASURE err = CROSS_ENTROPY;

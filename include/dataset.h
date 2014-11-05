@@ -32,8 +32,7 @@ class Normalization;
 class DataSet {
 public:
   DataSet();
-  DataSet(const string &fn, size_t dim = 0, int base = 0,
-      size_t start = 0, size_t end = -1);
+  DataSet(const string &fn, size_t dim, int base, NormType n_type);
 
   void init(const string &fn, size_t dim, int base, size_t start, size_t end);
 

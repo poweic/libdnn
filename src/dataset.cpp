@@ -23,9 +23,10 @@ using namespace std::placeholders;
 DataSet::DataSet(): _normalizer(nullptr) {
 }
 
-DataSet::DataSet(const string &fn, size_t dim, int base, size_t start, size_t end)
+DataSet::DataSet(const string &fn, size_t dim, int base, NormType n_type)
   : _dim(dim), _base(base), _normalizer(nullptr) {
-    this->_stream = DataStream::create(fn, start, end);
+    this->_stream = DataStream::create(fn, 0, -1);
+    this->setNormType(n_type);
 }
 
 void DataSet::init(const string &fn, size_t dim, int base, size_t start, size_t end) {
