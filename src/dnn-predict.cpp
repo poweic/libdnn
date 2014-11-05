@@ -72,9 +72,7 @@ int main (int argc, char* argv[]) {
   size_t cache_size   = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
 
-  DataSet test(test_fn, input_dim, base);
-  // test.loadPrecomputedStatistics(n_filename);
-  test.setNormType(n_type);
+  DataSet test(test_fn, input_dim, base, n_type);
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 

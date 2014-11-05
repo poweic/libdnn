@@ -31,7 +31,8 @@ int main (int argc, char* argv[]) {
 
   cmd.add("training_set_file")
      .add("model_in")
-     .add("model_out", false);
+     .add("model_out", false)
+     .add("valid_set_file", false);
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
@@ -61,6 +62,7 @@ int main (int argc, char* argv[]) {
   string train_fn     = cmd[1];
   string model_in     = cmd[2];
   string model_out    = cmd[3];
+  string valid_fn     = cmd[4];
 
   size_t input_dim    = cmd["--input-dim"];
   NormType n_type     = (NormType) (int) cmd["--normalize"];
@@ -81,20 +83,26 @@ int main (int argc, char* argv[]) {
   config.learningRate = learningRate;
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
+  config.print();
 
   // Load model
   DNN dnn(model_in);
   dnn.setConfig(config);
 
   // Load data
-  DataSet data(train_fn, input_dim, base);
-  // data.loadPrecomputedStatistics(n_filename);
-  data.setNormType(n_type);
-  data.showSummary();
-
   DataSet train, valid;
-  DataSet::split(data, train, valid, ratio);
-  config.print();
+
+  if (valid_fn.empty() && ratio != 0) {
+    DataSet data(train_fn, input_dim, base, n_type);
+    DataSet::split(data, train, valid, ratio);
+  }
+  else {
+    train = DataSet(train_fn, input_dim, base, n_type);
+    valid = DataSet(valid_fn, input_dim, base, n_type);
+  }
+
+  train.showSummary();
+  valid.showSummary();
 
   // Start Training
   ERROR_MEASURE err = CROSS_ENTROPY;
@@ -128,15 +136,18 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
 
   mat fout;
 
-  printf("._______._________________________._________________________.\n"
-         "|       |                         |                         |\n"
-         "|       |        In-Sample        |      Out-of-Sample      |\n"
-         "| Epoch |__________.______________|__________.______________|\n"
-         "|       |          |              |          |              |\n"
-         "|       | Accuracy | # of correct | Accuracy | # of correct |\n"
-         "|_______|__________|______________|__________|______________|\n");
+  printf("._______._________________________._________________________.___________.\n"
+         "|       |                         |                         |           |\n"
+         "|       |        In-Sample        |      Out-of-Sample      |  Elapsed  |\n"
+         "| Epoch |__________.______________|__________.______________|   Time    |\n"
+         "|       |          |              |          |              | (seconds) |\n"
+         "|       | Accuracy | # of correct | Accuracy | # of correct |           |\n"
+         "|_______|__________|______________|__________|______________|___________|\n");
 
+  perf::Timer etimer;
   for (epoch=0; epoch<MAX_EPOCH; ++epoch) {
+    etimer.reset();
+    etimer.start();
 
     Batches batches(batchSize, nTrain);
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
@@ -163,8 +174,10 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
 
     float validAcc = 1.0f - (float) Eout[epoch] / nValid;
 
-    printf("|%4lu   |  %.2f %% |  %7lu     |  %.2f %% |  %7lu     |\n",
-      epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eout[epoch]);
+    float time = etimer.getTime() / 1000;
+
+    printf("|%4lu   |  %.2f %% |  %7lu     |  %.2f %% |  %7lu     |  %8.2f |\n",
+      epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eout[epoch], time);
 
     if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
       break;
