@@ -29,16 +29,19 @@ void cuda_profiling_ground();
 size_t cnn_predict(const DNN& dnn, CNN& cnn, DataSet& data,
     ERROR_MEASURE errorMeasure);
 
-void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
-    size_t batchSize, ERROR_MEASURE errorMeasure);
+void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
+    size_t batchSize, const string& fn, ERROR_MEASURE errorMeasure);
+
+void save_model(const CNN& cnn, const DNN& dnn, const string& fn);
 
 int main(int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
 
   cmd.add("training_set_file")
-    .add("model_in", false)
-    .add("model_out", false);
+     .add("valid_set_file", false)
+     .add("model_in", false)
+     .add("model_out", false);
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).\n"
@@ -59,7 +62,7 @@ int main(int argc, char* argv[]) {
       "with a 5x5 kernel, which is followed by a sub-sampling layer with scale\n"
       "of 3. After \"9x5x5-3s-4x3x3-2s\", a neural network of of 2 hidden layers\n"
       "of width 256 and 128 is appended to it.\n"
-      "Each layer should be seperated by a hyphen \"-\".");
+      "Each layer should be seperated by a hyphen \"-\".", "");
 
   cmd.addGroup("Training options:")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
@@ -73,14 +76,13 @@ int main(int argc, char* argv[]) {
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
 
-  string train_fn   = cmd[1];
-  string model_in   = cmd[2];
-  string model_out  = cmd[2];
+  string train_fn     = cmd[1];
+  string valid_fn     = cmd[2];
+  string model_in     = cmd[3];
+  string model_out    = cmd[4];
 
-  string input_dim  = cmd["--input-dim"];
   NormType n_type   = (NormType) (int) cmd["--normalize"];
   int base	    = cmd["--base"];
-  string structure  = cmd["--struct"];
   size_t output_dim = cmd["--output-dim"];
 
   int ratio	      = cmd["-v"];
@@ -90,7 +92,8 @@ int main(int argc, char* argv[]) {
   size_t maxEpoch     = cmd["--max-epoch"];
 
   // Parse input dimension
-  SIZE imgSize = parseInputDimension(input_dim);
+  SIZE imgSize = parseInputDimension((string) cmd["--input-dim"]);
+  size_t input_dim = imgSize.m * imgSize.n;
   printf("\33[34m[Info]\33[0m Image dimension = %ld x %lu\n", imgSize.m, imgSize.n);
 
   // Set configurations
@@ -98,43 +101,62 @@ int main(int argc, char* argv[]) {
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
 
-  // Load dataset
-  DataSet data(train_fn, imgSize.m * imgSize.n, base, n_type);
-  data.showSummary();
-
+  // Load data
   DataSet train, valid;
-  DataSet::split(data, train, valid, ratio);
 
-  // Parse structure
-  string cnn_struct, nn_struct;
-  parseNetworkStructure(structure, cnn_struct, nn_struct);
+  if ((valid_fn.empty() || valid_fn == "-" ) && ratio != 0) {
+    DataSet data(train_fn, input_dim, base, n_type);
+    DataSet::split(data, train, valid, ratio);
+  }
+  else {
+    train = DataSet(train_fn, input_dim, base, n_type);
+    valid = DataSet(valid_fn, input_dim, base, n_type);
+  }
+
+  train.showSummary();
+  valid.showSummary();
 
   // Initialize CNN
   CNN cnn;
-  if (model_in.empty())
-    cnn.init(cnn_struct, imgSize);
-  else
-    cnn.read(model_in);
-
   DNN dnn;
-  dnn.init(getRandWeights(cnn.getOutputDimension(), nn_struct, output_dim));
-  dnn.save("cnn-dnn.xml");
 
-  // Show CNN status
+  if (model_in.empty()) {
+    // Parse structure
+    string structure  = cmd["--struct"];
+    string cnn_struct, nn_struct;
+    parseNetworkStructure(structure, cnn_struct, nn_struct);
+
+    cnn.init(cnn_struct, imgSize);
+    dnn.init(getRandWeights(cnn.getOutputDimension(), nn_struct, output_dim));
+  }
+  else {
+    cnn.read(model_in);
+    dnn.read(model_in);
+  }
+
   cnn.status();
+  dnn.status();
 
-  cnn_train(dnn, cnn, train, valid, batchSize, CROSS_ENTROPY);
+  fclose(stderr);
 
   if (model_out.empty())
     model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
-  cout << "Leaving..." << endl;
+  cnn_train(cnn, dnn, train, valid, batchSize, model_out, CROSS_ENTROPY);
+
+  save_model(cnn, dnn, model_out);
 
   return 0;
 }
 
-void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
-    size_t batchSize, ERROR_MEASURE errorMeasure) {
+void save_model(const CNN& cnn, const DNN& dnn, const string& fn) {
+  ofstream fout(fn.c_str());
+  fout << cnn << dnn;
+  fout.close();
+}
+
+void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
+    size_t batchSize, const string& model_out, ERROR_MEASURE errorMeasure) {
 
   perf::Timer timer;
   timer.start();
@@ -157,15 +179,10 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
       cnn.feedForward(fmiddle, data.x);
       dnn.feedForward(fout, fmiddle);
 
-      // matlog(fmiddle);
-      // matlog(fout);
       mat error = getError( data.y, fout, errorMeasure);
-      // matlog(error);
 
       dnn.backPropagate(error, fmiddle, fout, config.learningRate / itr->nData );
-      // matlog(error);
-      cnn.backPropagate(error, data.x, fmiddle, 1);
-      // matlog(error);
+      cnn.backPropagate(error, data.x, fmiddle, 1 /*config.learningRate*/);
     }
 
     size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),
@@ -176,7 +193,10 @@ void cnn_train(DNN& dnn, CNN& cnn, DataSet& train, DataSet& valid,
     printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu ), elapsed %.3f seconds.\n",
       epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid, (timer.getTime() - t_start) / 1000); 
 
+    save_model(cnn, dnn, model_out + "." + to_string(epoch));
     t_start = timer.getTime();
+
+    exit(-1);
   }
 
   timer.elapsed();

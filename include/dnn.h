@@ -31,12 +31,13 @@ public:
 
   void status() const;
 
-  void read(string fn);
-  void save(string fn) const;
+  void read(const string& fn);
+  void save(const string& fn) const;
 
   std::vector<FeatureTransform*>& getTransforms();
   const std::vector<FeatureTransform*>& getTransforms() const;
 
+  friend ostream& operator << (ostream& os, const DNN& dnn);
   friend void swap(DNN& lhs, DNN& rhs);
 
 private:
@@ -51,6 +52,9 @@ private:
   std::vector<mat> _houts;
   Config _config;
 };
+
+ostream& operator << (ostream& os, const DNN& dnn);
+
 
 void swap(DNN& lhs, DNN& rhs);
 #endif  // __DNN_H_

@@ -14,7 +14,8 @@
 
 #include <feature-transform.h>
 
-#define PARSE_ASSERT(x) { if (!(x)) \
+// CSE stands for Check Stream Error
+#define CSE(x) { if (!(x)) \
   throw std::runtime_error("\33[31m[Error]\33[0m Failed when executing \33[33m"#x"\33[0m"); }
 
 std::map<FeatureTransform::Type, string> FeatureTransform::type2token = {
@@ -149,11 +150,11 @@ void AffineTransform::read(xml_node<> * node) {
   ss << weight->value();
   for (size_t i=0; i<rows; ++i)
     for (size_t j=0; j<cols; ++j)
-      PARSE_ASSERT( ss >> hw(i, j) );
+      CSE( ss >> hw(i, j) );
 
   ss << bias->value();
   for (size_t j=0; j<cols; ++j)
-    PARSE_ASSERT( ss >> hw(rows, j) );
+    CSE( ss >> hw(rows, j) );
 
   _w = (mat) hw;
   _input_dim = _w.getRows();
@@ -165,23 +166,23 @@ void AffineTransform::read(istream& is) {
   string dummy;
 
   size_t rows, cols;
-  PARSE_ASSERT(is >> rows);
-  PARSE_ASSERT(is >> cols);
+  CSE(is >> rows);
+  CSE(is >> cols);
 
   hmat hw(rows + 1, cols + 1);
 
   // Read matrix
-  PARSE_ASSERT(is >> dummy);
+  CSE(is >> dummy);
   for (size_t i=0; i<rows; ++i)
     for (size_t j=0; j<cols; ++j)
-      PARSE_ASSERT( is >> hw(i, j) );
-  PARSE_ASSERT(is >> dummy);
+      CSE( is >> hw(i, j) );
+  CSE(is >> dummy);
 
   // Read vector (bias)
-  PARSE_ASSERT(is >> dummy);
+  CSE(is >> dummy);
   for (size_t j=0; j<cols; ++j)
-    PARSE_ASSERT( is >> hw(rows, j) );
-  PARSE_ASSERT(is >> dummy);
+    CSE( is >> hw(rows, j) );
+  CSE(is >> dummy);
 
   _w = (mat) hw;
   _input_dim = _w.getRows();
@@ -320,10 +321,10 @@ void Activation::read(xml_node<> * node) {
 void Activation::read(istream& is) {
 
   string remaining;
-  PARSE_ASSERT(is >> _input_dim);
-  PARSE_ASSERT(is >> _output_dim);
+  CSE(is >> _input_dim);
+  CSE(is >> _output_dim);
 
-  PARSE_ASSERT(std::getline(is, remaining));
+  CSE(std::getline(is, remaining));
   
   if (_input_dim != _output_dim)
     throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");

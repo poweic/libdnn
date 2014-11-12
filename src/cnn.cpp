@@ -12,8 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <feature-transform.h>
 #include <cnn.h>
 #define matslog(x) { for (int i=0; i<x.size(); ++i) { printf(#x"[%d] = [\n", i); x[i].print(); printf("]\n"); } }
+
+// CSE stands for Check Stream Error
+#define CSE(x) { if (!(x)) \
+  throw std::runtime_error("\33[31m[Error]\33[0m Failed when executing \33[33m"#x"\33[0m"); }
 
 /*!
  * Implementation of MIMOFeatureTransform goes here.
@@ -22,6 +27,33 @@
 MIMOFeatureTransform::MIMOFeatureTransform(size_t n_input_maps, size_t n_output_maps):
   _n_input_maps(n_input_maps), _n_output_maps(n_output_maps) {
   // nothing to do  
+}
+
+void MIMOFeatureTransform::read(xml_node<> *node) {
+  // # of input feature maps
+  auto attr = node->first_attribute("input-maps");
+  if (!attr)
+    throw std::runtime_error("\33[31m[Error]\33[0m Missing input-maps");
+  _n_input_maps = stol(attr->value());
+
+  // # of output feature maps
+  attr = node->first_attribute("output-maps");
+  if (!attr)
+    throw std::runtime_error("\33[31m[Error]\33[0m Missing output-maps");
+  _n_output_maps = stol(attr->value());
+
+  // Input dimension of image
+  attr = node->first_attribute("input-dim");
+  if (!attr)
+    throw std::runtime_error("\33[31m[Error]\33[0m Missing input-dim");
+  this->set_input_img_size(parseInputDimension(attr->value()));
+}
+
+void MIMOFeatureTransform::write(ostream& os) const {
+  char buffer[256];
+  sprintf(buffer, "input-dim=\"%lu-%lu\" input-maps=\"%lu\" output-maps=\"%lu\"",
+      _input_img_size.m, _input_img_size.n, _n_input_maps, _n_output_maps);
+  os << buffer;
 }
 
 void MIMOFeatureTransform::set_input_img_size(const SIZE& s) {
@@ -41,7 +73,8 @@ size_t MIMOFeatureTransform::getNumOutputMaps() const {
 }
 
 ostream& operator << (ostream& os, const MIMOFeatureTransform *ft) {
-  os << ft->get_input_img_size() << " => " << ft->get_output_img_size();
+  // os << ft->get_input_img_size() << " => " << ft->get_output_img_size();
+  ft->write(os);
   return os;
 }
 
@@ -146,8 +179,8 @@ void CNN::init(const string &structure, SIZE img_size) {
       vector<string> dims = split(layers[i], 'x');
 
       size_t nOutputMaps   = str2int(dims[0]),
-	     kernel_width  = str2int(dims[1]),
-	     kernel_height = str2int(dims[2]);
+	     kernel_height = str2int(dims[1]),
+	     kernel_width = str2int(dims[2]);
 
       MIMOFeatureTransform* t =
 	new ConvolutionalLayer( nInputMaps, nOutputMaps, kernel_height, kernel_width);
@@ -168,12 +201,70 @@ void CNN::init(const string &structure, SIZE img_size) {
 }
 
 void CNN::read(const string &fn) {
-  // TODO
+  ifstream fin(fn.c_str());
 
+  if (!fin.is_open())
+    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
+
+  stringstream ss;
+  ss << fin.rdbuf() << '\0';
+  fin.close();
+
+  _transforms.clear();
+
+  MIMOFeatureTransform* f;
+
+  if (isXmlFormat(ss)) {
+    rapidxml::xml_document<> doc;
+
+    vector<char> buffer((istreambuf_iterator<char>(ss)), istreambuf_iterator<char>());
+    buffer.push_back('\0');
+    doc.parse<0>(&buffer[0]);
+
+    for (auto node = doc.first_node("transform"); node; node = node->next_sibling()) {
+
+      auto x = node->first_attribute("type");
+
+      string token = node->first_attribute("type")->value();
+      FeatureTransform::Type type = FeatureTransform::token2type(token);
+
+      switch (type) {
+	case FeatureTransform::Affine :
+	case FeatureTransform::Sigmoid :
+	case FeatureTransform::Softmax :
+	  return;
+	case FeatureTransform::Convolution : 
+	  f = new ConvolutionalLayer;
+	  break;
+	case FeatureTransform::SubSample :
+	  f = new SubSamplingLayer;
+	  break;
+	default:
+	  cerr << "\33[31m[Error]\33[0m Not such type " << token << endl;
+	  break;
+      }
+      
+
+      if (f) {
+	f->read(node);
+	_transforms.push_back(f);
+      }
+    }
+
+  }
+  else
+    clog << "\31[31m[Error]\33[0m Error while reading XML file." << endl;
 }
 
 void CNN::save(const string &fn) const {
-  // TODO
+  ofstream fout(fn.c_str());
+
+  if (!fout.is_open())
+    throw std::runtime_error("\33[31m[Error]\33[0m Cannot open file: " + fn);
+
+  fout << *this;
+
+  fout.close();
 }
 
 size_t CNN::getInputDimension() const { 
@@ -206,9 +297,17 @@ void CNN::status() const {
   printf("+-------------------------------------------------------------+\n");
 }
 
+ostream& operator << (ostream& os, const CNN& cnn) {
+  for (size_t i=0; i<cnn._transforms.size(); ++i)
+    os << cnn._transforms[i];
+  return os;
+}
+
+
 /*! 
  * Implementation of ConvolutionalLayer goes here.
  */
+
 ConvolutionalLayer::ConvolutionalLayer(size_t nInputs, size_t nOutputs, int h, int w)
   : MIMOFeatureTransform(nInputs, nOutputs) {
   if (w == -1)
@@ -236,6 +335,73 @@ ConvolutionalLayer::ConvolutionalLayer(size_t nInputs, size_t nOutputs, int h, i
   _bias.resize(nOutputs);
   for (size_t j=0; j<nOutputs; ++j)
     _bias[j] = 0;
+}
+
+void ConvolutionalLayer::read(xml_node<> *node) {
+
+  MIMOFeatureTransform::read(node);
+
+  SIZE k = parseInputDimension(node->first_attribute("kernel-dim")->value());
+
+  // Allocate memory for kernels and bias
+  _kernels.resize(_n_input_maps);
+  for (size_t i=0; i<_kernels.size(); ++i)
+    _kernels[i].resize(_n_output_maps);
+  _bias.resize(_n_output_maps);
+
+  // Parse kernels and bias
+  int j = 0;
+  for (auto kernels = node->first_node("kernels"); kernels; kernels = kernels->next_sibling(), ++j) {
+    int i = 0;
+    for (auto w = kernels->first_node("weight"); w; w = w->next_sibling(), i++) {
+      stringstream ss(w->value());
+
+      hmat hw(k.m, k.n);
+      for (size_t x=0; x<k.m; ++x)
+	for (size_t y=0; y<k.n; ++y)
+	  CSE( ss >> hw(x, y) );
+
+      _kernels[i][j] = (mat) hw;
+    }
+    _bias[j] = stof(kernels->first_attribute("bias")->value());
+  }
+}
+
+void ConvolutionalLayer::write(ostream& os) const {
+  ostringstream oss;
+  MIMOFeatureTransform::write(oss);
+
+  char buffer[256];
+  sprintf(buffer, "<transform type=\"%s\" learning-rate=\"%f\" kernel-dim=\"%lu-%lu\" %s>",
+      "convolution", 0.01, getKernelWidth(), getKernelHeight(), oss.str().c_str());
+  os << buffer << endl;
+
+  for (size_t j=0; j<_n_output_maps; ++j) {
+    os << "  <kernels bias=\"" << _bias[j] << "\">" << endl;
+
+    for (size_t i=0; i<_n_input_maps; ++i) {
+      os << "    <weight>" << endl;
+      hmat hw(_kernels[i][j]);
+      for (size_t x=0; x<hw.getRows(); ++x) {
+	os << "      ";
+	for (size_t y=0; y<hw.getCols(); ++y)
+	  os << hw(x, y) << " ";
+	os << endl;
+      }
+      os << "    </weight>" << endl;
+    }
+
+    os << "  </kernels>" << endl;
+  }
+  os << "</transform>" << endl;
+}
+
+ConvolutionalLayer* ConvolutionalLayer::clone() const {
+  return new ConvolutionalLayer(*this);
+}
+
+string ConvolutionalLayer::toString() const {
+  return "convolution";
 }
 
 /* FIXME If every element in fins is a single feature map, then only a data can
@@ -385,6 +551,35 @@ size_t ConvolutionalLayer::getNumOutputMaps() const {
 
 SubSamplingLayer::SubSamplingLayer(size_t m, size_t n, size_t scale)
   : MIMOFeatureTransform(m, n), _scale(scale) {
+}
+
+void SubSamplingLayer::read(xml_node<> *node) {
+  MIMOFeatureTransform::read(node);
+
+  auto attr = node->first_attribute("sample-rate");
+  if (!attr)
+    throw std::runtime_error("\33[31m[Error]\33[0m Missing sample-rate");
+  _scale = stol(attr->value());
+}
+
+void SubSamplingLayer::write(ostream& os) const {
+  ostringstream oss;
+  MIMOFeatureTransform::write(oss);
+
+  char buffer[256];
+  sprintf(buffer, "<transform type=\"%s\" sample-rate=\"%lu\" %s>",
+      "subsample", getScale(), oss.str().c_str());
+  os << buffer << endl;
+
+  os << "</transform>" << endl;
+}
+
+SubSamplingLayer* SubSamplingLayer::clone() const {
+  return new SubSamplingLayer(*this);
+}
+
+string SubSamplingLayer::toString() const {
+  return "subsample";
 }
 
 void SubSamplingLayer::status() const {

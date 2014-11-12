@@ -16,6 +16,12 @@
 #include <tools/rapidxml-1.13/rapidxml_utils.hpp>
 #include <tools/rapidxml-1.13/rapidxml_print.hpp>
 
+ostream& operator << (ostream& os, const DNN& dnn) {
+  for (size_t i=0; i<dnn._transforms.size(); ++i)
+    os << dnn._transforms[i];
+  return os;
+}
+
 DNN::DNN(): _transforms(), _config() {}
 
 DNN::DNN(string fn): _transforms(), _config() {
@@ -80,7 +86,7 @@ void DNN::status() const {
 
 }
 
-void DNN::read(string fn) {
+void DNN::read(const string& fn) {
 
   ifstream fin(fn.c_str());
 
@@ -93,7 +99,6 @@ void DNN::read(string fn) {
 
   _transforms.clear();
 
-  FeatureTransform* f;
 
   if (isXmlFormat(ss)) {
     rapidxml::xml_document<> doc;
@@ -109,6 +114,8 @@ void DNN::read(string fn) {
       string token = node->first_attribute("type")->value();
       FeatureTransform::Type type = FeatureTransform::token2type(token);
 
+      FeatureTransform* f = nullptr;
+
       switch (type) {
 	case FeatureTransform::Affine :
 	  f = new AffineTransform;
@@ -120,14 +127,12 @@ void DNN::read(string fn) {
 	  f = new Softmax;
 	  break;
 	case FeatureTransform::Convolution : 
-	  break;
 	case FeatureTransform::SubSample :
 	  break;
 	default:
 	  cerr << "\33[31m[Error]\33[0m Not such type " << token << endl;
 	  break;
       }
-      
 
       if (f) {
 	f->read(node);
@@ -139,19 +144,19 @@ void DNN::read(string fn) {
   else {
     clog << "\33[33m[Warning]\33[0m The original model format is \33[36mdeprecated\33[0m. "
       << "Please use XML format." << endl;
+    FeatureTransform* f;
     while ( ss >> f )
       _transforms.push_back(f);
   }
 }
 
-void DNN::save(string fn) const {
+void DNN::save(const string& fn) const {
   ofstream fout(fn.c_str());
 
   if (!fout.is_open())
     throw std::runtime_error("\33[31m[Error]\33[0m Cannot open file: " + fn);
 
-  for (size_t i=0; i<_transforms.size(); ++i)
-    fout << _transforms[i];
+  fout << *this;
   
   fout.close();
 }
