@@ -73,17 +73,49 @@ void DNN::status() const {
   
   const auto& t = _transforms;
 
-  size_t nAffines=0;
-  for (size_t i=0; i<t.size(); ++i)
-    nAffines += (t[i]->toString() == "AffineTransform");
+  int nHiddens = 0;
 
-  printf("\33[33m[INFO]\33[0m # of hidden layers: %2lu \n", nAffines == 0 ? 0 : nAffines - 1);
+  printf("._____._____________._____________________.____________.\n");
+  printf("|     |             |                     |            |\n");
+  printf("|     |  Transform  |  Feature Dimension  | Number of  |\n");
+  printf("| No. |             |_____________________|            |\n");
+  printf("|     |    Type     |          |          | Parameters |\n");
+  printf("|     |             |   Input  |  Output  |            |\n");
+  printf("|_____|_____________|__________|__________|____________|\n");
+  printf("|     |             |          |          |            |\n");
 
   for (size_t i=0; i<t.size(); ++i) {
-    printf("  %-16s %4lu x %4lu [%-2lu]\n", t[i]->toString().c_str(),
-	t[i]->getInputDimension(), t[i]->getOutputDimension(), i);
+    string type = t[i]->toString();
+    size_t in  = t[i]->getInputDimension(),
+	   out = t[i]->getOutputDimension();
+
+    bool isAffine = (type == "Affine");
+    if (isAffine)
+      ++nHiddens;
+
+    float nParams = isAffine ? (in * out + out) : 0;
+
+    char nParamStr[12] = {'\0'};
+    if (nParams > 1e8)
+      sprintf(nParamStr, "~ %6.3f G", nParams / 1e9);
+    else if (nParams > 1e5)
+      sprintf(nParamStr, "~ %6.3f M", nParams / 1e6);
+    else if (nParams > 1e2)
+      sprintf(nParamStr, "~ %6.3f K", nParams / 1e3);
+    else if (nParams > 0)
+      sprintf(nParamStr, "  %5d   ", (int) nParams);
+
+    printf("|  %s%-2lu%s |  %s%-9s%s  |  %s%6lu%s  |  %s%6lu%s  | %10s |\n",
+	isAffine ? "" : "\33[2m", i	      , "\33[0m",
+	isAffine ? "" : "\33[2m", type.c_str(), "\33[0m",
+	isAffine ? "" : "\33[2m", in	      , "\33[0m",
+	isAffine ? "" : "\33[2m", out	      , "\33[0m", nParamStr);
   }
 
+  printf("|_____|_____________|__________|__________|____________|\n");
+
+  nHiddens = std::max(0, nHiddens - 1);
+  printf("Number of hidden layers: %2d \n", nHiddens);
 }
 
 void DNN::read(const string& fn) {
@@ -174,8 +206,10 @@ const std::vector<FeatureTransform*>& DNN::getTransforms() const {
 // ========================
 
 void DNN::adjustLearningRate(float trainAcc) {
-  static size_t phase = 0;
 
+  // TODO Use AdaGrad instead. And don't print anything.
+  
+  /*static size_t phase = 0;
   if ( (trainAcc > 0.80 && phase == 0) ||
        (trainAcc > 0.85 && phase == 1) ||
        (trainAcc > 0.90 && phase == 2) ||
@@ -188,7 +222,7 @@ void DNN::adjustLearningRate(float trainAcc) {
     printf("\33[33m[Info]\33[0m Adjust learning rate from \33[32m%.7f\33[0m to \33[32m%.7f\33[0m\n", _config.learningRate, _config.learningRate * ratio);
     _config.learningRate *= ratio;
     ++phase;
-  }
+  }*/
 }
 
 mat DNN::feedForward(const mat& fin) const {

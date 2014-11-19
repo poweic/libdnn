@@ -221,7 +221,7 @@ void swap(BasicStream& a, BasicStream& b) {
  * implementation of Kaldi DataStream
  *
  * */
-string read_docid(FILE* fid) {
+string read_uid(FILE* fid) {
   char buffer[512];
   int result = fscanf(fid, "%s ", buffer);
 
@@ -256,7 +256,8 @@ void KaldiStream::init(size_t start, size_t end) {
   printf("Reading label from \33[33m\"%s\"\33[0m\n", this->get_label_command().c_str());
 
   // Use wc to count # of features
-  string wc_count_lines = this->get_feature_command() + "| feat-to-len ark:- ark,t:- | cut -f 2 -d ' '";
+  string wc_count_lines = this->get_feature_command() +
+    "| feat-to-len --print-args=false ark:- ark,t:- | cut -f 2 -d ' '";
   FILE* fid = popen(wc_count_lines.c_str(), "r");
 
   int x;
@@ -286,26 +287,32 @@ BatchData KaldiStream::read(int N, size_t dim, size_t base) {
   while (true) {
 
     if (r == 0) {
-      string docid1, docid2;
-      docid1 = read_docid(fis);
-      docid2 = read_docid(lis);
+      string uid1, uid2;
+      uid1 = read_uid(fis);
+      uid2 = read_uid(lis);
 
-      if (docid1.empty() or docid2.empty()) {
+      if (uid1.empty() or uid2.empty()) {
 	this->rewind();
-	docid1 = read_docid(fis);
-	docid2 = read_docid(lis);
+	uid1 = read_uid(fis);
+	uid2 = read_uid(lis);
       }
 
-      if (docid1 != docid2)
-	throw std::runtime_error(RED_ERROR + "Cannot find " + docid2 + " in label");
+      if (uid1 != uid2)
+	throw std::runtime_error(RED_ERROR + "uid1 != uid2 (\"" + uid1 + "\" != \"" + uid2 + "\")");
 
       char s[6]; 
       int frame;
+      int dimension;
 
       CFRE(fread((void*) s, 6, 1, fis));
       CFRE(fread((void*) &frame, 4, 1, fis));
       CFRE(fread((void*) s, 1, 1, fis));
-      CFRE(fread((void*) s, 4, 1, fis));
+      CFRE(fread((void*) &dimension, 4, 1, fis));
+
+      if (dimension != (int) dim)
+	throw std::runtime_error(RED_ERROR + "feature dimension in kaldi archive (=" +
+	    to_string(dimension) + ") does not match --input-dim (=" +
+	    to_string(dim) + ").");
 
       r = frame;
     }

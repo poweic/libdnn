@@ -137,8 +137,6 @@ int main(int argc, char* argv[]) {
   cnn.status();
   dnn.status();
 
-  fclose(stderr);
-
   if (model_out.empty())
     model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
@@ -193,10 +191,8 @@ void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
     printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu ), elapsed %.3f seconds.\n",
       epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid, (timer.getTime() - t_start) / 1000); 
 
-    save_model(cnn, dnn, model_out + "." + to_string(epoch));
+    // save_model(cnn, dnn, model_out + "." + to_string(epoch));
     t_start = timer.getTime();
-
-    exit(-1);
   }
 
   timer.elapsed();

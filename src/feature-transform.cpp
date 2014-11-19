@@ -85,8 +85,10 @@ istream& operator >> (istream& is, FeatureTransform* &ft) {
     ft = new Sigmoid(is);
   else if (type == "<SOFTMAX>")
     ft = new Softmax(is);
-  else 
+  else {
     ft = NULL;
+    while (is >> type);
+  }
 
   return is;
 }
@@ -185,8 +187,8 @@ void AffineTransform::read(istream& is) {
   CSE(is >> dummy);
 
   _w = (mat) hw;
-  _input_dim = _w.getRows();
-  _output_dim = _w.getCols();
+  _input_dim = rows;
+  _output_dim = cols;
 }
 
 void AffineTransform::write(ostream& os) const {

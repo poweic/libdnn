@@ -78,16 +78,9 @@ int main (int argc, char* argv[]) {
   size_t cache_size   = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
 
-  // Set configurations
-  Config config;
-  config.learningRate = learningRate;
-  config.minValidAccuracy = minValidAcc;
-  config.maxEpoch = maxEpoch;
-  config.print();
-
   // Load model
   DNN dnn(model_in);
-  dnn.setConfig(config);
+  dnn.status();
 
   // Load data
   DataSet train, valid;
@@ -103,6 +96,14 @@ int main (int argc, char* argv[]) {
 
   train.showSummary();
   valid.showSummary();
+
+  // Set configurations
+  Config config;
+  config.learningRate = learningRate;
+  config.minValidAccuracy = minValidAcc;
+  config.maxEpoch = maxEpoch;
+  config.print();
+  dnn.setConfig(config);
 
   // Start Training
   ERROR_MEASURE err = CROSS_ENTROPY;
@@ -176,7 +177,7 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
 
     float time = etimer.getTime() / 1000;
 
-    printf("|%4lu   |  %.2f %% |  %7lu     |  %.2f %% |  %7lu     |  %8.2f |\n",
+    printf("|%4lu   | %6.2f %% |  %7lu     | %6.2f %% |  %7lu     |  %8.2f |\n",
       epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eout[epoch], time);
 
     if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
