@@ -20,6 +20,12 @@
 #define CSE(x) { if (!(x)) \
   throw std::runtime_error("\33[31m[Error]\33[0m Failed when executing \33[33m"#x"\33[0m"); }
 
+#define VECTOR std::vector
+#define WHERE std
+#include <operators.inl>
+#undef VECTOR
+#undef WHERE
+
 /*!
  * Implementation of MIMOFeatureTransform goes here.
  */
@@ -510,15 +516,14 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
   auto Y = reshapeVectors2Images(vercat(deltas), SIZE(deltas[0].getRows(), nOutputs));
 
   // Update kernels with learning rate
-  for (size_t k=0; k<batch_size; ++k) {
+  vector<mat> Z(nInputs, mat(this->get_kernel_size().area(), nOutputs, 0));
 
-    for (size_t i=0; i<nInputs; ++i) {
-      auto Z = reshapeVectors2Images(convn_2(rot180(iImgs[i][k]), Y[k], this->get_output_img_size()), this->get_kernel_size());
-      
-      for (size_t j=0; j<nOutputs; ++j)
-	_kernels[i][j] -= Z[j];
-    }
-  }
+  for (size_t i=0; i<nInputs; ++i)
+    for (size_t k=0; k<batch_size; ++k)
+      Z[i] += convn_2(rot180(iImgs[i][k]), Y[k], this->get_output_img_size());
+
+  for (size_t i=0; i<nInputs; ++i)
+    _kernels[i] -= reshapeVectors2Images(Z[i], this->get_kernel_size());
 
   for (size_t j=0; j<nOutputs; ++j)
     _bias[j] -= sum_all(deltas[j]);

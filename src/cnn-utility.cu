@@ -789,21 +789,26 @@ mat upsample(const mat& x, SIZE s) {
   return output;
 }
 
+template <typename T>
+__global__ void rot180_kernel(T *odata, const T *idata, const int rows, const int cols) {
+
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x < cols && y < rows)
+    odata[x*rows + y] = idata[(cols - 1 - x) * rows+ (rows - 1 - y)];
+}
+
 mat rot180(const mat& x) {
-  // FIXME 我偷懶。我先講求正確性，丟到host用double for loop轉，轉完再塞回device
 
   int rows = x.getRows(),
       cols = x.getCols();
 
-  hmat h_x(x), h_y(rows, cols);
+  mat y(rows, cols);
+  ALLOCATE_GRIDS_AND_THREADS(rows, cols);
+  rot180_kernel<<<grids, threads>>>(y.getData(), x.getData(), rows, cols);
 
-  for (size_t i=0; i<rows; ++i) {
-    for (size_t j=0; j<cols; ++j) {
-      h_y(i, j) = h_x(rows - 1 - i, cols - 1 - j);
-    }
-  }
-
-  return (mat) h_y;
+  return y;
 }
 
 /* ! \brief Sum all the elements in a matrix.

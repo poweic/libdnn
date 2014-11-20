@@ -25,6 +25,8 @@ struct SIZE {
   SIZE operator * (size_t x) const { return SIZE(m * x, n * x); }
   SIZE operator / (size_t x) const { return SIZE(m / x, n / x); }
 
+  size_t area() const { return m * n; }
+
   friend SIZE max(const SIZE& s1, const SIZE& s2) {
     return SIZE(max(s1.m, s2.m), max(s1.n, s2.n));
   }
