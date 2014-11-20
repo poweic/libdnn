@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
 	"2 -- Normalize to standard score. z = (x-u)/sigma ."
 	"filename -- Read mean and variance from file", "0")
      .add("--base", "Label id starts from 0 or 1 ?", "0")
-     .add("--output-dim", "specify the output dimension (the # of class to predict).\n");
+     .add("--output-dim", "specify the output dimension (the # of class to predict).\n", "");
 
   cmd.addGroup("Network structure:")
      .add("--struct",
@@ -83,7 +83,6 @@ int main(int argc, char* argv[]) {
 
   NormType n_type   = (NormType) (int) cmd["--normalize"];
   int base	    = cmd["--base"];
-  size_t output_dim = cmd["--output-dim"];
 
   int ratio	      = cmd["-v"];
   size_t batchSize    = cmd["--batch-size"];
@@ -121,8 +120,10 @@ int main(int argc, char* argv[]) {
   DNN dnn;
 
   if (model_in.empty()) {
-    // Parse structure
     string structure  = cmd["--struct"];
+    size_t output_dim = cmd["--output-dim"];
+
+    // Parse structure
     string cnn_struct, nn_struct;
     parseNetworkStructure(structure, cnn_struct, nn_struct);
 

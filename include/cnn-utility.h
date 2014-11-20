@@ -51,6 +51,7 @@ __global__ void upsample_kernel(float *dst, float *src, size_t scale, int H, int
 SIZE get_convn_size(SIZE data, SIZE kernel, ConvType type = FULL);
 SIZE get_convn_size(const mat& data, const mat& kernel, ConvType type = FULL);
 
+mat convn_2(const mat& data, const mat& kernel, SIZE k);
 mat convn(const mat& data, const mat& kernel, SIZE s, ConvType type);
 mat convn(const mat& data, const mat& kernel, ConvType type = FULL);
 // mat xcorrn(const mat& data, const mat& kernel, ConvType type = FULL);

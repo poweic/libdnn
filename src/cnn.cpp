@@ -498,27 +498,30 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
 
   assert(learning_rate > 0);
   float lr = learning_rate / batch_size;
+  for (auto &d: deltas)
+    d *= lr;
 
   // iImgs represents the input images.
-  // oImgs represents the output images. (Before sigmoid or any other activation function)
-  vector<vector<mat> > iImgs(nInputs), oImgs(nOutputs);
+  vector<vector<mat> > iImgs(nInputs);
 
   for (size_t i=0; i<nInputs; ++i)
     iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
 
-  for (size_t j=0; j<nOutputs; ++j)
-    oImgs[j] = reshapeVectors2Images(deltas[j], this->get_output_img_size());
+  auto Y = reshapeVectors2Images(vercat(deltas), SIZE(deltas[0].getRows(), nOutputs));
 
   // Update kernels with learning rate
   for (size_t k=0; k<batch_size; ++k) {
-    for (size_t j=0; j<nOutputs; ++j) {
 
-      for (size_t i=0; i<nInputs; ++i)
-	_kernels[i][j] -= convn(rot180(iImgs[i][k]), oImgs[j][k], VALID_SHM) * lr;
-
-      _bias[j] -= sum_all(oImgs[j][k]) * lr;
+    for (size_t i=0; i<nInputs; ++i) {
+      auto Z = reshapeVectors2Images(convn_2(rot180(iImgs[i][k]), Y[k], this->get_output_img_size()), this->get_kernel_size());
+      
+      for (size_t j=0; j<nOutputs; ++j)
+	_kernels[i][j] -= Z[j];
     }
   }
+
+  for (size_t j=0; j<nOutputs; ++j)
+    _bias[j] -= sum_all(deltas[j]);
 }
 
 void ConvolutionalLayer::status() const {
@@ -528,17 +531,21 @@ void ConvolutionalLayer::status() const {
       getNumInputMaps(), getNumOutputMaps(), getKernelWidth(), getKernelHeight());
 }
 
+SIZE ConvolutionalLayer::get_output_img_size() const {
+  SIZE kernel(getKernelHeight(), getKernelWidth());
+  return get_convn_size(_input_img_size, kernel, VALID);
+}
+
+SIZE ConvolutionalLayer::get_kernel_size() const {
+  return SIZE(_kernels[0][0].getRows(), _kernels[0][0].getCols());
+}
+
 size_t ConvolutionalLayer::getKernelWidth() const {
   return _kernels[0][0].getCols();
 }
 
 size_t ConvolutionalLayer::getKernelHeight() const {
   return _kernels[0][0].getRows();
-}
-
-SIZE ConvolutionalLayer::get_output_img_size() const {
-  SIZE kernel(getKernelHeight(), getKernelWidth());
-  return get_convn_size(_input_img_size, kernel, VALID);
 }
 
 /*size_t ConvolutionalLayer::getNumInputMaps() const {

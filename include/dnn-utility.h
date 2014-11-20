@@ -120,6 +120,18 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
 }
 
 template <typename T>
+device_matrix<T> vercat(const vector<device_matrix<T> >& matrices) {
+  size_t rows = matrices[0].getRows(),
+  cols = matrices[0].getCols(),
+  step = matrices[0].size();
+
+  mat result(matrices.size() * rows, cols);
+  for (size_t j=0; j<matrices.size(); ++j)
+    memcpy2D<T>(result, matrices[j], 0, 0, rows, cols, j*rows, 0);
+  return result;
+}
+
+template <typename T>
 void fillLastColumnWith(device_matrix<T>& A, const T value);
 
 // convert a linear index to a row index

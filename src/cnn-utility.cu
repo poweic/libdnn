@@ -149,6 +149,53 @@ __device__ void load_kernel_into_shm(float* const K, const float* const kernel, 
   }
 }
 
+__global__ void convn_valid_kernel_with_shm2(float *output, const float *data,
+  float *kernel, const int H, const int W, const int kH, const int kW) { 
+
+  __CUDA_CONSTANTS__;
+
+  // vH, vW stands for valid H and valid W
+  const int vH = H - kH + 1, vW = W - kW + 1;
+
+  kernel += blockIdx.z * kH * kW;
+  output += blockIdx.z * vH * vW;
+
+  extern __shared__ float K[];
+
+  // Copy kernel in global memory to shared memory
+  load_kernel_into_shm(K, kernel, kH, kW, tid, nThreads);
+
+  // Copy data in global memory to shared memory
+  float* D = K + kW * kH;
+  int WIDTH_STEP = blockDim.x + kW - 1,
+      HEIGHT_STEP = blockDim.y + kH - 1;
+
+  int nTotal = WIDTH_STEP * HEIGHT_STEP;
+  int avgToLoad  = nTotal / nThreads + 1;
+
+  for (int i=0; i<avgToLoad; ++i) {
+    int id = tid + i * nThreads;
+
+    if (id >= nTotal) break;
+
+    int xx = id / HEIGHT_STEP + x0,
+	yy = id % HEIGHT_STEP + y0;
+
+    if (xx >= W || yy >= H) continue;
+
+    D[id] = data[ xx * H + yy ];
+  }
+  __syncthreads();
+
+  float sum = 0;
+  for (int i = 0; i < kW; ++i)
+    for(int j = 0; j < kH; ++j)
+      sum += K[ i * kH + j ] * D[ (tx + i) * HEIGHT_STEP + (ty + j) ]; 
+
+  if (x < vW && y < vH)
+    output[ x * vH + y ] = sum;
+} 
+
 __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
   float *kernel, const int H, const int W, const int kH, const int kW) { 
 
@@ -379,6 +426,37 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
   return SHM_SIZE;
 }
 
+// Single data with Multiple kernels
+mat convn_2(const mat& data, const mat& kernels, SIZE k) {
+
+  SIZE d(data.getRows(), data.getCols());
+
+  SIZE imgOut = get_convn_size(d, k, VALID_SHM);
+
+  if ( kernels.getRows() != k.m * k.n )
+    throw std::runtime_error(RED_ERROR + DEBUG_STR(data.getRows()) + DEBUG_STR(k.m) + DEBUG_STR(k.n));
+
+  // i.e. batch_size
+  int N = kernels.getCols();
+
+  mat output(imgOut.m * imgOut.n, N);
+
+  ALLOCATE_GRIDS_AND_THREADS(imgOut.m, imgOut.n);
+  grids.z = N;
+
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, k.m, k.n);
+
+  convn_valid_kernel_with_shm2<<< grids, threads, SHM_SIZE, 0 >>>(
+      output.getData(),
+      data.getData(),
+      kernels.getData(),
+      d.m, d.n, k.m, k.n);
+
+  CCE(cudaPeekAtLastError());
+
+  return output;
+}
+
 /* \brief compute convolution of a batch of data with a kernel.
  * \param data a batch of data, where the batch-size equals to data.getCols()
  * \param kernel the convolutional kernel (i.e. system's impulse response)
@@ -395,7 +473,7 @@ mat convn(const mat& data, const mat& kernel, SIZE imgIn, ConvType type) {
   SIZE imgOut = get_convn_size(imgIn, SIZE(kH, kW), type);
 
   if ( data.getRows() != H * W )
-    throw std::runtime_error(DEBUG_STR(data.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
+    throw std::runtime_error(RED_ERROR + DEBUG_STR(data.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
 
   // i.e. batch_size
   int N = data.getCols();

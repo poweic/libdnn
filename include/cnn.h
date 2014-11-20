@@ -108,6 +108,7 @@ public:
 
   virtual void status() const;
 
+  SIZE get_kernel_size() const;
   size_t getKernelWidth() const;
   size_t getKernelHeight() const;
 
