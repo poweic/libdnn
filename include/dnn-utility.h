@@ -54,8 +54,8 @@ typedef void (*Operation)(float&, curandState*);
 __global__ void setupCuRandState( curandState * state, unsigned long seed );
 
 enum UNIT_TYPE {
-  BERNOULLI,
-  GAUSSIAN
+  BERNOULLI = 1,
+  GAUSSIAN = 2
 };
 
 void sample(mat &prob, UNIT_TYPE type);

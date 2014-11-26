@@ -106,10 +106,10 @@ void DNN::status() const {
       sprintf(nParamStr, "  %5d   ", (int) nParams);
 
     printf("|  %s%-2lu%s |  %s%-9s%s  |  %s%6lu%s  |  %s%6lu%s  | %10s |\n",
-	isAffine ? "" : "\33[2m", i	      , "\33[0m",
-	isAffine ? "" : "\33[2m", type.c_str(), "\33[0m",
-	isAffine ? "" : "\33[2m", in	      , "\33[0m",
-	isAffine ? "" : "\33[2m", out	      , "\33[0m", nParamStr);
+	isAffine ? "" : "\33[1;30m", i		 , "\33[0m",
+	isAffine ? "" : "\33[1;30m", type.c_str(), "\33[0m",
+	isAffine ? "" : "\33[1;30m", in		 , "\33[0m",
+	isAffine ? "" : "\33[1;30m", out	 , "\33[0m", nParamStr);
   }
 
   printf("|_____|_____________|__________|__________|____________|\n");

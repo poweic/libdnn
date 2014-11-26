@@ -27,21 +27,44 @@ ostream& operator << (ostream& os, const UNIT_TYPE& type) {
  *
  * */
 
-const float StackedRbm::initial_momentum = 0.5;
-const float StackedRbm::final_momentum = 0.9;
-const float StackedRbm::L2_penalty = 0.0002;
+StackedRbm::StackedRbm(const vector<size_t>& dims)
+  : _dims(dims), _max_epoch(128), _slope_thres(0.05), _learning_rate(0.1),
+  _initial_momentum(0.5), _final_momentum(0.9), _l2_penalty(0.0002) {
 
-StackedRbm::StackedRbm(UNIT_TYPE vis_type, const vector<size_t>& dims,
-    float slopeThres, float learning_rate)
-  : _vis_type(vis_type), _dims(dims), _slopeThres(slopeThres), _learning_rate(learning_rate) {
+    _weights.resize(_dims.size() - 1);
+
+    for (size_t i=0; i<_weights.size(); ++i) {
+      size_t m = _dims[i] + 1,
+	     n = _dims[i + 1] + 1;
+
+      _weights[i] = randn(m, n) * sqrt(0.1 / n);
+    }
 }
 
-void StackedRbm::train(DataSet& data) {
+void StackedRbm::setParams(size_t max_epoch, float slope_thres, float learning_rate,
+    float initial_momentum, float final_momentum, float l2_penalty) {
 
-  _weights.resize(_dims.size() - 1);
+  _max_epoch = max_epoch;
+  _slope_thres = slope_thres;
+  _learning_rate = learning_rate;
+  _initial_momentum = initial_momentum;
+  _final_momentum = final_momentum;
+  _l2_penalty = l2_penalty;
+}
+
+void StackedRbm::printParams() const {
+  printf("_max_epoch = %lu\n", _max_epoch);
+  printf("_slope_thres = %f\n", _slope_thres);
+  printf("_learning_rate = %f\n", _learning_rate);
+  printf("_initial_momentum = %f\n", _initial_momentum);
+  printf("_final_momentum = %f\n", _final_momentum);
+  printf("_l2_penalty = %f\n", _l2_penalty);
+}
+
+void StackedRbm::train(DataSet& data, UNIT_TYPE vis_type) {
 
   // FIXME For NOW, hidden units are only allowed to be Bernoulli
-  UNIT_TYPE vis_type = _vis_type, hid_type = BERNOULLI;
+  UNIT_TYPE hid_type = BERNOULLI;
 
   // If vis_type is Bernoulli, make sure the visible units have values in the
   // range [0, 1]. If the values scatter over a wide range and has a Gaussian
@@ -51,9 +74,6 @@ void StackedRbm::train(DataSet& data) {
     assert(ext::max(data.getX()) <= 1 && ext::min(data.getX()) >= 0);*/
   
   for (size_t i=0; i<_weights.size(); ++i) {
-
-    _weights[i].resize(_dims[i] + 1, _dims[i + 1] + 1);
-
     this->rbm_train(data, i, vis_type, hid_type);
 
     vis_type = hid_type;
@@ -193,28 +213,25 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
   size_t batch_size = nData < 1024 ? (nData / 10) : 1024;
 
   mat &W = _weights[layer];
+  mat dW(W.getRows(), W.getCols(), 0);
 
-  size_t m = _dims[layer] + 1,
-	 n = _dims[layer + 1] + 1;
-
-  W = randn(m, n) * sqrt(0.1 / n);
-  mat dW(m, n, 0);
-
-  size_t minEpoch = 5, maxEpoch = 32;
+  const size_t minEpoch = 5;
 
   vector<float> errors;
 
   float initialSlope = 0;
 
-  ProgressBar pBar("( | Δ free energy | = ...     , reconstruction error = ...      )");
+  ProgressBar pBar;
+  if (_max_epoch != 0)
+    pBar = ProgressBar("( | Δ free energy | = ...     , reconstruction error = ...      )");
 
   perf::Timer timer;
   timer.start();
 
   size_t epoch;
-  for (epoch=0; epoch < maxEpoch; ++epoch) {
+  for (epoch=0; epoch < _max_epoch; ++epoch) {
 
-    float momentum = (epoch <= 5) ? initial_momentum : final_momentum;
+    float momentum = (epoch <= 5) ? _initial_momentum : _final_momentum;
 
     Batches batches(batch_size, nData);
     for (Batches::iterator itr = batches.begin() + 1; itr != batches.end(); ++itr) {
@@ -248,7 +265,7 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
 
       dW = dW * momentum				// momentum
 	+ (lr / batch_size) * (positive - negative)	// gradient of CD
-	- (lr * L2_penalty) * W;			// gradient of L2-penalty
+	- (lr * _l2_penalty) * W;			// gradient of L2-penalty
 
       W += dW;
     }
@@ -262,21 +279,21 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
 
     if (epoch > minEpoch) {
       float ratio = abs(getSlope(errors, minEpoch) / initialSlope);
-      float percentage = (epoch == maxEpoch - 1) ? 1.0 : std::min(1.0f, _slopeThres / ratio);
+      float percentage = (epoch == _max_epoch - 1) ? 1.0 : std::min(1.0f, _slope_thres / ratio);
 
       char status[100];
       sprintf(status, "( | Δ free energy | = %.2e, reconstruction error = %.2e )", fe_gap, error);
 
       pBar.refresh(percentage, status);
 
-      if (ratio < _slopeThres)
+      if (ratio < _slope_thres)
 	break;
     }
   }
 
   float t_end = timer.getTime();
   printf("Average magnitude of elements in weight W = %.7f\n", nrm2(W) / sqrt(W.size()));
-  printf("# of epoch = %lu, average time for each epoch = %f\n", epoch, t_end / epoch);
+  printf("# of epoch = %lu, average time for each epoch = %f\n\n", epoch, t_end / epoch);
 }
 
 void StackedRbm::save(const string& fn) {
@@ -312,6 +329,8 @@ void StackedRbm::save(const string& fn) {
   delete activation;
 
   fout.close();
+
+  printf("\33[34m[Info]\33[0m Model saved to \33[32m%s\33[0m\n", fn.c_str());
 }
 
 vector<size_t> StackedRbm::parseDimensions(

@@ -39,16 +39,21 @@ int main (int argc, char* argv[]) {
      .add("--nodes", "specify the width(nodes) of each hidden layer seperated by \"-\":\n"
 	"Ex: 1024-1024-1024 for 3 hidden layer, each with 1024 nodes. \n"
 	"(Note: This does not include input and output layer)")
-     .add("--output-dim", "specify the output dimension (# of classes).\n", "0");
+     .add("--output-dim", "specify the output dimension (# of classes).", "0");
 
   cmd.addGroup("Pre-training options:")
      .add("--type", "type of Pretraining. Choose one of the following:\n"
-	"0 -- Bernoulli-Bernoulli RBM\n"
-	"1 -- Gaussian-Bernoulli  RBM", "0")
-     .add("--slope-thres", "threshold of ratio of slope in RBM pre-training", "0.05")
+	"0 -- Don't train, initialize with randn(m, n) only.\n"
+	"1 -- Bernoulli-Bernoulli RBM\n"
+	"2 -- Gaussian-Bernoulli  RBM", "0")
      .add("--batch-size", "number of data per mini-batch", "32")
+     .add("--max-epoch", "number of maximum epochs", "128")
+     .add("--slope-thres", "threshold of ratio of slope in RBM pre-training", "0.05")
      .add("--learning-rate", "specify learning rate in constrastive divergence "
-	 "algorithm", "0.1");
+	 "algorithm", "0.1")
+     .add("--init-momentum", "initial momentum.", "0.5")
+     .add("--final-momentum", "final momentum.", "0.9")
+     .add("--l2-penalty", "L2 penalty", "0.0002");
 
   cmd.addGroup("Hardward options:")
      .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
@@ -68,9 +73,13 @@ int main (int argc, char* argv[]) {
   string structure  = cmd["--nodes"];
   size_t output_dim = cmd["--output-dim"];
 
-  UNIT_TYPE type  = UNIT_TYPE ((int) cmd["--type"]);
-  float slopeThres    = cmd["--slope-thres"];
+  int type = cmd["--type"];
+  size_t max_epoch    = cmd["--max-epoch"];
+  float slope_thres   = cmd["--slope-thres"];
   float learning_rate = cmd["--learning-rate"];
+  float init_momentum	= cmd["--init-momentum"];
+  float final_momentum	= cmd["--final-momentum"];
+  float l2_penalty	= cmd["--l2-penalty"];
 
   size_t cache_size   = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
@@ -87,8 +96,12 @@ int main (int argc, char* argv[]) {
   auto dims = StackedRbm::parseDimensions(input_dim, structure, output_dim);
 
   // Initialize using RBM
-  StackedRbm srbm(type, dims, slopeThres, learning_rate);
-  srbm.train(data);
+  StackedRbm srbm(dims);
+  srbm.setParams(max_epoch, slope_thres, learning_rate, init_momentum, final_momentum, l2_penalty);
+
+  if (type != 0)
+    srbm.train(data, (UNIT_TYPE) type);
+
   srbm.save(model_fn);
 
   return 0;
