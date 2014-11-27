@@ -133,8 +133,11 @@ void DataSet::setLabelBase(int base) {
 }
 
 void DataSet::rewind() {
-  if (f_data.valid())
+  if (f_data.valid()) {
     f_data.wait();
+    auto throwaway = f_data.get();
+  }
+  
   _stream->rewind();
 }
 

@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <cassert>
 
-#define CFRE(x) { if (!x) throw std::runtime_error(RED_ERROR + "Failed when read features"); }
+#define CFRE(x) { if (x == 0) throw std::runtime_error(RED_ERROR + "Failed when read features. "); }
 
 /* \brief Factory method for class DataStream
  *
@@ -344,6 +344,8 @@ void KaldiStream::rewind() {
 
   pclose(_lfid);
   _lfid = popen(this->get_label_command().c_str(), "r");
+  
+  this->_remained = 0;
 }
 
 string KaldiStream::get_feature_command() const {

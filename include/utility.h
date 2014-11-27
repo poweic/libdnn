@@ -16,13 +16,12 @@ typedef device_matrix<float> mat;
 #define float_min std::numeric_limits<float>::min()
 #define float_max std::numeric_limits<float>::max()
 
-#define RED_ERROR (string("\33[31m[ERROR]\33[0m In function \"") \
+#define _ERROR_WHERE_ (string("In function \"") \
     + __func__ + string("\" (at ") + __FILE__ + string(":") \
     + to_string(__LINE__) + string("): "))
 
-#define YELLOW_WARNING (string("\33[33m[WARNING]\33[0m In function \"") \
-    + __func__ + string("\" (at ") + __FILE__ + string(":") \
-    + to_string(__LINE__) + string("): "))
+#define RED_ERROR (string("\33[31m[ERROR]\33[0m " + _ERROR_WHERE_ ))
+#define YELLOW_WARNING (string("\33[33m[WARNING]\33[0m " + _ERROR_WHERE_ ) )
 
 #ifdef DEBUG
 #define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }

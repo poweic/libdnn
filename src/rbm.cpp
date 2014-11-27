@@ -293,7 +293,7 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
 
   float t_end = timer.getTime();
   printf("Average magnitude of elements in weight W = %.7f\n", nrm2(W) / sqrt(W.size()));
-  printf("# of epoch = %lu, average time for each epoch = %f\n\n", epoch, t_end / epoch);
+  printf("# of epoch = %lu. Average time for each epoch = %f (seconds)\n\n", epoch, t_end / epoch / 1000);
 }
 
 void StackedRbm::save(const string& fn) {
