@@ -163,8 +163,10 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
       dnn.backPropagate(error, data.x, fout, lr);
     }
 
+    dnn.setDropout(false);
     Ein = dnn_predict(dnn, train, errorMeasure);
     Eout.push_back(dnn_predict(dnn, valid, errorMeasure));
+    dnn.setDropout(true);
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 

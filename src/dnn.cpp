@@ -158,6 +158,9 @@ void DNN::read(const string& fn) {
 	case FeatureTransform::Softmax :
 	  f = new Softmax;
 	  break;
+	case FeatureTransform::Dropout :
+	  f = new Dropout;
+	  break;
 	case FeatureTransform::Convolution : 
 	case FeatureTransform::SubSample :
 	  break;
@@ -189,8 +192,10 @@ void DNN::save(const string& fn) const {
     throw std::runtime_error("\33[31m[Error]\33[0m Cannot open file: " + fn);
 
   fout << *this;
-  
+
   fout.close();
+
+  printf("\33[34m[Info]\33[0m Model saved to \33[32m%s\33[0m\n", fn.c_str());
 }
 
 std::vector<FeatureTransform*>& DNN::getTransforms() {
@@ -223,6 +228,17 @@ void DNN::adjustLearningRate(float trainAcc) {
     _config.learningRate *= ratio;
     ++phase;
   }*/
+}
+
+void DNN::setDropout(bool flag) {
+  auto& t = _transforms;
+  for (size_t i=0; i<t.size(); ++i) {
+    string type = t[i]->toString();
+    if (type != "Dropout")
+      continue;
+
+    dynamic_cast<Dropout*>(t[i])->setDropout(flag);
+  }
 }
 
 mat DNN::feedForward(const mat& fin) const {

@@ -18,7 +18,7 @@ public:
   virtual size_t getInputDimension() const { return _input_dim; }
   virtual size_t getOutputDimension() const { return _output_dim; }
 
-  virtual void read(xml_node<> *node) = 0;
+  virtual void read(xml_node<> *node);
   virtual void read(istream& is) = 0;
   virtual void write(ostream& os) const = 0;
 
@@ -29,6 +29,7 @@ public:
     Affine,
     Sigmoid,
     Softmax,
+    Dropout,
     Convolution,
     SubSample
   };
@@ -52,8 +53,6 @@ public:
   AffineTransform(size_t input_dim, size_t output_dim);
   AffineTransform(const mat& w);
   AffineTransform(istream& is);
-
-  // AffineTransform& operator = (const AffineTransform& rhs) = delete;
 
   virtual void read(xml_node<> *node);
   virtual void read(istream& is);
@@ -79,11 +78,11 @@ public:
   Activation();
   Activation(size_t input_dim, size_t output_dim);
 
-  // Activation& operator = (const Activation& rhs) = delete;
-
   virtual void read(xml_node<> *node);
   virtual void read(istream& is);
   virtual void write(ostream& os) const;
+
+  void dropout(mat& fout);
 };
 
 class Sigmoid : public Activation {
@@ -91,8 +90,6 @@ public:
   Sigmoid() {}
   Sigmoid(size_t input_dim, size_t output_dim);
   Sigmoid(istream& is);
-
-  // Sigmoid& operator = (const Sigmoid& rhs) = delete;
 
   virtual Sigmoid* clone() const;
   virtual string toString() const;
@@ -106,12 +103,34 @@ public:
   Softmax(size_t input_dim, size_t output_dim);
   Softmax(istream& is);
 
-  // Softmax& operator = (const Softmax& rhs) = delete;
-
   virtual Softmax* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+};
+
+class Dropout : public Activation {
+public:
+  Dropout();
+  Dropout(size_t input_dim, size_t output_dim);
+  Dropout(istream& is);
+
+  virtual void read(xml_node<> *node);
+  virtual void write(ostream& os) const;
+
+  virtual Dropout* clone() const;
+  virtual string toString() const;
+  virtual void feedForward(mat& fout, const mat& fin);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+
+  void setDropout(bool flag) { _dropout = flag; }
+
+private:
+  /* \brief _dropout_ratio means how many values will be turned off. (in %)
+   */
+  float _dropout_ratio;
+  bool _dropout;
+  mat _dropout_mask;
 };
 
 #endif // _FEATURE_TRANSFORM_H_

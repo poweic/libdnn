@@ -18,6 +18,7 @@ public:
   DNN& operator = (DNN rhs);
 
   void init(const std::vector<mat>& weights);
+  void setDropout(bool flag);
 
   mat feedForward(const mat& fin) const;
   void feedForward(mat& output, const mat& fin);

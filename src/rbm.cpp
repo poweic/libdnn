@@ -136,6 +136,7 @@ float StackedRbm::getReconstructionError(DataSet& data, const mat& W,
 
     // Sampling
     sample(h1, hid_type);
+    fill_bias(h1);
 
     // Down propagation
     down_propagate(W, v2, h1, vis_type);
@@ -252,6 +253,7 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
 
       // Sampling
       sample(h1, hid_type);
+      fill_bias(h1);
 
       // Down-and-Up propagation
       down_propagate(W, v2, h1, vis_type);

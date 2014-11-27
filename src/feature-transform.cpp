@@ -22,6 +22,7 @@ std::map<FeatureTransform::Type, string> FeatureTransform::type2token = {
   {FeatureTransform::Affine, "affine"},
   {FeatureTransform::Sigmoid, "sigmoid"},
   {FeatureTransform::Softmax, "softmax"},
+  {FeatureTransform::Dropout, "dropout"},
   {FeatureTransform::Convolution, "convolution"},
   {FeatureTransform::SubSample, "subsample"}
 };
@@ -102,6 +103,18 @@ FeatureTransform::FeatureTransform(size_t input_dim, size_t output_dim)
   : _input_dim(input_dim), _output_dim(output_dim) {
 }
 
+void FeatureTransform::read(xml_node<> *node) {
+  auto attr = node->first_attribute("input-dim");
+  if (!attr)
+    throw std::runtime_error("\33[31m[Error]\33[0m Missing input-dim");
+  _input_dim = stol(attr->value());
+
+  attr = node->first_attribute("output-dim");
+  if (!attr)
+    throw std::runtime_error("\33[31m[Error]\33[0m Missing output-dim");
+  _output_dim = stol(attr->value());
+}
+
 /*
  * class AffineTransform
  *
@@ -121,17 +134,12 @@ AffineTransform::AffineTransform(istream& is) {
 
 void AffineTransform::read(xml_node<> * node) {
 
-  auto attr = node->first_attribute("input-dim");
-  if (!attr)
-    throw std::runtime_error("\33[31m[Error]\33[0m Missing input-dim");
-  size_t rows = stol(attr->value());
+  FeatureTransform::read(node);
 
-  attr = node->first_attribute("output-dim");
-  if (!attr)
-    throw std::runtime_error("\33[31m[Error]\33[0m Missing output-dim");
-  size_t cols = stol(attr->value());
+  const size_t& rows = _input_dim;
+  const size_t& cols = _output_dim;
 
-  attr = node->first_attribute("learning-rate");
+  auto attr = node->first_attribute("learning-rate");
   float learning_rate = (attr) ? stof(attr->value()) : 0.1;
 
   attr = node->first_attribute("momentum");
@@ -159,8 +167,6 @@ void AffineTransform::read(xml_node<> * node) {
     CSE( ss >> hw(rows, j) );
 
   _w = (mat) hw;
-  _input_dim = _w.getRows();
-  _output_dim = _w.getCols();
 }
  
 void AffineTransform::read(istream& is) {
@@ -313,9 +319,9 @@ Activation::Activation(size_t input_dim, size_t output_dim)
 }
 
 void Activation::read(xml_node<> * node) {
-  _input_dim = stol(node->first_attribute("input-dim")->value());
-  _output_dim = stol(node->first_attribute("output-dim")->value());
 
+  FeatureTransform::read(node);
+  
   if (_input_dim != _output_dim)
     throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
 }
@@ -336,7 +342,7 @@ void Activation::write(ostream& os) const {
 
   os << "<transform type=\"" << this->toString() 
      << "\" input-dim=\"" << _input_dim
-     << "\" output-dim=\"" << _output_dim << "\"/>" << endl;
+     << "\" output-dim=\"" << _output_dim << "\" />" << endl;
 #if 0
   os << "<" << this->toString() << "> " << _input_dim << " " << _output_dim << endl;
 #endif
@@ -353,7 +359,7 @@ Sigmoid::Sigmoid(size_t input_dim, size_t output_dim)
 }
 
 Sigmoid::Sigmoid(istream& is) {
-  this->read(is);
+  Activation::read(is);
 }
 
 Sigmoid* Sigmoid::clone() const {
@@ -384,7 +390,7 @@ Softmax::Softmax(size_t input_dim, size_t output_dim)
 }
 
 Softmax::Softmax(istream& is) {
-  this->read(is);
+  Activation::read(is);
 }
 
 Softmax* Softmax::clone() const {
@@ -401,4 +407,65 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
 
 void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
   // Do nothing.
+}
+
+/*
+ * class Dropout
+ *
+ * */
+Dropout::Dropout(): _dropout_ratio(0.0f), _dropout(true) {
+}
+
+Dropout::Dropout(size_t input_dim, size_t output_dim)
+  : Activation(input_dim, output_dim), _dropout_ratio(0.0f), _dropout(true) {
+}
+
+Dropout::Dropout(istream& is) {
+  Activation::read(is);
+}
+
+void Dropout::read(xml_node<> *node) {
+
+  Activation::read(node);
+
+  auto attr = node->first_attribute("dropout-ratio");
+  if (attr)
+    _dropout_ratio = stof(attr->value());
+}
+
+void Dropout::write(ostream& os) const {
+  stringstream ss;
+  Activation::write(ss);
+  string str = ss.str();
+  str.insert(str.find_last_of(' '), " dropout-ratio=\"" + to_string(_dropout_ratio) + "\"");
+  os << str;
+}
+
+Dropout* Dropout::clone() const {
+  return new Dropout(*this);
+}
+
+string Dropout::toString() const {
+  return "Dropout";
+}
+
+void Dropout::feedForward(mat& fout, const mat& fin) {
+  if (!_dropout) {
+    fout = fin * (1 - _dropout_ratio);
+    return;
+  }
+
+  if (_dropout_ratio == 0) {
+    fout = fin;
+    return;
+  }
+
+  _dropout_mask = mat(fin.getRows(), fin.getCols(), 1 - _dropout_ratio);
+  sample(_dropout_mask, BERNOULLI);
+  fout = _dropout_mask & fin;
+}
+
+void Dropout::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  if (_dropout_ratio != 0)
+    error &= _dropout_mask;
 }
