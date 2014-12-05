@@ -71,6 +71,9 @@ int main(int argc, char* argv[]) {
      .add("--learning-rate", "learning rate in back-propagation", "0.1")
      .add("--batch-size", "number of data per mini-batch", "32");
 
+  cmd.addGroup("Hardward options:")
+     .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
+
   cmd.addGroup("Example usage: cnn-train data/train3.dat --struct=12x5x5-2-8x3x3-2");
   
   if (!cmd.isOptionLegal())
@@ -89,6 +92,9 @@ int main(int argc, char* argv[]) {
   float learningRate  = cmd["--learning-rate"];
   float minValidAcc   = cmd["--min-acc"];
   size_t maxEpoch     = cmd["--max-epoch"];
+
+  size_t cache_size   = cmd["--cache"];
+  CudaMemManager<float>::setCacheSize(cache_size);
 
   // Parse input dimension
   SIZE imgSize = parseInputDimension((string) cmd["--input-dim"]);
@@ -119,7 +125,7 @@ int main(int argc, char* argv[]) {
   CNN cnn;
   DNN dnn;
 
-  if (model_in.empty()) {
+  if (model_in.empty() or model_in == "-") {
     string structure  = cmd["--struct"];
     size_t output_dim = cmd["--output-dim"];
 
@@ -181,7 +187,7 @@ void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
       mat error = getError( data.y, fout, errorMeasure);
 
       dnn.backPropagate(error, fmiddle, fout, config.learningRate / itr->nData );
-      cnn.backPropagate(error, data.x, fmiddle, 1 /*config.learningRate*/);
+      cnn.backPropagate(error, data.x, fmiddle, config.learningRate);
     }
 
     size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),
@@ -192,7 +198,7 @@ void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
     printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu ), elapsed %.3f seconds.\n",
       epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid, (timer.getTime() - t_start) / 1000); 
 
-    // save_model(cnn, dnn, model_out + "." + to_string(epoch));
+    save_model(cnn, dnn, model_out + "." + to_string(epoch));
     t_start = timer.getTime();
   }
 
@@ -214,7 +220,7 @@ vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim
   for (size_t i=0; i<nWeights; ++i) {
     float coeff = (2 * sqrt(6.0f / (dims[i] + dims[i+1]) ) );
     weights[i] = coeff * (rand(dims[i], dims[i+1]) - 0.5);
-    printf("Initialize a weights[%lu] using %.4f x (rand(%3lu,%3lu) - 0.5)\n", i,
+    printf("Initialize weights[%lu] using %.4f x (rand(%3lu,%3lu) - 0.5)\n", i,
 	coeff, dims[i], dims[i+1]);
   }
 

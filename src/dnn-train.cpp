@@ -35,8 +35,7 @@ int main (int argc, char* argv[]) {
      .add("valid_set_file", false);
 
   cmd.addGroup("Feature options:")
-     .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "0 for auto detection.")
+     .add("--input-dim", "specify the input dimension (dimension of feature).")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
@@ -44,7 +43,7 @@ int main (int argc, char* argv[]) {
      .add("--nf", "Load pre-computed statistics from file", "")
      .add("--base", "Label id starts from 0 or 1 ?", "0");
 
-  cmd.addGroup("Training options: ")
+  cmd.addGroup("Training options:")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "100000")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")

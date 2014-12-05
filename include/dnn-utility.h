@@ -150,6 +150,8 @@ device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& 
 template <typename T>
 device_matrix<T>& operator &= (device_matrix<T>& A, const device_matrix<T>& B);
 
+template <typename T> device_matrix<T> exp(const device_matrix<T>& x);
+
 template <typename T> device_matrix<T> log(const device_matrix<T>& x);
 
 template <typename T> device_matrix<T> log1pexp(const device_matrix<T>& x);

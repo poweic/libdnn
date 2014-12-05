@@ -37,7 +37,6 @@ DNN::DNN(const DNN& source): _transforms(source._transforms.size()), _config() {
 }
 
 void DNN::init(const std::vector<mat>& weights) {
-  // throw std::runtime_error("\33[31m[Error]\33[0m Not implemented yet!!");
   _transforms.clear();
 
   for (size_t i=0; i<weights.size(); ++i) {
@@ -123,7 +122,9 @@ void DNN::read(const string& fn) {
   ifstream fin(fn.c_str());
 
   if (!fin.is_open())
-    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
+    throw std::runtime_error(RED_ERROR + "Cannot load file: " + fn);
+
+  printf("\33[34m[Info]\33[0m Reading model from \33[32m%s\33[0m\n", fn.c_str());
 
   stringstream ss;
   ss << fin.rdbuf() << '\0';
@@ -165,7 +166,7 @@ void DNN::read(const string& fn) {
 	case FeatureTransform::SubSample :
 	  break;
 	default:
-	  cerr << "\33[31m[Error]\33[0m Not such type " << token << endl;
+	  cerr << RED_ERROR << "Not such type " << token << endl;
 	  break;
       }
 
@@ -189,7 +190,7 @@ void DNN::save(const string& fn) const {
   ofstream fout(fn.c_str());
 
   if (!fout.is_open())
-    throw std::runtime_error("\33[31m[Error]\33[0m Cannot open file: " + fn);
+    throw std::runtime_error(RED_ERROR + "Cannot open file: " + fn);
 
   fout << *this;
 

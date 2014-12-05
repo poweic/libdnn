@@ -420,8 +420,14 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
   }
   cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
-  if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE)
-    throw std::runtime_error(RED_ERROR + "Exceeds maximum shared memory available.");
+  if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE) {
+    char buf[512];
+    sprintf(buf, "Exceeds maximum shared memory available. (%lu bytes)\n"
+	"kernel = (%lu, %lu), grids = (%u, %u, %u), threads = (%u, %u, %u) "
+	" => %lu bytes of shared memory needed.", MAX_SHARED_MEMORY_SIZE, kH, kW,
+	grids.x, grids.y, grids.z, threads.x, threads.y, threads.z, SHM_SIZE);
+    throw std::runtime_error(RED_ERROR + to_string(buf));
+  }
 
   return SHM_SIZE;
 }
@@ -594,7 +600,7 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
 	H, W, kH, kW);
     } break;
     default:
-      throw std::runtime_error("\33[31m[Error]\33[0m Unknown convolution type");
+      throw std::runtime_error(RED_ERROR + "Unknown convolution type");
   }
 
   CCE(cudaPeekAtLastError());

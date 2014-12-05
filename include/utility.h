@@ -16,12 +16,11 @@ typedef device_matrix<float> mat;
 #define float_min std::numeric_limits<float>::min()
 #define float_max std::numeric_limits<float>::max()
 
-#define _ERROR_WHERE_ (string("In function \"") \
-    + __func__ + string("\" (at ") + __FILE__ + string(":") \
-    + to_string(__LINE__) + string("): "))
+#define __WHERE__ (string("In function \"") + __func__ + string("\" (at ") + \
+    __FILE__ + string(":") + to_string(__LINE__) + string("): "))
 
-#define RED_ERROR (string("\33[31m[ERROR]\33[0m " + _ERROR_WHERE_ ))
-#define YELLOW_WARNING (string("\33[33m[WARNING]\33[0m " + _ERROR_WHERE_ ) )
+#define RED_ERROR (util::red("[Error] ") + __WHERE__ )
+#define YELLOW_WARNING (util::yellow("[WARNING] ") + __WHERE__ )
 
 #ifdef DEBUG
 #define PAUSE { printf("Press Enter key to continue..."); fgetc(stdin); }
@@ -45,7 +44,14 @@ long getFileSize(std::string filename) {
   int rc = stat(filename.c_str(), &stat_buf);
   return rc == 0 ? stat_buf.st_size : -1;
 }*/
-
+namespace util {
+  inline string red(const string& str)	  { return "\33[31m" + str + "\33[0m"; }
+  inline string green(const string& str)  { return "\33[32m" + str + "\33[0m"; }
+  inline string yellow(const string& str) { return "\33[33m" + str + "\33[0m"; }
+  inline string blue(const string& str)   { return "\33[34m" + str + "\33[0m"; }
+  inline string purple(const string& str) { return "\33[35m" + str + "\33[0m"; }
+  inline string cyan(const string& str)   { return "\33[36m" + str + "\33[0m"; }
+};
 
 /*! \brief divide --struct into cnn-structure and nn-structure
  */

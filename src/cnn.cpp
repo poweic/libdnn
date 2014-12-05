@@ -18,7 +18,7 @@
 
 // CSE stands for Check Stream Error
 #define CSE(x) { if (!(x)) \
-  throw std::runtime_error("\33[31m[Error]\33[0m Failed when executing \33[33m"#x"\33[0m"); }
+  throw std::runtime_error(RED_ERROR + "Failed when executing \33[33m"#x"\33[0m"); }
 
 #define VECTOR std::vector
 #define WHERE std
@@ -39,19 +39,19 @@ void MIMOFeatureTransform::read(xml_node<> *node) {
   // # of input feature maps
   auto attr = node->first_attribute("input-maps");
   if (!attr)
-    throw std::runtime_error("\33[31m[Error]\33[0m Missing input-maps");
+    throw std::runtime_error(RED_ERROR + "Missing input-maps");
   _n_input_maps = stol(attr->value());
 
   // # of output feature maps
   attr = node->first_attribute("output-maps");
   if (!attr)
-    throw std::runtime_error("\33[31m[Error]\33[0m Missing output-maps");
+    throw std::runtime_error(RED_ERROR + "Missing output-maps");
   _n_output_maps = stol(attr->value());
 
   // Input dimension of image
   attr = node->first_attribute("input-dim");
   if (!attr)
-    throw std::runtime_error("\33[31m[Error]\33[0m Missing input-dim");
+    throw std::runtime_error(RED_ERROR + "Missing input-dim");
   this->set_input_img_size(parseInputDimension(attr->value()));
 }
 
@@ -200,7 +200,7 @@ void CNN::init(const string &structure, SIZE img_size) {
       nInputMaps = nOutputMaps;
     }
     else
-      throw std::runtime_error("\33[31m[Error]\33[0m No such type of layer. \""
+      throw std::runtime_error(RED_ERROR + "No such type of layer. \""
 	  + layers[i] + "\". Only convolutional/sub-sampling layer are allowed");
 
   }
@@ -210,7 +210,9 @@ void CNN::read(const string &fn) {
   ifstream fin(fn.c_str());
 
   if (!fin.is_open())
-    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
+    throw std::runtime_error(RED_ERROR + "Cannot load file: " + fn);
+
+  printf("\33[34m[Info]\33[0m Reading model from \33[32m%s\33[0m\n", fn.c_str());
 
   stringstream ss;
   ss << fin.rdbuf() << '\0';
@@ -238,6 +240,7 @@ void CNN::read(const string &fn) {
 	case FeatureTransform::Affine :
 	case FeatureTransform::Sigmoid :
 	case FeatureTransform::Softmax :
+	case FeatureTransform::Dropout :
 	  return;
 	case FeatureTransform::Convolution : 
 	  f = new ConvolutionalLayer;
@@ -246,7 +249,7 @@ void CNN::read(const string &fn) {
 	  f = new SubSamplingLayer;
 	  break;
 	default:
-	  cerr << "\33[31m[Error]\33[0m Not such type " << token << endl;
+	  cerr << RED_ERROR << "Not such type " << token << endl;
 	  break;
       }
       
@@ -259,14 +262,14 @@ void CNN::read(const string &fn) {
 
   }
   else
-    clog << "\31[31m[Error]\33[0m Error while reading XML file." << endl;
+    clog << RED_ERROR << "while reading XML file." << endl;
 }
 
 void CNN::save(const string &fn) const {
   ofstream fout(fn.c_str());
 
   if (!fout.is_open())
-    throw std::runtime_error("\33[31m[Error]\33[0m Cannot open file: " + fn);
+    throw std::runtime_error(RED_ERROR + "Cannot open file: " + fn);
 
   fout << *this;
 
@@ -570,7 +573,7 @@ void SubSamplingLayer::read(xml_node<> *node) {
 
   auto attr = node->first_attribute("sample-rate");
   if (!attr)
-    throw std::runtime_error("\33[31m[Error]\33[0m Missing sample-rate");
+    throw std::runtime_error(RED_ERROR + "Missing sample-rate");
   _scale = stol(attr->value());
 }
 

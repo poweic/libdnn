@@ -100,7 +100,7 @@ void BasicStream::init(size_t start, size_t end) {
   _fs.open(DataStream::_filename.c_str());
 
   if (!_fs.is_open())
-    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + DataStream::_filename);
+    throw std::runtime_error(RED_ERROR + "Cannot load file: " + DataStream::_filename);
 
   if (DataStream::_size == 0)
     DataStream::_size = count_lines(DataStream::_filename);

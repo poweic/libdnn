@@ -16,7 +16,7 @@
 
 // CSE stands for Check Stream Error
 #define CSE(x) { if (!(x)) \
-  throw std::runtime_error("\33[31m[Error]\33[0m Failed when executing \33[33m"#x"\33[0m"); }
+  throw std::runtime_error(RED_ERROR + "Failed when executing \33[33m"#x"\33[0m"); }
 
 std::map<FeatureTransform::Type, string> FeatureTransform::type2token = {
   {FeatureTransform::Affine, "affine"},
@@ -106,12 +106,12 @@ FeatureTransform::FeatureTransform(size_t input_dim, size_t output_dim)
 void FeatureTransform::read(xml_node<> *node) {
   auto attr = node->first_attribute("input-dim");
   if (!attr)
-    throw std::runtime_error("\33[31m[Error]\33[0m Missing input-dim");
+    throw std::runtime_error(RED_ERROR + "Missing input-dim");
   _input_dim = stol(attr->value());
 
   attr = node->first_attribute("output-dim");
   if (!attr)
-    throw std::runtime_error("\33[31m[Error]\33[0m Missing output-dim");
+    throw std::runtime_error(RED_ERROR + "Missing output-dim");
   _output_dim = stol(attr->value());
 }
 
@@ -323,7 +323,7 @@ void Activation::read(xml_node<> * node) {
   FeatureTransform::read(node);
   
   if (_input_dim != _output_dim)
-    throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
+    throw std::runtime_error(RED_ERROR + "Mismatched input/output dimension");
 }
 
 void Activation::read(istream& is) {
@@ -335,7 +335,7 @@ void Activation::read(istream& is) {
   CSE(std::getline(is, remaining));
   
   if (_input_dim != _output_dim)
-    throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
+    throw std::runtime_error(RED_ERROR + "Mismatched input/output dimension");
 }
 
 void Activation::write(ostream& os) const {

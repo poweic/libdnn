@@ -40,7 +40,7 @@ EXECUTABLES=dnn-train\
 
 EXECUTABLES:=$(addprefix bin/, $(EXECUTABLES))
 
-.PHONY: debug all o3 ctags dump_nrv
+.PHONY: debug all o3 dump_nrv ctags clean
 all: $(EXECUTABLES) ctags
 
 o3: CFLAGS+=-O3
@@ -85,7 +85,6 @@ obj/%.d: %.cpp
 
 -include $(addprefix obj/,$(subst .cpp,.d,$(SOURCES)))
 
-.PHONY: ctags
 ctags:
 	@if command -v ctags >/dev/null 2>&1; then ctags -R --langmap=C:+.cu *; fi
 clean:
