@@ -166,6 +166,8 @@ void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
   perf::Timer timer;
   timer.start();
 
+  // FIXME merge class CNN and DNN.
+  // Then merge src/dnn-train.cpp and src/cnn-train.cpp
   const size_t MAX_EPOCH = 1024;
   config.maxEpoch = std::min(config.maxEpoch, MAX_EPOCH);
 
@@ -197,6 +199,9 @@ void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
     float validAcc = 1.0f - (float) Eout / nValid;
     printf("Epoch #%lu: Training Accuracy = %.4f %% ( %lu / %lu ), Validation Accuracy = %.4f %% ( %lu / %lu ), elapsed %.3f seconds.\n",
       epoch, trainAcc * 100, nTrain - Ein, nTrain, validAcc * 100, nValid - Eout, nValid, (timer.getTime() - t_start) / 1000); 
+
+    if (validAcc > config.minValidAccuracy)
+      break;
 
     save_model(cnn, dnn, model_out + "." + to_string(epoch));
     t_start = timer.getTime();
