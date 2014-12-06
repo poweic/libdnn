@@ -7,4 +7,7 @@ cd tools/utility && make o3 && cd -
 git clone https://github.com/botonchou/libcumatrix.git tools/libcumatrix
 cd tools/libcumatrix && make o3 && cd -
 
+wget http://nchc.dl.sourceforge.net/project/rapidxml/rapidxml/rapidxml%201.13/rapidxml-1.13.zip -P tools/
+cd tools/ && unzip rapidxml-1.13.zip && cd -
+
 make o3

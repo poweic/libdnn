@@ -82,7 +82,6 @@ void sample(mat &prob, UNIT_TYPE type) {
   }
 
   CCE(cudaDeviceSynchronize());
-  fill_bias(prob);
 }
 
 mat randn(int m, int n) {
@@ -365,6 +364,17 @@ device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& 
 }
 
 template <typename T>
+device_matrix<T>& operator &= (device_matrix<T>& A, const device_matrix<T>& B) {
+  A = A & B;
+  return A;
+}
+
+template <typename T>
+device_matrix<T> exp(const device_matrix<T>& x) {
+  return transform(x, func::exp<T>());
+}
+
+template <typename T>
 device_matrix<T> log(const device_matrix<T>& x) {
   return transform(x, func::log<T>());
 }
@@ -406,7 +416,9 @@ device_matrix<T> softmax(const device_matrix<T>& x) {
 
 #define register_device_matrix_utility(T) \
   template device_matrix<T> operator &<T> (const device_matrix<T>& A, const device_matrix<T>& B); \
+  template device_matrix<T>& operator &=<T> (device_matrix<T>& A, const device_matrix<T>& B); \
   template void fillLastColumnWith<T>(device_matrix<T>& A, const T value); \
+  template device_matrix<T> exp<T>(const device_matrix<T>& x); \
   template device_matrix<T> log<T>(const device_matrix<T>& x); \
   template device_matrix<T> log1pexp<T>(const device_matrix<T>& x); \
   template device_matrix<T> sigmoid<T>(const device_matrix<T>& x); \

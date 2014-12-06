@@ -18,6 +18,8 @@
 #include <cmdparser.h>
 using namespace std;
 
+void print(DNN& dnn, ostream& os, string layer);
+
 int main (int argc, char* argv[]) {
 
   CmdParser cmd(argc, argv);
@@ -38,11 +40,21 @@ int main (int argc, char* argv[]) {
   string output_model_fn = cmd[2];
   string layer		 = cmd["--layer"];
 
-  FILE* fid = output_model_fn == "" ? stdout : fopen(output_model_fn.c_str(), "w");
-  if (!fid)
-    throw std::runtime_error(RED_ERROR + "Cannot open file " + output_model_fn);
-
   DNN dnn(input_model_fn);
+  if (output_model_fn.empty())
+    print(dnn, cout, layer);
+  else {
+    ofstream fout(output_model_fn.c_str());
+    if (!fout.is_open())
+      throw std::runtime_error(RED_ERROR + "Cannot open file " + output_model_fn);
+    print(dnn, fout, layer);
+    fout.close();
+  }
+
+  return 0;
+}
+
+void print(DNN& dnn, ostream& os, string layer) {
 
   const auto& t = dnn.getTransforms();
 
@@ -57,13 +69,8 @@ int main (int argc, char* argv[]) {
 
   for (auto l : layerIds) { 
     if (l < t.size())
-      t[l]->write(fid);
+      t[l]->write(os);
     else
       cerr << YELLOW_WARNING << "Model does not have transform[" << l << "]" << endl;
   }
-
-  if (fid != stdout)
-    fclose(fid);
-
-  return 0;
 }

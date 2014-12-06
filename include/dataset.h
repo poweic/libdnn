@@ -85,16 +85,10 @@ private:
   Normalization* _normalizer;
 };
 
-
 bool isFileSparse(string train_fn);
-
-size_t getLineNumber(ifstream& fin);
-size_t findMaxDimension(ifstream& fin);
-size_t findDimension(ifstream& fin);
 
 std::ifstream& goToLine(std::ifstream& file, unsigned long num);
 size_t countLines(const string& fn);
-
 
 class Normalization {
 public:

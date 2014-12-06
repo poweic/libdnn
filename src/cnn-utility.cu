@@ -28,6 +28,10 @@
   const int y = y0 + ty;
 
 
+void test_batch_convn_full() {
+
+}
+
 void gogo() {
 
   mat x("sheep.mat");
@@ -36,7 +40,7 @@ void gogo() {
   showImage(x);
   showImage(gk);
 
-  mat y = convn(x, gk, "valid");
+  mat y = convn(x, gk, VALID);
 
   printf("\n\n\n");
   showImage(y);
@@ -144,6 +148,53 @@ __device__ void load_kernel_into_shm(float* const K, const float* const kernel, 
     K[(kW - 1 - xx) * kH + (kH - 1 - yy)] = kernel[xx * kH + yy];
   }
 }
+
+__global__ void convn_valid_kernel_with_shm2(float *output, const float *data,
+  float *kernel, const int H, const int W, const int kH, const int kW) { 
+
+  __CUDA_CONSTANTS__;
+
+  // vH, vW stands for valid H and valid W
+  const int vH = H - kH + 1, vW = W - kW + 1;
+
+  kernel += blockIdx.z * kH * kW;
+  output += blockIdx.z * vH * vW;
+
+  extern __shared__ float K[];
+
+  // Copy kernel in global memory to shared memory
+  load_kernel_into_shm(K, kernel, kH, kW, tid, nThreads);
+
+  // Copy data in global memory to shared memory
+  float* D = K + kW * kH;
+  int WIDTH_STEP = blockDim.x + kW - 1,
+      HEIGHT_STEP = blockDim.y + kH - 1;
+
+  int nTotal = WIDTH_STEP * HEIGHT_STEP;
+  int avgToLoad  = nTotal / nThreads + 1;
+
+  for (int i=0; i<avgToLoad; ++i) {
+    int id = tid + i * nThreads;
+
+    if (id >= nTotal) break;
+
+    int xx = id / HEIGHT_STEP + x0,
+	yy = id % HEIGHT_STEP + y0;
+
+    if (xx >= W || yy >= H) continue;
+
+    D[id] = data[ xx * H + yy ];
+  }
+  __syncthreads();
+
+  float sum = 0;
+  for (int i = 0; i < kW; ++i)
+    for(int j = 0; j < kH; ++j)
+      sum += K[ i * kH + j ] * D[ (tx + i) * HEIGHT_STEP + (ty + j) ]; 
+
+  if (x < vW && y < vH)
+    output[ x * vH + y ] = sum;
+} 
 
 __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
   float *kernel, const int H, const int W, const int kH, const int kW) { 
@@ -256,6 +307,9 @@ __global__ void convn_full_kernel_with_shm(float *output, float *data, float *ke
   // fH, fW stands for full H and full W
   const int fH = H + kH - 1, fW = W + kW - 1;
 
+  data += blockIdx.z * H * W;
+  output += blockIdx.z * fH * fW;
+
   extern __shared__ float K[];
 
   // Copy kernel in global memory to shared memory
@@ -325,32 +379,28 @@ __global__ void convn_full_kernel(float *output, float *data, float *kernel, int
   output[ x * fH + y ] = sum;
 }
 
-SIZE get_convn_size(SIZE data, SIZE kernel, string type) {
-  if (type == "same")
-    return data;
-  else if (type == "valid" || type == "valid_shm")
-    return max(data - kernel + 1, SIZE(0, 0));
-  else if (type == "full")
-    return data + kernel - 1;
-  else
-    throw std::runtime_error("No such type of convolution");
+SIZE get_convn_size(SIZE data, SIZE kernel, ConvType type) {
+  switch (type) {
+    case SAME:
+    case SAME_SHM:
+      return data;
+    case VALID:
+    case VALID_SHM:
+      return max(data - kernel + 1, SIZE(0, 0));
+    case FULL:
+    case FULL_SHM:
+      return data + kernel - 1;
+    default:
+      throw std::runtime_error("Unknown type of convolution.");
+  };
 }
 
-SIZE get_convn_size(const mat& data, const mat& kernel, string type) {
+SIZE get_convn_size(const mat& data, const mat& kernel, ConvType type) {
 
-  int H = data.getRows(),
-      W = data.getCols(),
-      kH = kernel.getRows(),
-      kW = kernel.getCols();
+  SIZE dSize(data.getRows(), data.getCols());
+  SIZE kSize(kernel.getRows(), kernel.getCols());
 
-  if (type == "same")
-    return SIZE(H, W);
-  else if (type == "valid" || type == "valid_shm")
-    return SIZE(max(H - kH + 1, 0), max(W - kW + 1, 0));
-  else if (type == "full" || type == "full_shm")
-    return SIZE(H + kH - 1, W + kW - 1);
-  else
-    throw std::runtime_error("No such type of convolution");
+  return get_convn_size(dSize, kSize, type);
 }
 
 size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
@@ -370,70 +420,113 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
   }
   cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
-  if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE)
-    throw std::runtime_error(RED_ERROR + "Exceeds maximum shared memory available.");
+  if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE) {
+    char buf[512];
+    sprintf(buf, "Exceeds maximum shared memory available. (%lu bytes)\n"
+	"kernel = (%lu, %lu), grids = (%u, %u, %u), threads = (%u, %u, %u) "
+	" => %lu bytes of shared memory needed.", MAX_SHARED_MEMORY_SIZE, kH, kW,
+	grids.x, grids.y, grids.z, threads.x, threads.y, threads.z, SHM_SIZE);
+    throw std::runtime_error(RED_ERROR + to_string(buf));
+  }
 
   return SHM_SIZE;
+}
+
+// Single data with Multiple kernels
+mat convn_2(const mat& data, const mat& kernels, SIZE k) {
+
+  SIZE d(data.getRows(), data.getCols());
+
+  SIZE imgOut = get_convn_size(d, k, VALID_SHM);
+
+  if ( kernels.getRows() != k.m * k.n )
+    throw std::runtime_error(RED_ERROR + DEBUG_STR(data.getRows()) + DEBUG_STR(k.m) + DEBUG_STR(k.n));
+
+  // i.e. batch_size
+  int N = kernels.getCols();
+
+  mat output(imgOut.m * imgOut.n, N);
+
+  ALLOCATE_GRIDS_AND_THREADS(imgOut.m, imgOut.n);
+  grids.z = N;
+
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, k.m, k.n);
+
+  convn_valid_kernel_with_shm2<<< grids, threads, SHM_SIZE, 0 >>>(
+      output.getData(),
+      data.getData(),
+      kernels.getData(),
+      d.m, d.n, k.m, k.n);
+
+  CCE(cudaPeekAtLastError());
+
+  return output;
 }
 
 /* \brief compute convolution of a batch of data with a kernel.
  * \param data a batch of data, where the batch-size equals to data.getCols()
  * \param kernel the convolutional kernel (i.e. system's impulse response)
- * \param s size of a datum. That is, s.m * s.n = data.getRows()
+ * \param imgIn size of a datum. That is, imgIn.m * imgIn.n = data.getRows()
  * \param type type of convolution. Either "full", "same", or "valid"
  * */
-mat convn(const mat& data, const mat& kernel, SIZE s, string type) {
+mat convn(const mat& data, const mat& kernel, SIZE imgIn, ConvType type) {
 
-  int H = s.m,
-      W = s.n,
+  int H = imgIn.m,
+      W = imgIn.n,
       kH = kernel.getRows(),
-      kW = kernel.getCols(),
-      vH = H - kH + 1,
-      vW = W - kW + 1;
+      kW = kernel.getCols();
+
+  SIZE imgOut = get_convn_size(imgIn, SIZE(kH, kW), type);
 
   if ( data.getRows() != H * W )
-    throw std::runtime_error(DEBUG_STR(data.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
+    throw std::runtime_error(RED_ERROR + DEBUG_STR(data.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
 
+  // i.e. batch_size
   int N = data.getCols();
 
-  mat output(vH * vW, N);
+  mat output(imgOut.m * imgOut.n, N);
 
-  ALLOCATE_GRIDS_AND_THREADS(vH, vW);
+  ALLOCATE_GRIDS_AND_THREADS(imgOut.m, imgOut.n);
   grids.z = N;
 
-  size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
 
-  while ( SHM_SIZE > MAX_SHARED_MEMORY_SIZE && threads.x * threads.y >= 32 ) {
-    if ( threads.x >= threads.y ) {
-      threads.x /= 2;
-      grids.x *= 2;
-    }
-    else {
-      threads.y /= 2;
-      grids.y *= 2;
-    }
-
-    SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+  switch (type) {
+    case SAME:
+      // TODO
+      break;
+    case SAME_SHM:
+      // TODO
+      break;
+    case VALID:
+      // TODO
+      break;
+    case VALID_SHM:
+      convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+    case FULL:
+      // TODO
+      break;
+    case FULL_SHM:
+      convn_full_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
   }
 
-  cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
-
-  if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE)
-    throw std::runtime_error(RED_ERROR + "Exceeds maximum shared memory available.");
-
-  convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, 0 >>>(
-      output.getData(),
-      data.getData(),
-      kernel.getData(),
-      H, W, kH, kW);
-
   CCE(cudaPeekAtLastError());
-  CCE(cudaDeviceSynchronize());
+  // CCE(cudaDeviceSynchronize());
 
   return output;
 }
 
-mat convn(const mat& data, const mat& kernel, string type) {
+mat convn(const mat& data, const mat& kernel, ConvType type) {
 
   const size_t N_STREAM = 4;
   static vector<cudaStream_t> streams(N_STREAM);
@@ -462,39 +555,42 @@ mat convn(const mat& data, const mat& kernel, string type) {
   cudaStream_t stream = 0;
   counter = (counter + 1) % N_STREAM;
 
-  if (type == "same") {
-    convn_same_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "valid") {
-    convn_valid_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "valid_shm") {
+  switch (type) {
+    case SAME:
+      convn_same_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+    case SAME_SHM:
+      // TODO
+      break;
+    case VALID:
+      convn_valid_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+    case VALID_SHM: {
+      size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
 
-    size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
-
-    convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "full") {
-    convn_full_kernel<<< grids, threads, 0, stream >>>(
-	output.getData(),
-	data.getData(),
-	kernel.getData(),
-	H, W, kH, kW);
-  }
-  else if (type == "full_shm") {
-
+      convn_valid_kernel_with_shm<<< grids, threads, SHM_SIZE, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+    } break;
+    case FULL:
+      convn_full_kernel<<< grids, threads, 0, stream >>>(
+	  output.getData(),
+	  data.getData(),
+	  kernel.getData(),
+	  H, W, kH, kW);
+      break;
+      
+    case FULL_SHM: {
     size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
 
     convn_full_kernel_with_shm<<< grids, threads, SHM_SIZE, stream >>>(
@@ -502,6 +598,9 @@ mat convn(const mat& data, const mat& kernel, string type) {
 	data.getData(),
 	kernel.getData(),
 	H, W, kH, kW);
+    } break;
+    default:
+      throw std::runtime_error(RED_ERROR + "Unknown convolution type");
   }
 
   CCE(cudaPeekAtLastError());
@@ -510,8 +609,7 @@ mat convn(const mat& data, const mat& kernel, string type) {
   return output;
 }
 
-
-/*mat xcorrn(const mat& data, const mat& kernel, string type) {
+/*mat xcorrn(const mat& data, const mat& kernel, ConvType type) {
   // TODO
   return mat();
 }*/
@@ -697,21 +795,26 @@ mat upsample(const mat& x, SIZE s) {
   return output;
 }
 
+template <typename T>
+__global__ void rot180_kernel(T *odata, const T *idata, const int rows, const int cols) {
+
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if (x < cols && y < rows)
+    odata[x*rows + y] = idata[(cols - 1 - x) * rows+ (rows - 1 - y)];
+}
+
 mat rot180(const mat& x) {
-  // FIXME 我偷懶。我先講求正確性，丟到host用double for loop轉，轉完再塞回device
 
   int rows = x.getRows(),
       cols = x.getCols();
 
-  hmat h_x(x), h_y(rows, cols);
+  mat y(rows, cols);
+  ALLOCATE_GRIDS_AND_THREADS(rows, cols);
+  rot180_kernel<<<grids, threads>>>(y.getData(), x.getData(), rows, cols);
 
-  for (size_t i=0; i<rows; ++i) {
-    for (size_t j=0; j<cols; ++j) {
-      h_y(i, j) = h_x(rows - 1 - i, cols - 1 - j);
-    }
-  }
-
-  return (mat) h_y;
+  return y;
 }
 
 /* ! \brief Sum all the elements in a matrix.
@@ -770,7 +873,7 @@ void test_downsample() {
   plotL2normInSemilogy();
 }
 
-void test_convn(string type) {
+void test_convn(ConvType type) {
 
 // #undef matlog
 // #define matlog(x) { printf(#x" = [\n"); x.print(); printf("];\n"); }
@@ -791,7 +894,7 @@ void test_convn(string type) {
     matlog(kernel);
     matlog(z);
 
-    printf("z_gold = convn(data, kernel, '%s');\n", type.c_str());
+    printf("z_gold = convn(data, kernel, '%d');\n", type);
     printf("delta = z_gold - z;\n");
     printf("L2norm(%d) = norm(delta(:)) / norm(z_gold(:)) / 2;\n", i + 1);
   }
@@ -799,7 +902,7 @@ void test_convn(string type) {
   plotL2normInSemilogy();
 }
 
-void test_convn_with_and_without_shm(string type, const int N) {
+void test_convn_with_and_without_shm(ConvType type, const int N) {
 
   bool all_pass = true;
 
@@ -813,7 +916,7 @@ void test_convn_with_and_without_shm(string type, const int N) {
 	k = randn(kH, kW);
 
     mat z_gold = convn(x, k, type);
-    mat z = convn(x, k, type + "_shm");
+    mat z = convn(x, k, (ConvType) ((int) type + 1));
 
     float L2norm = nrm2(z - z_gold) / nrm2(z_gold);
     printf("L2norm = %.7e ...", L2norm);
@@ -840,8 +943,8 @@ void test_valid_shm_vs_valid_2() {
       printf("kernel: %d x %d\t", i, j);
       mat kernel = randn(i, j);
 
-      mat z1 = convn(x, kernel, "valid_shm");
-      mat z2 = convn(x, kernel, "valid");
+      mat z1 = convn(x, kernel, VALID_SHM);
+      mat z2 = convn(x, kernel, VALID);
 
       float a = nrm2(z1 - z2),
 	    b = nrm2(z2);
@@ -903,14 +1006,14 @@ void benchmark_valid_and_valid_shm() {
 
       timer.start();
       for (size_t k = 1; k < N_TIMES; ++k) {
-	mat z1 = convn(x, kernel, "valid");
+	mat z1 = convn(x, kernel, VALID);
       }
       float t1 = timer.getTime();
       timer.reset();
 
       timer.start();
       for (size_t k = 1; k < N_TIMES; ++k) {
-	mat z2 = convn(x, kernel, "valid_shm");
+	mat z2 = convn(x, kernel, VALID_SHM);
       }
       float t2 = timer.getTime();
       printf("%7.2f , %7.2f \33[34m->\33[0m %4.1fx", t1, t2, t1 / t2);
@@ -946,14 +1049,14 @@ void benchmark_batch_convn() {
     vector<mat> z_golds(nImages);
 
     for (int i=0; i<nImages; ++i)
-      z_golds[i] = convn(images[i], kernel, "valid_shm");
+      z_golds[i] = convn(images[i], kernel, VALID_SHM);
 
     mat z_gold = reshapeImages2Vectors(z_golds);
     timer1.stop();
 
     // Fast method
     timer2.start();
-    mat z = convn(X, kernel, s, "valid_shm");
+    mat z = convn(X, kernel, s, VALID_SHM);
     timer2.stop();
 
     printf("# of images = %3d, images size: %3d x %-3d, kernel: %3d x %-3d\t", 

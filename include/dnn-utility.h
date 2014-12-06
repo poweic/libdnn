@@ -54,8 +54,8 @@ typedef void (*Operation)(float&, curandState*);
 __global__ void setupCuRandState( curandState * state, unsigned long seed );
 
 enum UNIT_TYPE {
-  BERNOULLI,
-  GAUSSIAN
+  BERNOULLI = 1,
+  GAUSSIAN = 2
 };
 
 void sample(mat &prob, UNIT_TYPE type);
@@ -120,6 +120,18 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
 }
 
 template <typename T>
+device_matrix<T> vercat(const vector<device_matrix<T> >& matrices) {
+  size_t rows = matrices[0].getRows(),
+  cols = matrices[0].getCols(),
+  step = matrices[0].size();
+
+  mat result(matrices.size() * rows, cols);
+  for (size_t j=0; j<matrices.size(); ++j)
+    memcpy2D<T>(result, matrices[j], 0, 0, rows, cols, j*rows, 0);
+  return result;
+}
+
+template <typename T>
 void fillLastColumnWith(device_matrix<T>& A, const T value);
 
 // convert a linear index to a row index
@@ -134,6 +146,11 @@ struct linear_index_to_row_index : public thrust::unary_function<T,T> {
 
 template <typename T>
 device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& B);
+
+template <typename T>
+device_matrix<T>& operator &= (device_matrix<T>& A, const device_matrix<T>& B);
+
+template <typename T> device_matrix<T> exp(const device_matrix<T>& x);
 
 template <typename T> device_matrix<T> log(const device_matrix<T>& x);
 
