@@ -5,10 +5,13 @@ NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
+KALDIIO_ROOT=tools/libkaldiio/
 
-INCLUDE= -I include/ \
+INCLUDE= -I ./ \
+	 -I include/ \
 	 -I $(BOTON_UTIL_ROOT)/include/ \
 	 -I $(CUMATRIX_ROOT)/include \
+	 -I $(KALDIIO_ROOT)/include \
  	 -I /usr/local/cuda/samples/common/inc/ \
 	 -I /usr/local/cuda/include
 
@@ -19,8 +22,9 @@ SOURCES=cnn-utility.cu\
 	dnn-utility.cu\
 	dnn.cpp\
 	utility.cpp\
-	rbm.cpp\
-	feature-transform.cpp\
+	rbm.cu\
+	feature-transform.cu\
+	data-io.cpp\
 	dataset.cpp\
 	batch.cpp\
 	config.cpp
@@ -36,7 +40,7 @@ EXECUTABLES=dnn-train\
 
 EXECUTABLES:=$(addprefix bin/, $(EXECUTABLES))
 
-.PHONY: debug all o3 ctags dump_nrv
+.PHONY: debug all o3 dump_nrv ctags clean
 all: $(EXECUTABLES) ctags
 
 o3: CFLAGS+=-O3
@@ -81,8 +85,7 @@ obj/%.d: %.cpp
 
 -include $(addprefix obj/,$(subst .cpp,.d,$(SOURCES)))
 
-.PHONY: ctags
 ctags:
-	@ctags -R --langmap=C:+.cu *
+	@if command -v ctags >/dev/null 2>&1; then ctags -R --langmap=C:+.cu *; fi
 clean:
 	rm -rf $(EXECUTABLES) obj/*

@@ -13,6 +13,14 @@
 // limitations under the License.
 
 #include <dnn.h>
+#include <tools/rapidxml-1.13/rapidxml_utils.hpp>
+#include <tools/rapidxml-1.13/rapidxml_print.hpp>
+
+ostream& operator << (ostream& os, const DNN& dnn) {
+  for (size_t i=0; i<dnn._transforms.size(); ++i)
+    os << dnn._transforms[i];
+  return os;
+}
 
 DNN::DNN(): _transforms(), _config() {}
 
@@ -29,12 +37,17 @@ DNN::DNN(const DNN& source): _transforms(source._transforms.size()), _config() {
 }
 
 void DNN::init(const std::vector<mat>& weights) {
-  throw std::runtime_error("\33[31m[Error]\33[0m Not implemented yet!!");
-  /*_transforms.resize(weights.size());
+  _transforms.clear();
 
-  for (size_t i=0; i<_transforms.size() - 1; ++i)
-      _transforms[i] = new Sigmoid(weights[i]);
-  _transforms.back() = new Softmax(weights.back());*/
+  for (size_t i=0; i<weights.size(); ++i) {
+    _transforms.push_back(new AffineTransform(weights[i]));
+
+    size_t dim = weights[i].getCols() - 1;
+    if (i < weights.size() - 1)
+      _transforms.push_back(new Sigmoid(dim, dim));
+    else
+      _transforms.push_back(new Softmax(dim, dim));
+  }
 }
 
 DNN::~DNN() {
@@ -59,42 +72,131 @@ void DNN::status() const {
   
   const auto& t = _transforms;
 
-  size_t nAffines=0;
-  for (size_t i=0; i<t.size(); ++i)
-    nAffines += (t[i]->toString() == "AffineTransform");
+  int nHiddens = 0;
 
-  printf("\33[33m[INFO]\33[0m # of hidden layers: %2lu \n", nAffines - 1);
+  printf("._____._____________._____________________.____________.\n");
+  printf("|     |             |                     |            |\n");
+  printf("|     |  Transform  |  Feature Dimension  | Number of  |\n");
+  printf("| No. |             |_____________________|            |\n");
+  printf("|     |    Type     |          |          | Parameters |\n");
+  printf("|     |             |   Input  |  Output  |            |\n");
+  printf("|_____|_____________|__________|__________|____________|\n");
+  printf("|     |             |          |          |            |\n");
 
   for (size_t i=0; i<t.size(); ++i) {
-    printf("  %-16s %4lu x %4lu [%-2lu]\n", t[i]->toString().c_str(),
-	t[i]->getInputDimension(), t[i]->getOutputDimension(), i);
+    string type = t[i]->toString();
+    size_t in  = t[i]->getInputDimension(),
+	   out = t[i]->getOutputDimension();
+
+    bool isAffine = (type == "Affine");
+    if (isAffine)
+      ++nHiddens;
+
+    float nParams = isAffine ? (in * out + out) : 0;
+
+    char nParamStr[12] = {'\0'};
+    if (nParams > 1e8)
+      sprintf(nParamStr, "~ %6.3f G", nParams / 1e9);
+    else if (nParams > 1e5)
+      sprintf(nParamStr, "~ %6.3f M", nParams / 1e6);
+    else if (nParams > 1e2)
+      sprintf(nParamStr, "~ %6.3f K", nParams / 1e3);
+    else if (nParams > 0)
+      sprintf(nParamStr, "  %5d   ", (int) nParams);
+
+    printf("|  %s%-2lu%s |  %s%-9s%s  |  %s%6lu%s  |  %s%6lu%s  | %10s |\n",
+	isAffine ? "" : "\33[1;30m", i		 , "\33[0m",
+	isAffine ? "" : "\33[1;30m", type.c_str(), "\33[0m",
+	isAffine ? "" : "\33[1;30m", in		 , "\33[0m",
+	isAffine ? "" : "\33[1;30m", out	 , "\33[0m", nParamStr);
   }
 
+  printf("|_____|_____________|__________|__________|____________|\n");
+
+  nHiddens = std::max(0, nHiddens - 1);
+  printf("Number of hidden layers: %2d \n", nHiddens);
 }
 
-void DNN::read(string fn) {
+void DNN::read(const string& fn) {
 
-  FILE* fid = fopen(fn.c_str(), "r");
+  ifstream fin(fn.c_str());
 
-  if (!fid)
-    throw std::runtime_error("\33[31m[Error]\33[0m Cannot load file: " + fn);
+  if (!fin.is_open())
+    throw std::runtime_error(RED_ERROR + "Cannot load file: " + fn);
+
+  printf("\33[34m[Info]\33[0m Reading model from \33[32m%s\33[0m\n", fn.c_str());
+
+  stringstream ss;
+  ss << fin.rdbuf() << '\0';
+  fin.close();
 
   _transforms.clear();
 
-  FeatureTransform* f;
-  while ( f = FeatureTransform::create(fid) )
-    _transforms.push_back(f);
 
-  fclose(fid);
+  if (isXmlFormat(ss)) {
+    rapidxml::xml_document<> doc;
+
+    vector<char> buffer((istreambuf_iterator<char>(ss)), istreambuf_iterator<char>());
+    buffer.push_back('\0');
+    doc.parse<0>(&buffer[0]);
+
+    for (auto node = doc.first_node("transform"); node; node = node->next_sibling()) {
+
+      auto x = node->first_attribute("type");
+
+      string token = node->first_attribute("type")->value();
+      FeatureTransform::Type type = FeatureTransform::token2type(token);
+
+      FeatureTransform* f = nullptr;
+
+      switch (type) {
+	case FeatureTransform::Affine :
+	  f = new AffineTransform;
+	  break;
+	case FeatureTransform::Sigmoid :
+	  f = new Sigmoid;
+	  break;
+	case FeatureTransform::Softmax :
+	  f = new Softmax;
+	  break;
+	case FeatureTransform::Dropout :
+	  f = new Dropout;
+	  break;
+	case FeatureTransform::Convolution : 
+	case FeatureTransform::SubSample :
+	  break;
+	default:
+	  cerr << RED_ERROR << "Not such type " << token << endl;
+	  break;
+      }
+
+      if (f) {
+	f->read(node);
+	_transforms.push_back(f);
+      }
+    }
+
+  }
+  else {
+    clog << "\33[33m[Warning]\33[0m The original model format is \33[36mdeprecated\33[0m. "
+      << "Please use XML format." << endl;
+    FeatureTransform* f;
+    while ( ss >> f )
+      _transforms.push_back(f);
+  }
 }
 
-void DNN::save(string fn) const {
-  FILE* fid = fopen(fn.c_str(), "w");
+void DNN::save(const string& fn) const {
+  ofstream fout(fn.c_str());
 
-  for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->write(fid);
-  
-  fclose(fid);
+  if (!fout.is_open())
+    throw std::runtime_error(RED_ERROR + "Cannot open file: " + fn);
+
+  fout << *this;
+
+  fout.close();
+
+  printf("\33[34m[Info]\33[0m Model saved to \33[32m%s\33[0m\n", fn.c_str());
 }
 
 std::vector<FeatureTransform*>& DNN::getTransforms() {
@@ -110,8 +212,10 @@ const std::vector<FeatureTransform*>& DNN::getTransforms() const {
 // ========================
 
 void DNN::adjustLearningRate(float trainAcc) {
-  static size_t phase = 0;
 
+  // TODO Use AdaGrad instead. And don't print anything.
+  
+  /*static size_t phase = 0;
   if ( (trainAcc > 0.80 && phase == 0) ||
        (trainAcc > 0.85 && phase == 1) ||
        (trainAcc > 0.90 && phase == 2) ||
@@ -124,6 +228,17 @@ void DNN::adjustLearningRate(float trainAcc) {
     printf("\33[33m[Info]\33[0m Adjust learning rate from \33[32m%.7f\33[0m to \33[32m%.7f\33[0m\n", _config.learningRate, _config.learningRate * ratio);
     _config.learningRate *= ratio;
     ++phase;
+  }*/
+}
+
+void DNN::setDropout(bool flag) {
+  auto& t = _transforms;
+  for (size_t i=0; i<t.size(); ++i) {
+    string type = t[i]->toString();
+    if (type != "Dropout")
+      continue;
+
+    dynamic_cast<Dropout*>(t[i])->setDropout(flag);
   }
 }
 

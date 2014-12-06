@@ -12,8 +12,77 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <feature-transform.h>
 #include <cnn.h>
 #define matslog(x) { for (int i=0; i<x.size(); ++i) { printf(#x"[%d] = [\n", i); x[i].print(); printf("]\n"); } }
+
+// CSE stands for Check Stream Error
+#define CSE(x) { if (!(x)) \
+  throw std::runtime_error(RED_ERROR + "Failed when executing \33[33m"#x"\33[0m"); }
+
+#define VECTOR std::vector
+#define WHERE std
+#include <operators.inl>
+#undef VECTOR
+#undef WHERE
+
+/*!
+ * Implementation of MIMOFeatureTransform goes here.
+ */
+
+MIMOFeatureTransform::MIMOFeatureTransform(size_t n_input_maps, size_t n_output_maps):
+  _n_input_maps(n_input_maps), _n_output_maps(n_output_maps) {
+  // nothing to do  
+}
+
+void MIMOFeatureTransform::read(xml_node<> *node) {
+  // # of input feature maps
+  auto attr = node->first_attribute("input-maps");
+  if (!attr)
+    throw std::runtime_error(RED_ERROR + "Missing input-maps");
+  _n_input_maps = stol(attr->value());
+
+  // # of output feature maps
+  attr = node->first_attribute("output-maps");
+  if (!attr)
+    throw std::runtime_error(RED_ERROR + "Missing output-maps");
+  _n_output_maps = stol(attr->value());
+
+  // Input dimension of image
+  attr = node->first_attribute("input-dim");
+  if (!attr)
+    throw std::runtime_error(RED_ERROR + "Missing input-dim");
+  this->set_input_img_size(parseInputDimension(attr->value()));
+}
+
+void MIMOFeatureTransform::write(ostream& os) const {
+  char buffer[256];
+  sprintf(buffer, "input-dim=\"%lu-%lu\" input-maps=\"%lu\" output-maps=\"%lu\"",
+      _input_img_size.m, _input_img_size.n, _n_input_maps, _n_output_maps);
+  os << buffer;
+}
+
+void MIMOFeatureTransform::set_input_img_size(const SIZE& s) {
+  _input_img_size = s;
+}
+
+SIZE MIMOFeatureTransform::get_input_img_size() const {
+  return _input_img_size;
+}
+
+size_t MIMOFeatureTransform::getNumInputMaps() const {
+  return _n_input_maps;
+}
+
+size_t MIMOFeatureTransform::getNumOutputMaps() const {
+  return _n_output_maps;
+}
+
+ostream& operator << (ostream& os, const MIMOFeatureTransform *ft) {
+  // os << ft->get_input_img_size() << " => " << ft->get_output_img_size();
+  ft->write(os);
+  return os;
+}
 
 /*! 
  * Implementation of CNN goes here.
@@ -116,8 +185,8 @@ void CNN::init(const string &structure, SIZE img_size) {
       vector<string> dims = split(layers[i], 'x');
 
       size_t nOutputMaps   = str2int(dims[0]),
-	     kernel_width  = str2int(dims[1]),
-	     kernel_height = str2int(dims[2]);
+	     kernel_height = str2int(dims[1]),
+	     kernel_width = str2int(dims[2]);
 
       MIMOFeatureTransform* t =
 	new ConvolutionalLayer( nInputMaps, nOutputMaps, kernel_height, kernel_width);
@@ -131,19 +200,80 @@ void CNN::init(const string &structure, SIZE img_size) {
       nInputMaps = nOutputMaps;
     }
     else
-      throw std::runtime_error("\33[31m[Error]\33[0m No such type of layer. \""
+      throw std::runtime_error(RED_ERROR + "No such type of layer. \""
 	  + layers[i] + "\". Only convolutional/sub-sampling layer are allowed");
 
   }
 }
 
 void CNN::read(const string &fn) {
-  // TODO
+  ifstream fin(fn.c_str());
 
+  if (!fin.is_open())
+    throw std::runtime_error(RED_ERROR + "Cannot load file: " + fn);
+
+  printf("\33[34m[Info]\33[0m Reading model from \33[32m%s\33[0m\n", fn.c_str());
+
+  stringstream ss;
+  ss << fin.rdbuf() << '\0';
+  fin.close();
+
+  _transforms.clear();
+
+  MIMOFeatureTransform* f;
+
+  if (isXmlFormat(ss)) {
+    rapidxml::xml_document<> doc;
+
+    vector<char> buffer((istreambuf_iterator<char>(ss)), istreambuf_iterator<char>());
+    buffer.push_back('\0');
+    doc.parse<0>(&buffer[0]);
+
+    for (auto node = doc.first_node("transform"); node; node = node->next_sibling()) {
+
+      auto x = node->first_attribute("type");
+
+      string token = node->first_attribute("type")->value();
+      FeatureTransform::Type type = FeatureTransform::token2type(token);
+
+      switch (type) {
+	case FeatureTransform::Affine :
+	case FeatureTransform::Sigmoid :
+	case FeatureTransform::Softmax :
+	case FeatureTransform::Dropout :
+	  return;
+	case FeatureTransform::Convolution : 
+	  f = new ConvolutionalLayer;
+	  break;
+	case FeatureTransform::SubSample :
+	  f = new SubSamplingLayer;
+	  break;
+	default:
+	  cerr << RED_ERROR << "Not such type " << token << endl;
+	  break;
+      }
+      
+
+      if (f) {
+	f->read(node);
+	_transforms.push_back(f);
+      }
+    }
+
+  }
+  else
+    clog << RED_ERROR << "while reading XML file." << endl;
 }
 
 void CNN::save(const string &fn) const {
-  // TODO
+  ofstream fout(fn.c_str());
+
+  if (!fout.is_open())
+    throw std::runtime_error(RED_ERROR + "Cannot open file: " + fn);
+
+  fout << *this;
+
+  fout.close();
 }
 
 size_t CNN::getInputDimension() const { 
@@ -176,9 +306,17 @@ void CNN::status() const {
   printf("+-------------------------------------------------------------+\n");
 }
 
+ostream& operator << (ostream& os, const CNN& cnn) {
+  for (size_t i=0; i<cnn._transforms.size(); ++i)
+    os << cnn._transforms[i];
+  return os;
+}
+
+
 /*! 
  * Implementation of ConvolutionalLayer goes here.
  */
+
 ConvolutionalLayer::ConvolutionalLayer(size_t nInputs, size_t nOutputs, int h, int w)
   : MIMOFeatureTransform(nInputs, nOutputs) {
   if (w == -1)
@@ -195,13 +333,84 @@ ConvolutionalLayer::ConvolutionalLayer(size_t nInputs, size_t nOutputs, int h, i
   _kernels.resize(nInputs);
   for (size_t i=0; i<nInputs; ++i) {
     _kernels[i].resize(nOutputs);
-    for (size_t j=0; j<nOutputs; ++j)
+    for (size_t j=0; j<nOutputs; ++j) {
       _kernels[i][j] = (rand(h, w) - 0.5f) * coeff;
+#ifdef DEBUG
+      _kernels[i][j].print();
+#endif
+    }
   }
 
   _bias.resize(nOutputs);
   for (size_t j=0; j<nOutputs; ++j)
     _bias[j] = 0;
+}
+
+void ConvolutionalLayer::read(xml_node<> *node) {
+
+  MIMOFeatureTransform::read(node);
+
+  SIZE k = parseInputDimension(node->first_attribute("kernel-dim")->value());
+
+  // Allocate memory for kernels and bias
+  _kernels.resize(_n_input_maps);
+  for (size_t i=0; i<_kernels.size(); ++i)
+    _kernels[i].resize(_n_output_maps);
+  _bias.resize(_n_output_maps);
+
+  // Parse kernels and bias
+  int j = 0;
+  for (auto kernels = node->first_node("kernels"); kernels; kernels = kernels->next_sibling(), ++j) {
+    int i = 0;
+    for (auto w = kernels->first_node("weight"); w; w = w->next_sibling(), i++) {
+      stringstream ss(w->value());
+
+      hmat hw(k.m, k.n);
+      for (size_t x=0; x<k.m; ++x)
+	for (size_t y=0; y<k.n; ++y)
+	  CSE( ss >> hw(x, y) );
+
+      _kernels[i][j] = (mat) hw;
+    }
+    _bias[j] = stof(kernels->first_attribute("bias")->value());
+  }
+}
+
+void ConvolutionalLayer::write(ostream& os) const {
+  ostringstream oss;
+  MIMOFeatureTransform::write(oss);
+
+  char buffer[256];
+  sprintf(buffer, "<transform type=\"%s\" learning-rate=\"%f\" kernel-dim=\"%lu-%lu\" %s>",
+      "convolution", 0.01, getKernelWidth(), getKernelHeight(), oss.str().c_str());
+  os << buffer << endl;
+
+  for (size_t j=0; j<_n_output_maps; ++j) {
+    os << "  <kernels bias=\"" << _bias[j] << "\">" << endl;
+
+    for (size_t i=0; i<_n_input_maps; ++i) {
+      os << "    <weight>" << endl;
+      hmat hw(_kernels[i][j]);
+      for (size_t x=0; x<hw.getRows(); ++x) {
+	os << "      ";
+	for (size_t y=0; y<hw.getCols(); ++y)
+	  os << hw(x, y) << " ";
+	os << endl;
+      }
+      os << "    </weight>" << endl;
+    }
+
+    os << "  </kernels>" << endl;
+  }
+  os << "</transform>" << endl;
+}
+
+ConvolutionalLayer* ConvolutionalLayer::clone() const {
+  return new ConvolutionalLayer(*this);
+}
+
+string ConvolutionalLayer::toString() const {
+  return "convolution";
 }
 
 /* FIXME If every element in fins is a single feature map, then only a data can
@@ -241,7 +450,7 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
 
   for (size_t j=0; j<nOutputs; ++j) {
     for (size_t i=0; i<nInputs; ++i)
-      fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, "valid_shm");
+      fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, VALID_SHM);
     fouts[j] = sigmoid(fouts[j] + _bias[j]);
   }
 }
@@ -256,27 +465,15 @@ void ConvolutionalLayer::feedBackward(
   SIZE s = this->get_input_img_size();
   size_t batch_size = deltas[0].getCols();
 
-  vector<vector<mat> > oImgs(nOutputs), iImgs(nInputs);
-  for (size_t j=0; j<nOutputs; ++j)
-    oImgs[j] = reshapeVectors2Images(deltas[j], this->get_output_img_size());
-
-  for (size_t i=0; i<nInputs; ++i)
-    iImgs[i].resize(batch_size);
-
-  for (size_t k=0; k<batch_size; ++k) {
-    for (size_t i=0; i<nInputs; ++i) {
-      iImgs[i][k].resize(s.m, s.n, 0);
-      for (size_t j=0; j<nOutputs; ++j)
-	iImgs[i][k] += convn(oImgs[j][k], rot180(_kernels[i][j]), "full");
-    }
-  }
-
   if (errors.size() != nInputs)
     errors.resize(nInputs);
 
   for (size_t i=0; i<nInputs; ++i)
-    errors[i] = reshapeImages2Vectors(iImgs[i]);
+    errors[i].resize(s.m * s.n, batch_size, 0);
 
+  for (size_t i=0; i<nInputs; ++i)
+    for (size_t j=0; j<nOutputs; ++j)
+      errors[i] += convn(deltas[j], rot180(_kernels[i][j]), this->get_output_img_size(), FULL_SHM);
 }
 
 // NOTE: in MATLAB
@@ -310,27 +507,29 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
 
   assert(learning_rate > 0);
   float lr = learning_rate / batch_size;
+  for (auto &d: deltas)
+    d *= lr;
 
   // iImgs represents the input images.
-  // oImgs represents the output images. (Before sigmoid or any other activation function)
-  vector<vector<mat> > iImgs(nInputs), oImgs(nOutputs);
+  vector<vector<mat> > iImgs(nInputs);
 
   for (size_t i=0; i<nInputs; ++i)
     iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
 
-  for (size_t j=0; j<nOutputs; ++j)
-    oImgs[j] = reshapeVectors2Images(deltas[j], this->get_output_img_size());
+  auto Y = reshapeVectors2Images(vercat(deltas), SIZE(deltas[0].getRows(), nOutputs));
 
   // Update kernels with learning rate
-  for (size_t k=0; k<batch_size; ++k) {
-    for (size_t j=0; j<nOutputs; ++j) {
+  vector<mat> Z(nInputs, mat(this->get_kernel_size().area(), nOutputs, 0));
 
-      for (size_t i=0; i<nInputs; ++i)
-	_kernels[i][j] -= convn(rot180(iImgs[i][k]), oImgs[j][k], "valid_shm") * lr;
+  for (size_t i=0; i<nInputs; ++i)
+    for (size_t k=0; k<batch_size; ++k)
+      Z[i] += convn_2(rot180(iImgs[i][k]), Y[k], this->get_output_img_size());
 
-      _bias[j] -= sum_all(oImgs[j][k]) * lr;
-    }
-  }
+  for (size_t i=0; i<nInputs; ++i)
+    _kernels[i] -= reshapeVectors2Images(Z[i], this->get_kernel_size());
+
+  for (size_t j=0; j<nOutputs; ++j)
+    _bias[j] -= sum_all(deltas[j]);
 }
 
 void ConvolutionalLayer::status() const {
@@ -338,6 +537,15 @@ void ConvolutionalLayer::status() const {
   printf("+--------------+---------------+--------------+---------------+\n");
   printf("|      %-5lu   |       %-5lu   |      %-5lu   |       %-5lu   |\n",
       getNumInputMaps(), getNumOutputMaps(), getKernelWidth(), getKernelHeight());
+}
+
+SIZE ConvolutionalLayer::get_output_img_size() const {
+  SIZE kernel(getKernelHeight(), getKernelWidth());
+  return get_convn_size(_input_img_size, kernel, VALID);
+}
+
+SIZE ConvolutionalLayer::get_kernel_size() const {
+  return SIZE(_kernels[0][0].getRows(), _kernels[0][0].getCols());
 }
 
 size_t ConvolutionalLayer::getKernelWidth() const {
@@ -360,6 +568,35 @@ SubSamplingLayer::SubSamplingLayer(size_t m, size_t n, size_t scale)
   : MIMOFeatureTransform(m, n), _scale(scale) {
 }
 
+void SubSamplingLayer::read(xml_node<> *node) {
+  MIMOFeatureTransform::read(node);
+
+  auto attr = node->first_attribute("sample-rate");
+  if (!attr)
+    throw std::runtime_error(RED_ERROR + "Missing sample-rate");
+  _scale = stol(attr->value());
+}
+
+void SubSamplingLayer::write(ostream& os) const {
+  ostringstream oss;
+  MIMOFeatureTransform::write(oss);
+
+  char buffer[256];
+  sprintf(buffer, "<transform type=\"%s\" sample-rate=\"%lu\" %s>",
+      "subsample", getScale(), oss.str().c_str());
+  os << buffer << endl;
+
+  os << "</transform>" << endl;
+}
+
+SubSamplingLayer* SubSamplingLayer::clone() const {
+  return new SubSamplingLayer(*this);
+}
+
+string SubSamplingLayer::toString() const {
+  return "subsample";
+}
+
 void SubSamplingLayer::status() const {
   printf("+-------------------------------------------------------------+\n");
   printf("|                Sub-Sampling Factor = %-4lu                   |\n", _scale);
@@ -367,6 +604,10 @@ void SubSamplingLayer::status() const {
   
 size_t SubSamplingLayer::getScale() const {
   return _scale;
+}
+
+SIZE SubSamplingLayer::get_output_img_size() const {
+  return _input_img_size / _scale;
 }
 
 void SubSamplingLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) {

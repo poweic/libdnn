@@ -1,13 +1,25 @@
+// Copyright 2013-2014 [Author: Po-Wei Chou]
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef __DATASET_H_
 #define __DATASET_H_
 
-#include <device_matrix.h>
-#include <host_matrix.h>
+#include <data-io.h>
+
 #include <batch.h>
 #include <thread>
 #include <future>
-typedef device_matrix<float> mat;
-typedef host_matrix<float> hmat;
 
 enum NormType {
   NO_NORMALIZATION,
@@ -15,46 +27,14 @@ enum NormType {
   STANDARD_SCORE
 };
 
-class DataStream {
-public:
-  DataStream();
-  DataStream(const string& filename, size_t start = 0, size_t end = -1);
-  DataStream(const DataStream& src);
-  ~DataStream();
-
-  DataStream& operator = (DataStream that);
-
-  friend void swap(DataStream& a, DataStream& b);
-
-  size_t count_lines() const;
-
-  void init(const string& filename, size_t start, size_t end);
-
-  string getline();
-  void rewind();
-
-  size_t _nLines;
-  size_t _line_number;
-  string _filename;
-  ifstream _fs;
-  size_t _start, _end;
-};
-
-struct BatchData {
-  hmat x, y;
-};
-
-BatchData readMoreFeature(DataStream& stream, int N, size_t dim, size_t base, bool sparse);
-void readSparseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data);
-void readDenseFeature(DataStream& stream, int N, size_t dim, size_t base, BatchData& data);
-
 class Normalization;
 
 class DataSet {
 public:
   DataSet();
-  DataSet(const string &fn, size_t dim = 0, int base = 0,
-      size_t start = 0, size_t end = -1);
+  DataSet(const string &fn, size_t dim, int base, NormType n_type);
+
+  void init(const string &fn, size_t dim, int base, size_t start, size_t end);
 
   DataSet(const DataSet& data);
   ~DataSet();
@@ -96,12 +76,8 @@ public:
 private:
   std::future<BatchData> f_data;
 
-  void setDimension(size_t dim);
-
-  void set_sparse(bool sparse);
-
   size_t _dim;
-  DataStream _stream;
+  DataStream* _stream;
   bool _sparse;
   NormType _type;
   int _base;
@@ -109,16 +85,10 @@ private:
   Normalization* _normalizer;
 };
 
-
 bool isFileSparse(string train_fn);
-
-size_t getLineNumber(ifstream& fin);
-size_t findMaxDimension(ifstream& fin);
-size_t findDimension(ifstream& fin);
 
 std::ifstream& goToLine(std::ifstream& file, unsigned long num);
 size_t countLines(const string& fn);
-
 
 class Normalization {
 public:

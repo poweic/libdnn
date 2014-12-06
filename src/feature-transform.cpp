@@ -14,23 +14,84 @@
 
 #include <feature-transform.h>
 
-FeatureTransform* FeatureTransform::create(FILE* fid) {
-  char c_type[128];
-  if ( fscanf(fid, "%s", c_type) == EOF )
-    return NULL;
+// CSE stands for Check Stream Error
+#define CSE(x) { if (!(x)) \
+  throw std::runtime_error(RED_ERROR + "Failed when executing \33[33m"#x"\33[0m"); }
 
-  string type(c_type);
+std::map<FeatureTransform::Type, string> FeatureTransform::type2token = {
+  {FeatureTransform::Affine, "affine"},
+  {FeatureTransform::Sigmoid, "sigmoid"},
+  {FeatureTransform::Softmax, "softmax"},
+  {FeatureTransform::Dropout, "dropout"},
+  {FeatureTransform::Convolution, "convolution"},
+  {FeatureTransform::SubSample, "subsample"}
+};
+
+FeatureTransform::Type FeatureTransform::token2type(string token) {
+  std::transform(token.begin(), token.end(), token.begin(), ::tolower);
+
+  FeatureTransform::Type type;
+
+  for (const auto& itr : type2token) {
+    if (itr.second == token)
+      return itr.first;
+  }
+
+  throw std::runtime_error("Unknown transform type: " + token);
+}
+
+string peek_a_token(istream& is) {
+
+  string token;
+  
+  if (!is) return token;
+
+  char buffer;
+  is.read(&buffer, 1);
+
+  while (buffer != ' ') {
+    token.push_back(buffer);
+    is.read(&buffer, 1);
+  }
+
+  is.putback(' ');
+  for (int i=token.size() - 1; i>=0; --i)
+    is.putback(token[i]);
+
+  return token;
+}
+
+bool isXmlFormat(istream& is) {
+  string token = peek_a_token(is);
+  return token == "<transform" || token == "<?xml";
+}
+
+ostream& operator << (ostream& os, FeatureTransform* ft) {
+  ft->write(os);
+  return os;
+}
+
+istream& operator >> (istream& is, FeatureTransform* &ft) {
+  string type;
+  if (!(is >> type)) {
+    ft = NULL;
+    return is;
+  }
 
   std::transform(type.begin(), type.end(), type.begin(), ::toupper);
 
   if (type == "<AFFINETRANSFORM>")
-    return new AffineTransform(fid);
+    ft = new AffineTransform(is);
   else if (type == "<SIGMOID>")
-    return new Sigmoid(fid);
+    ft = new Sigmoid(is);
   else if (type == "<SOFTMAX>")
-    return new Softmax(fid);
+    ft = new Softmax(is);
+  else {
+    ft = NULL;
+    while (is >> type);
+  }
 
-  return NULL;
+  return is;
 }
 
 /*
@@ -40,6 +101,18 @@ FeatureTransform* FeatureTransform::create(FILE* fid) {
 
 FeatureTransform::FeatureTransform(size_t input_dim, size_t output_dim)
   : _input_dim(input_dim), _output_dim(output_dim) {
+}
+
+void FeatureTransform::read(xml_node<> *node) {
+  auto attr = node->first_attribute("input-dim");
+  if (!attr)
+    throw std::runtime_error(RED_ERROR + "Missing input-dim");
+  _input_dim = stol(attr->value());
+
+  attr = node->first_attribute("output-dim");
+  if (!attr)
+    throw std::runtime_error(RED_ERROR + "Missing output-dim");
+  _output_dim = stol(attr->value());
 }
 
 /*
@@ -55,60 +128,138 @@ AffineTransform::AffineTransform(const mat& w)
   : FeatureTransform(w.getRows() - 1, w.getCols() - 1), _w(w) {
 }
 
-AffineTransform::AffineTransform(FILE* fid) {
-  this->read(fid);
+AffineTransform::AffineTransform(istream& is) {
+  this->read(is);
 }
 
-#pragma GCC diagnostic ignored "-Wunused-result"
-void AffineTransform::read(FILE* fid) {
+void AffineTransform::read(xml_node<> * node) {
+
+  FeatureTransform::read(node);
+
+  const size_t& rows = _input_dim;
+  const size_t& cols = _output_dim;
+
+  auto attr = node->first_attribute("learning-rate");
+  float learning_rate = (attr) ? stof(attr->value()) : 0.1;
+
+  attr = node->first_attribute("momentum");
+  float momentum = (attr) ? stof(attr->value()) : 0.1;
+
+  auto weight = node->first_node("weight");
+  auto bias = node->first_node("bias");
+
+  if (!weight)
+    throw std::runtime_error("Cannot find weight in affine transform");
+
+  if (!bias)
+    throw std::runtime_error("Cannot find bias in affine transform");
+
+  hmat hw(rows + 1, cols + 1);
+  stringstream ss;
+  
+  ss << weight->value();
+  for (size_t i=0; i<rows; ++i)
+    for (size_t j=0; j<cols; ++j)
+      CSE( ss >> hw(i, j) );
+
+  ss << bias->value();
+  for (size_t j=0; j<cols; ++j)
+    CSE( ss >> hw(rows, j) );
+
+  _w = (mat) hw;
+}
+ 
+void AffineTransform::read(istream& is) {
+
+  string dummy;
 
   size_t rows, cols;
-  if ( fscanf(fid, "%lu %lu\n", &rows, &cols) == EOF)
-    throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+  CSE(is >> rows);
+  CSE(is >> cols);
 
   hmat hw(rows + 1, cols + 1);
 
   // Read matrix
-  fscanf(fid, "[\n");
+  CSE(is >> dummy);
   for (size_t i=0; i<rows; ++i)
     for (size_t j=0; j<cols; ++j)
-      fscanf(fid, "%f ", &hw(i, j) );
-  fscanf(fid, "]\n");
+      CSE( is >> hw(i, j) );
+  CSE(is >> dummy);
 
   // Read vector (bias)
-  fscanf(fid, "[");
+  CSE(is >> dummy);
   for (size_t j=0; j<cols; ++j)
-    fscanf(fid, "%f ", &hw(rows, j) );
-  fscanf(fid, "]\n");
+    CSE( is >> hw(rows, j) );
+  CSE(is >> dummy);
 
   _w = (mat) hw;
-  _input_dim = _w.getRows();
-  _output_dim = _w.getCols();
+  _input_dim = rows;
+  _output_dim = cols;
 }
 
-void AffineTransform::write(FILE* fid) const {
+void AffineTransform::write(ostream& os) const {
 
   hmat data(_w);
 
   size_t rows = data.getRows(),
 	 cols = data.getCols();
 
-  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str() , rows - 1, cols - 1);
+  char buffer[512];
+
+  sprintf(buffer, "<transform type=\"%s\" input-dim=\"%lu\" output-dim=\"%lu\""
+      " momentum=\"%f\" learning-rate=\"%f\" >", this->toString().c_str(),
+      rows - 1, cols - 1, 0.1, 0.1);
+  os << buffer << endl;
+
+
+  sprintf(buffer, "  <weight rows=\"%lu\" cols=\"%lu\">", rows - 1, cols - 1);
+  os << buffer << endl;
 
   // Write matrix
-  fprintf(fid, "[");
   for (size_t j=0; j<rows-1; ++j) {
-    fprintf(fid, "\n  ");
+    os << "    ";
     for (size_t k=0; k<cols-1; ++k)
-      fprintf(fid, "%g ", data[k * rows + j]);
+      os << data[k * rows + j] << " ";
+    os << endl;
   }
-  fprintf(fid, "]\n");
+
+  os << "  </weight>" << endl;
+
+  sprintf(buffer, "  <bias rows=\"%d\" cols=\"%lu\">", 1, cols - 1);
+  os << buffer << endl;
+
+  os << "    ";
+  for (size_t j=0; j<cols-1; ++j)
+    os << data[j * rows + rows - 1] << " ";
+
+  os << endl
+     << "  </bias>" << endl
+     << "</transform>" << endl;
+  
+
+#if 0
+  hmat data(_w);
+
+  size_t rows = data.getRows(),
+	 cols = data.getCols();
+
+  os << "<" << this->toString() << "> " << (rows - 1) << " " << (cols - 1) << endl;
+
+  // Write matrix
+  os << "[";
+  for (size_t j=0; j<rows-1; ++j) {
+    os << "\n  ";
+    for (size_t k=0; k<cols-1; ++k)
+      os << data[k * rows + j] << " ";
+  }
+  os << "]\n";
 
   // Write vector (bias)
-  fprintf(fid, "[ ");
+  os << "[ ";
   for (size_t j=0; j<cols-1; ++j)
-    fprintf(fid, "%g ", data[j * rows + rows - 1]);
-  fprintf(fid, "]\n");
+    os << data[j * rows + rows - 1] << " ";
+  os << "]\n";
+#endif
 }
 
 AffineTransform* AffineTransform::clone() const {
@@ -116,7 +267,7 @@ AffineTransform* AffineTransform::clone() const {
 }
 
 string AffineTransform::toString() const {
-  return "AffineTransform";
+  return "Affine";
 }
 
 void AffineTransform::feedForward(mat& fout, const mat& fin) {
@@ -153,6 +304,7 @@ mat& AffineTransform::get_w() {
 mat const& AffineTransform::get_w() const {
   return _w;
 }
+
 /*
  * class Activation
  *
@@ -166,16 +318,34 @@ Activation::Activation(size_t input_dim, size_t output_dim)
 
 }
 
-void Activation::read(FILE* fid) {
-  if ( fscanf(fid, "%lu %lu\n [\n", &_input_dim, &_output_dim) == EOF)
-    throw std::runtime_error("\33[31m[Error]\33[0m failed when reading");
+void Activation::read(xml_node<> * node) {
 
+  FeatureTransform::read(node);
+  
   if (_input_dim != _output_dim)
-    throw std::runtime_error("\33[31m[Error]\33[0m Mismatched input/output dimension");
+    throw std::runtime_error(RED_ERROR + "Mismatched input/output dimension");
 }
 
-void Activation::write(FILE* fid) const {
-  fprintf(fid, "<%s> %lu %lu\n", this->toString().c_str(), _input_dim, _output_dim);
+void Activation::read(istream& is) {
+
+  string remaining;
+  CSE(is >> _input_dim);
+  CSE(is >> _output_dim);
+
+  CSE(std::getline(is, remaining));
+  
+  if (_input_dim != _output_dim)
+    throw std::runtime_error(RED_ERROR + "Mismatched input/output dimension");
+}
+
+void Activation::write(ostream& os) const {
+
+  os << "<transform type=\"" << this->toString() 
+     << "\" input-dim=\"" << _input_dim
+     << "\" output-dim=\"" << _output_dim << "\" />" << endl;
+#if 0
+  os << "<" << this->toString() << "> " << _input_dim << " " << _output_dim << endl;
+#endif
 }
 
 /*
@@ -188,8 +358,8 @@ Sigmoid::Sigmoid(size_t input_dim, size_t output_dim)
 
 }
 
-Sigmoid::Sigmoid(FILE* fid) {
-  this->read(fid);
+Sigmoid::Sigmoid(istream& is) {
+  Activation::read(is);
 }
 
 Sigmoid* Sigmoid::clone() const {
@@ -219,8 +389,8 @@ Softmax::Softmax(size_t input_dim, size_t output_dim)
 
 }
 
-Softmax::Softmax(FILE* fid) {
-  this->read(fid);
+Softmax::Softmax(istream& is) {
+  Activation::read(is);
 }
 
 Softmax* Softmax::clone() const {
@@ -237,4 +407,65 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
 
 void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
   // Do nothing.
+}
+
+/*
+ * class Dropout
+ *
+ * */
+Dropout::Dropout(): _dropout_ratio(0.0f), _dropout(true) {
+}
+
+Dropout::Dropout(size_t input_dim, size_t output_dim)
+  : Activation(input_dim, output_dim), _dropout_ratio(0.0f), _dropout(true) {
+}
+
+Dropout::Dropout(istream& is) {
+  Activation::read(is);
+}
+
+void Dropout::read(xml_node<> *node) {
+
+  Activation::read(node);
+
+  auto attr = node->first_attribute("dropout-ratio");
+  if (attr)
+    _dropout_ratio = stof(attr->value());
+}
+
+void Dropout::write(ostream& os) const {
+  stringstream ss;
+  Activation::write(ss);
+  string str = ss.str();
+  str.insert(str.find_last_of(' '), " dropout-ratio=\"" + to_string(_dropout_ratio) + "\"");
+  os << str;
+}
+
+Dropout* Dropout::clone() const {
+  return new Dropout(*this);
+}
+
+string Dropout::toString() const {
+  return "Dropout";
+}
+
+void Dropout::feedForward(mat& fout, const mat& fin) {
+  if (!_dropout) {
+    fout = fin * (1 - _dropout_ratio);
+    return;
+  }
+
+  if (_dropout_ratio == 0) {
+    fout = fin;
+    return;
+  }
+
+  _dropout_mask = mat(fin.getRows(), fin.getCols(), 1 - _dropout_ratio);
+  sample(_dropout_mask, BERNOULLI);
+  fout = _dropout_mask & fin;
+}
+
+void Dropout::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  if (_dropout_ratio != 0)
+    error &= _dropout_mask;
 }

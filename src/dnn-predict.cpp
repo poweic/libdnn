@@ -19,6 +19,7 @@
 #include <batch.h>
 using namespace std;
 
+mat getPriorProbability(const string& fn);
 void printLabels(const mat& prob, FILE* fid, int base);
 FILE* openFileOrStdout(const string& filename);
 
@@ -31,8 +32,7 @@ int main (int argc, char* argv[]) {
     .add("output_file", false);
 
   cmd.addGroup("Feature options:")
-     .add("--input-dim", "specify the input dimension (dimension of feature).\n"
-	 "0 for auto detection.")
+     .add("--input-dim", "specify the input dimension (dimension of feature).")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
@@ -42,7 +42,8 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Options:")
     .add("--acc", "calculate prediction accuracy", "true")
-    .add("--prob", "output posterior probabilities if true\n"
+    .add("--prior", "prior probability for each classes.", "")
+    .add("--output", "output posterior probabilities if true\n"
 	"0 -- Do not output posterior probabilities. Output class-id.\n"
 	"1 -- Output posterior probabilities. (range in [0, 1]) \n"
 	"2 -- Output natural log of posterior probabilities. (range in [-inf, 0])", "0")
@@ -64,17 +65,21 @@ int main (int argc, char* argv[]) {
   NormType n_type   = (NormType) (int) cmd["--normalize"];
   string n_filename = cmd["--nf"];
   int base	    = cmd["--base"];
+  string prior_fn   = cmd["--prior"];
 
-  int output_type   = cmd["--prob"];
+  int output_type   = cmd["--output"];
   bool silent	    = cmd["--silent"];
   bool calcAcc	    = cmd["--acc"];
 
   size_t cache_size   = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
+  
+  // Use Log(prior) because log(x) would check whether x has zero in it.
+  mat log_prior = log(getPriorProbability(prior_fn));
+  bool prior = !prior_fn.empty();
+  /* --- Load prior probability --- */
 
-  DataSet test(test_fn, input_dim, base);
-  // test.loadPrecomputedStatistics(n_filename);
-  test.setNormType(n_type);
+  DataSet test(test_fn, input_dim, base, n_type);
 
   ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
 
@@ -84,8 +89,9 @@ int main (int argc, char* argv[]) {
 
   FILE* fid = openFileOrStdout(output_fn);
 
+  mat log_priors;
   Batches batches(1024, test.size());
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+  for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
     auto data = test[itr];
     mat prob = dnn.feedForward(data.x);
 
@@ -95,10 +101,31 @@ int main (int argc, char* argv[]) {
     if (calcAcc && output_fn.empty() && output_type == 0)
       continue;
 
+    if (prior && log_priors.getRows() != prob.getRows())
+      log_priors = mat(prob.getRows(), 1, 1) * log_prior;
+
     switch (output_type) {
-      case 0: printLabels(prob, fid, base); break;
-      case 1: prob.print(fid);	      break;
-      case 2: log(prob).print(fid);   break;
+      case 0:
+	printLabels(prob, fid, base);
+	break;
+
+      case 1:
+	if (prior)
+	  prob = exp(log(prob) - log_priors);
+
+	prob.print(fid, 7);
+	break;
+
+      case 2:
+	prob = log(prob);
+	if (prior)
+	  prob -= log_priors;
+
+	prob.print(fid, 7);
+	break;
+
+      default:
+	throw std::runtime_error(RED_ERROR + "unknown output type " + to_string(output_type));
     }
   }
 
@@ -111,8 +138,19 @@ int main (int argc, char* argv[]) {
   return 0;
 }
 
+mat getPriorProbability(const string& fn) {
+  if (fn.empty())
+    return mat();
+
+  clog << util::blue("[INFO] ") << "Load prior prob from: " << util::green(fn) << endl;
+
+  mat prior(fn);
+  double sum = ((hmat) (prior * mat(prior.getCols(), 1, 1)))[0];
+  return prior / sum;
+}
+
 // DO NOT USE device_matrix::print()
-// (since labels should be printed as integer)
+// (since labels should be printed as integer not as floating point)
 void printLabels(const mat& prob, FILE* fid, int base) {
   auto h_labels = copyToHost(posteriorProb2Label(prob));
   for (size_t i=0; i<h_labels.size(); ++i)
