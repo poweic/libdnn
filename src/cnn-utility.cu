@@ -93,6 +93,10 @@ void showImage(const mat& x) {
 
 SIZE parseInputDimension(const string &m_by_n) {
   size_t pos = m_by_n.find("x");
+
+  if (pos == string::npos)
+    throw std::runtime_error(RED_ERROR + "Please use --input-dim like this: 32x32");
+
   return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
 }
 

@@ -57,7 +57,7 @@ void MIMOFeatureTransform::read(xml_node<> *node) {
 
 void MIMOFeatureTransform::write(ostream& os) const {
   char buffer[256];
-  sprintf(buffer, "input-dim=\"%lu-%lu\" input-maps=\"%lu\" output-maps=\"%lu\"",
+  sprintf(buffer, "input-dim=\"%lux%lu\" input-maps=\"%lu\" output-maps=\"%lu\"",
       _input_img_size.m, _input_img_size.n, _n_input_maps, _n_output_maps);
   os << buffer;
 }
@@ -381,7 +381,7 @@ void ConvolutionalLayer::write(ostream& os) const {
   MIMOFeatureTransform::write(oss);
 
   char buffer[256];
-  sprintf(buffer, "<transform type=\"%s\" learning-rate=\"%f\" kernel-dim=\"%lu-%lu\" %s>",
+  sprintf(buffer, "<transform type=\"%s\" learning-rate=\"%f\" kernel-dim=\"%lux%lu\" %s>",
       "convolution", 0.01, getKernelWidth(), getKernelHeight(), oss.str().c_str());
   os << buffer << endl;
 
