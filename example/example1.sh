@@ -1,8 +1,8 @@
 #!/bin/bash -e
 
 # Example 1
-TRAIN=data/a1a
-TEST=data/a1a.t
+TRAIN=data/a1a.train.dat
+TEST=data/a1a.test.dat
 stacked_rbm=model/a1a.rbm
 model=model/a1a.model
 

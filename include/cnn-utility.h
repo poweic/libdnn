@@ -37,8 +37,6 @@ struct SIZE {
   }
 };
 
-void gogo();
-
 mat gaussian_kernel(int h, int w);
 void showImage(const mat& x);
 
@@ -64,7 +62,6 @@ mat concat(const vector<mat>& smalls);
 
 mat downsample(const mat& x, size_t scale);
 mat downsample(const mat& x, size_t scale, SIZE s);
-// mat upsample(const mat& x, size_t scale, SIZE s = SIZE(0,0) );
 
 mat upsample(const mat& x, SIZE s, SIZE img);
 mat upsample(const mat& x, SIZE s);
@@ -72,14 +69,3 @@ mat upsample(const mat& x, size_t scale);
 
 mat rot180(const mat& x);
 float sum_all(const mat& x);
-
-// Codes for unit-testing
-void plotL2normInSemilogy();
-void test_batch_convn_full();
-void test_downsample();
-void test_convn(ConvType type);
-void test_convn_with_and_without_shm(ConvType type, const int N = 10000);
-void test_valid_shm_vs_valid_2();
-void test_reshape_images_between_vectors();
-void benchmark_valid_and_valid_shm();
-void benchmark_batch_convn();

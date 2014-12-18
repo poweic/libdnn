@@ -1,5 +1,5 @@
 CC=gcc
-CXX=g++-4.6
+CXX=g++
 CFLAGS=
 NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
 
@@ -59,9 +59,6 @@ OBJ:=$(addprefix obj/, $(addsuffix .o,$(basename $(SOURCES))))
 LIBRARY=-lpbar -lcumatrix
 CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
-
-test: test.cpp
-	g++ -std=c++0x $(INCLUDE) $(LIBRARY_PATH) -o test test.cpp -lpthread  $(CUDA_LIBRARY)
 
 $(EXECUTABLES): bin/% : obj/%.o $(OBJ)
 	$(CXX) -o $@ $(CFLAGS) -std=c++0x $(INCLUDE) $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)

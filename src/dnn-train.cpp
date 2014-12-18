@@ -45,7 +45,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Training options:")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
-     .add("--max-epoch", "number of maximum epochs", "100000")
+     .add("--max-epoch", "number of maximum epochs", "200")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
      .add("--learning-rate", "learning rate in back-propagation", "0.1")
      .add("--batch-size", "number of data per mini-batch", "32");
