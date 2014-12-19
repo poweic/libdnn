@@ -3,8 +3,6 @@
 #include <tools/rapidxml-1.13/rapidxml_utils.hpp>
 using namespace rapidxml;
 
-vector<mat> toSubBlocks(const mat& big, SIZE imgSize);
-
 /* ! Multiple Input Multiple Output (MIMO)
  *   Feature transformation
  * */

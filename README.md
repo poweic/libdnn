@@ -102,7 +102,8 @@ For example:
 dnn-predict test.dat train.dat.model
 ```
 
-For more detail, please check [Wiki](https://github.com/botonchou/libdnn/wiki).
+For more detail, please check [Wiki](https://github.com/botonchou/libdnn/wiki)
+and [Frequently Asked Questions (FAQ)](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
 
 libdnn 中文說明
 ======
@@ -210,6 +211,7 @@ dnn-predict test.dat train.dat.model
 ```
 
 更多的教學和細節，請參考[Wiki](https://github.com/botonchou/libdnn/wiki).
+和[常見問題 (FAQ)](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
 
 # License
 Copyright (c) 20013-2014 Po-Wei Chou Licensed under the Apache License.

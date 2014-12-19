@@ -605,23 +605,6 @@ vector<mat> de_concat(const mat& big, int N) {
   return smalls;
 }
 
-mat concat(const vector<mat>& smalls) {
-  int nFeatures = smalls.size(),
-      img_size  = smalls[0].getRows(),
-      batchSize = smalls[0].getCols();
-
-  mat big(img_size * nFeatures, batchSize);
-
-  int MAP_SIZE = smalls[0].size();
-
-  for (int i=0; i<nFeatures; ++i)
-    memcpy2D(big, smalls[i], 0, 0, img_size, batchSize, i * img_size, 0);
-
-  CCE(cudaDeviceSynchronize());
-
-  return big;
-}
-
 __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, int W) { 
   int tx = threadIdx.x;
   int ty = threadIdx.y;

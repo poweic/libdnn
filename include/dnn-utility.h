@@ -29,7 +29,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-#define fill_bias(x) { fillLastColumnWith(x, 1.0f); }
+#define add_bias(x) { fillLastColumnWith(x, 1.0f); }
 typedef host_matrix<float> hmat;
 
 map<int, int> getLabelMapping(const hmat& labels);
@@ -122,13 +122,32 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
 template <typename T>
 device_matrix<T> vercat(const vector<device_matrix<T> >& matrices) {
   size_t rows = matrices[0].getRows(),
-  cols = matrices[0].getCols(),
-  step = matrices[0].size();
+	 cols = matrices[0].getCols();
 
   mat result(matrices.size() * rows, cols);
-  for (size_t j=0; j<matrices.size(); ++j)
-    memcpy2D<T>(result, matrices[j], 0, 0, rows, cols, j*rows, 0);
+  for (size_t i=0; i<matrices.size(); ++i)
+    memcpy2D<T>(result, matrices[i], 0, 0, rows, cols, i*rows, 0);
   return result;
+}
+
+/*! \brief vertical split (the inverse function of vercat)
+ * 
+ * \param big		the input matrix
+ * \param n_sub_matrix	split into how many sub matrices vertically.
+ *
+ * */
+template <typename T>
+vector<device_matrix<T> > versplit(const device_matrix<T>& big, size_t n_sub_matrix) {
+
+  size_t block_rows = big.getRows() / n_sub_matrix;
+
+  vector<device_matrix<T> > blocks(n_sub_matrix);
+  for (size_t i=0; i<n_sub_matrix; ++i) {
+    blocks[i].resize(block_rows, big.getCols());
+    memcpy2D(blocks[i], big, i * block_rows, 0, block_rows, big.getCols(), 0, 0);
+  }
+
+  return blocks;
 }
 
 template <typename T>
