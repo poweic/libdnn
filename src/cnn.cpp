@@ -14,7 +14,6 @@
 
 #include <feature-transform.h>
 #include <cnn.h>
-#define matslog(x) { for (int i=0; i<x.size(); ++i) { printf(#x"[%d] = [\n", i); x[i].print(); printf("]\n"); } }
 
 // CSE stands for Check Stream Error
 #define CSE(x) { if (!(x)) \
@@ -25,16 +24,6 @@
 #include <operators.inl>
 #undef VECTOR
 #undef WHERE
-
-mat removeBiasAndTranspose(const mat& x) {
-  // Transpose the input feature (fin) so that:
-  //   1) rows = feature dimension
-  //   2) cols = the number of data in a single batch.
-  // FIXME the last column in fin is the bias needed ONLY by DNN, not by CNN.
-  mat y(x.getRows(), x.getCols() - 1);
-  memcpy2D(y, x, 0, 0, x.getRows(), x.getCols() - 1, 0, 0);
-  return ~y;
-}
 
 /*!
  * Implementation of MIMOFeatureTransform goes here.
@@ -89,7 +78,6 @@ size_t MIMOFeatureTransform::getNumOutputMaps() const {
 }
 
 ostream& operator << (ostream& os, const MIMOFeatureTransform *ft) {
-  // os << ft->get_input_img_size() << " => " << ft->get_output_img_size();
   ft->write(os);
   return os;
 }
@@ -113,40 +101,55 @@ CNN::~CNN() {
 
 void CNN::feedForward(mat& fout, const mat& fin) {
 
-  mat FIN = removeBiasAndTranspose(fin);
-
   // FIXME SubSamplingLayer does NOT need temporary buffer.
   // MAYBE just reserve those for ConvolutionalLayer.
-  _houts.resize(_transforms.size());
+  _houts.resize(_transforms.size() - 1);
 
-  _transforms[0]->feedForward(_houts[0], FIN);
+  if (_houts.size() > 0) {
+    _transforms[0]->feedForward(_houts[0], fin);
 
-  for (size_t i=1; i<_transforms.size(); ++i)
-    _transforms[i]->feedForward(_houts[i], _houts[i-1]);
+    for (size_t i=1; i<_transforms.size() - 1; ++i) {
+      _transforms[i]->feedForward(_houts[i], _houts[i-1]);
 
-  // Concatenate
-  fout = ~_houts.back();
+      // Handle boundary between CNN and DNN
+      if ( is_cnn_dnn_boundary(i) ) {
+	// printf("t[%lu]: %s - t[%lu]: %s\n", i, _transforms[i]->toString().c_str(), i+1, _transforms[i+1]->toString().c_str());
+	_houts[i] = ~_houts[i];
+	_houts[i] = add_bias(_houts[i], 1.0f, true);
+      }
+    }
 
-  // Reserve one more column for bias
-  fout.reserve(fout.size() + fout.getRows());
-  fout.resize(fout.getRows(), fout.getCols() + 1);
-  add_bias(fout);
+    _transforms.back()->feedForward(fout, _houts.back());
+  }
+  else
+    _transforms.back()->feedForward(fout, fin);
+
+  fout.resize(fout.getRows(), fout.getCols() - 1);
 }
 
 void CNN::backPropagate(mat& error, const mat& fin, const mat& fout,
     float learning_rate) {
 
-  // Remove last column, which is bias in DNN. FIXME _fin later, which is generally useless
-  mat _fin = removeBiasAndTranspose(fin);
-  mat _fout = removeBiasAndTranspose(fout);
-  error = removeBiasAndTranspose(error);
+  // Copy from dnn.cpp -- begin
+  mat output = add_bias(fout, 1.0f, true);
+  error = add_bias(error, 1.0f, true);
+  // Copy from dnn.cpp -- end
 
-  _transforms.back()->backPropagate(error, _houts.back(), _fout, learning_rate);
+  _transforms.back()->backPropagate(error, _houts.back(), output, learning_rate);
 
-  for (int i=_transforms.size() - 2; i >= 1; --i)
+  for (int i=_transforms.size() - 2; i >= 1; --i) {
     _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
 
-  _transforms[0]->backPropagate(error, _fin, _houts[0], learning_rate);
+    if ( is_cnn_dnn_boundary (i-1) ) {
+      // printf("t[%d]: %s - t[%d]: %s\n", i-1, _transforms[i-1]->toString().c_str(), i, _transforms[i]->toString().c_str());
+      // Remove last column, which is bias in DNN.
+      _houts[i-1] = removeBiasAndTranspose(_houts[i-1]);
+      error = removeBiasAndTranspose(error);
+    }
+  }
+
+  _transforms[0]->backPropagate(error, fin, _houts[0], learning_rate);
+  error = ~error;
 }
 
 void CNN::feedBackward(mat& error, const mat& delta) {
@@ -155,13 +158,14 @@ void CNN::feedBackward(mat& error, const mat& delta) {
 
 void CNN::init(const string &structure, SIZE img_size) {
 
+  // Parse structure
   vector<string> layers = split(structure, '-');
 
   size_t nInputMaps = 1;
 
   for (size_t i=0; i<layers.size(); ++i) {
 
-    if (layers[i].find("s") != string::npos) {
+    if (layers[i].find("s") != string::npos) { // "s" means sub-sampling
       size_t scale = str2int(layers[i].substr(0, layers[i].size() - 1));
 
       size_t nOutputMaps = nInputMaps;
@@ -172,13 +176,13 @@ void CNN::init(const string &structure, SIZE img_size) {
       // Set the input img_size of next layer to be the output img_size of current layer.
       img_size = t->get_output_img_size();
     }
-    else if (layers[i].find("x") != string::npos) {
+    else if (layers[i].find("x") != string::npos) { // "x" in kernel "m x n"
 
       vector<string> dims = split(layers[i], 'x');
 
       size_t nOutputMaps   = str2int(dims[0]),
 	     kernel_height = str2int(dims[1]),
-	     kernel_width = str2int(dims[2]);
+	     kernel_width  = str2int(dims[2]);
 
       MIMOFeatureTransform* t =
 	new ConvolutionalLayer( nInputMaps, nOutputMaps, kernel_height, kernel_width);
@@ -190,11 +194,29 @@ void CNN::init(const string &structure, SIZE img_size) {
       // Set the input img_size of next layer to be the output img_size of current layer.
       img_size = t->get_output_img_size();
       nInputMaps = nOutputMaps;
+
+      // Add Sigmoid activation
+      FeatureTransform* activation =
+        new Sigmoid(t->getOutputDimension(), t->getOutputDimension());
+
+      _transforms.push_back(activation);
+    }
+    else if ( is_number(layers[i]) ) { // pure number means a hidden layer
+      size_t fan_in = _transforms.back()->getOutputDimension();
+      size_t fan_out = stoi(layers[i]);
+
+      float coeff = 2 * sqrt(6.0f / (fan_in + fan_out + 2) );
+      mat weight = coeff * (rand(fan_in + 1, fan_out + 1) - 0.5);
+      _transforms.push_back(new AffineTransform(weight));
+
+      if ( i < layers.size() - 1 )
+	_transforms.push_back(new Sigmoid(fan_out, fan_out));
+      else
+	_transforms.push_back(new Softmax(fan_out, fan_out));
     }
     else
       throw std::runtime_error(RED_ERROR + "No such type of layer. \""
 	  + layers[i] + "\". Only convolutional/sub-sampling layer are allowed");
-
   }
 }
 
@@ -212,7 +234,7 @@ void CNN::read(const string &fn) {
 
   _transforms.clear();
 
-  MIMOFeatureTransform* f;
+  FeatureTransform* f;
 
   if (isXmlFormat(ss)) {
     rapidxml::xml_document<> doc;
@@ -230,10 +252,17 @@ void CNN::read(const string &fn) {
 
       switch (type) {
 	case FeatureTransform::Affine :
+	  f = new AffineTransform;
+	  break;
 	case FeatureTransform::Sigmoid :
+	  f = new Sigmoid;
+	  break;
 	case FeatureTransform::Softmax :
+	  f = new Softmax;
+	  break;
 	case FeatureTransform::Dropout :
-	  return;
+	  f = new Dropout;
+	  break;
 	case FeatureTransform::Convolution : 
 	  f = new ConvolutionalLayer;
 	  break;
@@ -244,7 +273,6 @@ void CNN::read(const string &fn) {
 	  cerr << RED_ERROR << "Not such type " << token << endl;
 	  break;
       }
-      
 
       if (f) {
 	f->read(node);
@@ -269,22 +297,11 @@ void CNN::save(const string &fn) const {
 }
 
 size_t CNN::getInputDimension() const { 
-  if (_transforms.size() == 0)
-    throw std::runtime_error(RED_ERROR + "CNN not initialized. Don't know input dimension yet.");
-
-  SIZE s = _transforms[0]->get_input_img_size();
-  int nInputs = _transforms[0]->getNumInputMaps();
-  return nInputs * s.m * s.n;
+  return _transforms[0]->getInputDimension();
 }
 
 size_t CNN::getOutputDimension() const { 
-
-  if (_transforms.size() == 0)
-    throw std::runtime_error(RED_ERROR + "CNN not initialized. Don't know output dimension yet.");
-
-  SIZE s = _transforms.back()->get_output_img_size();
-  int nOutputs = _transforms.back()->getNumOutputMaps();
-  return nOutputs * s.m * s.n;
+  return _transforms.back()->getOutputDimension();
 }
 
 void CNN::status() const {
@@ -298,12 +315,31 @@ void CNN::status() const {
   printf("+-------------------------------------------------------------+\n");
 }
 
+bool CNN::is_cnn_dnn_boundary(size_t i) const {
+
+  // the boundary between CNN and DNN must be:
+  // a instance of MIMOFeatureTransform -> affine
+  // and this affine transform must the first one to encounter after CNN.
+  
+  bool has_mimo = false;
+  for (size_t x=0; x<_transforms.size(); ++x) {
+    const auto& t = _transforms[x];
+
+    if (dynamic_cast<MIMOFeatureTransform*>(t) != nullptr)
+      has_mimo = true;
+
+    if (has_mimo && dynamic_cast<AffineTransform*>(t) != nullptr)
+      return (x == i + 1);
+  }
+
+  return false;
+}
+
 ostream& operator << (ostream& os, const CNN& cnn) {
   for (size_t i=0; i<cnn._transforms.size(); ++i)
     os << cnn._transforms[i];
   return os;
 }
-
 
 /*! 
  * Implementation of ConvolutionalLayer goes here.
@@ -439,12 +475,11 @@ void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
   vector<mat> fouts(nOutputs);
 
   for (size_t j=0; j<nOutputs; ++j)
-    fouts[j].resize(s.m * s.n, batch_size, 0);
+    fouts[j].resize(s.m * s.n, batch_size, _bias[j]);
 
   for (size_t j=0; j<nOutputs; ++j) {
     for (size_t i=0; i<nInputs; ++i)
       fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, VALID_SHM);
-    fouts[j] = sigmoid(fouts[j] + _bias[j]);
   }
 
   fout = vercat(fouts);
@@ -487,36 +522,21 @@ void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
 void ConvolutionalLayer::backPropagate(mat& error, const mat& fin,
     const mat& fout, float learning_rate) {
 
-  // FIXME here
-  vector<mat> fins = versplit(fin, getNumInputMaps());
-  vector<mat> fouts = versplit(fout, getNumOutputMaps());
-  vector<mat> errors = versplit(error, getNumOutputMaps());
-
-  size_t nInputs = getNumInputMaps(),
-	 nOutputs = getNumOutputMaps();
-
-  size_t batch_size = fins[0].getCols();
+  size_t batch_size = fin.getCols();
+  size_t nInputs = getNumInputMaps();
+  size_t nOutputs = getNumOutputMaps();
 
   // In the following codes, the iteration index i and j stands for
   // i : # of input  features. i = 0 ~ nInputs - 1 
   // j : # of output features. j = 0 ~ nOutputs - 1
 
-  vector<mat> deltas(nOutputs);
-  for (size_t j=0; j<nOutputs; ++j)
-    deltas[j] = fouts[j] & ( 1.0f - fouts[j] ) & errors[j];
+  vector<mat> deltas = versplit(error * learning_rate, nOutputs);
 
-  // FIXME here
-  error = vercat(errors);
-
-  this->feedBackward(error, vercat(deltas));
-
-  assert(learning_rate > 0);
-  float lr = learning_rate / batch_size;
-  for (auto &d: deltas)
-    d *= lr;
+  this->feedBackward(error, mat(error) );
 
   // iImgs represents the input images.
   vector<vector<mat> > iImgs(nInputs);
+  vector<mat> fins = versplit(fin, nInputs);
 
   for (size_t i=0; i<nInputs; ++i)
     iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
@@ -535,6 +555,14 @@ void ConvolutionalLayer::backPropagate(mat& error, const mat& fin,
 
   for (size_t j=0; j<nOutputs; ++j)
     _bias[j] -= sum_all(deltas[j]);
+}
+
+size_t ConvolutionalLayer::getInputDimension() const {
+  return get_input_img_size().area() * getNumInputMaps();
+}
+
+size_t ConvolutionalLayer::getOutputDimension() const {
+  return get_output_img_size().area() * getNumOutputMaps();
 }
 
 void ConvolutionalLayer::status() const {
@@ -560,14 +588,6 @@ size_t ConvolutionalLayer::getKernelWidth() const {
 size_t ConvolutionalLayer::getKernelHeight() const {
   return _kernels[0][0].getRows();
 }
-
-/*size_t ConvolutionalLayer::getNumInputMaps() const {
-  return _kernels.size();
-}
-
-size_t ConvolutionalLayer::getNumOutputMaps() const {
-  return _kernels[0].size();
-}*/
 
 SubSamplingLayer::SubSamplingLayer(size_t m, size_t n, size_t scale)
   : MIMOFeatureTransform(m, n), _scale(scale) {
@@ -600,6 +620,14 @@ SubSamplingLayer* SubSamplingLayer::clone() const {
 
 string SubSamplingLayer::toString() const {
   return "subsample";
+}
+
+size_t SubSamplingLayer::getInputDimension() const {
+  return get_input_img_size().area() * getNumInputMaps();
+}
+
+size_t SubSamplingLayer::getOutputDimension() const {
+  return get_output_img_size().area() * getNumOutputMaps();
 }
 
 void SubSamplingLayer::status() const {
@@ -639,7 +667,6 @@ void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
 
 void SubSamplingLayer::backPropagate(mat& error, const mat& fin,
     const mat& fout, float learning_rate) {
-
   // Copy errors element by element to deltas
   this->feedBackward(error, error);
 }

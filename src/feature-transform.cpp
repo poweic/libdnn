@@ -262,6 +262,10 @@ void AffineTransform::write(ostream& os) const {
 #endif
 }
 
+void AffineTransform::status() const {
+  // TODO
+}
+
 AffineTransform* AffineTransform::clone() const {
   return new AffineTransform(*this);
 }
@@ -271,8 +275,7 @@ string AffineTransform::toString() const {
 }
 
 void AffineTransform::feedForward(mat& fout, const mat& fin) {
-  fout = fin * _w;
-  fillLastColumnWith(fout, (float) 1.0);
+  fout = add_bias(fin) * _w;
 }
 
 void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
@@ -294,7 +297,8 @@ void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout,
       0.0,
       error.getData(), error.getRows());
 
-  gemm(fin, delta, _w, -learning_rate, 1.0f, true, false);
+  // FIXME later add_bias(fin) is weird !!
+  gemm(add_bias(fin), delta, _w, -learning_rate, 1.0f, true, false);
 }
 
 mat& AffineTransform::get_w() {
@@ -348,6 +352,10 @@ void Activation::write(ostream& os) const {
 #endif
 }
 
+void Activation::status() const {
+  // TODO
+}
+
 /*
  * class Sigmoid
  *
@@ -372,7 +380,6 @@ string Sigmoid::toString() const {
 
 void Sigmoid::feedForward(mat& fout, const mat& fin) {
   fout = sigmoid(fin);
-  fillLastColumnWith(fout, (float) 1.0);
 }
 
 void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {

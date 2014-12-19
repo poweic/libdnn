@@ -29,7 +29,6 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-#define add_bias(x) { fillLastColumnWith(x, 1.0f); }
 typedef host_matrix<float> hmat;
 
 map<int, int> getLabelMapping(const hmat& labels);
@@ -151,7 +150,9 @@ vector<device_matrix<T> > versplit(const device_matrix<T>& big, size_t n_sub_mat
 }
 
 template <typename T>
-void fillLastColumnWith(device_matrix<T>& A, const T value);
+device_matrix<T> add_bias(const device_matrix<T>& A, const T value = 1, bool add_new_column = false);
+
+mat removeBiasAndTranspose(const mat& x);
 
 // convert a linear index to a row index
 template <typename T>

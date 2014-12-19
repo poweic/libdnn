@@ -87,7 +87,7 @@ void StackedRbm::up_propagate(const mat& W, const mat& visible, mat& hidden, UNI
   if (type == BERNOULLI)
     hidden = sigmoid(hidden);
   
-  add_bias(hidden);
+  hidden = add_bias(hidden);
 }
 
 void StackedRbm::down_propagate(const mat& W, mat& visible, const mat& hidden, UNIT_TYPE type) {
@@ -96,7 +96,7 @@ void StackedRbm::down_propagate(const mat& W, mat& visible, const mat& hidden, U
   if (type == BERNOULLI)
     visible = sigmoid(visible);
 
-  add_bias(visible);
+  visible = add_bias(visible);
 }
 
 void StackedRbm::antiWeightExplosion(mat& W, const mat& v1, const mat& v2, float &learning_rate) {
@@ -129,14 +129,14 @@ float StackedRbm::getReconstructionError(DataSet& data, const mat& W,
 
     v1 = getBatchData(data, itr, layer);
     // v1 = data.getX(*itr);
-    add_bias(v1);
+    v1 = add_bias(v1);
 
     // Up propagation
     up_propagate(W, v1, h1, hid_type);
 
     // Sampling
     sample(h1, hid_type);
-    add_bias(h1);
+    h1 = add_bias(h1);
 
     // Down propagation
     down_propagate(W, v2, h1, vis_type);
@@ -160,7 +160,7 @@ float StackedRbm::getFreeEnergy(const mat& visible, const mat& W) {
 	hidden.getData() + hidden.size() - N,
 	sizeof(float) * N, cudaMemcpyDeviceToDevice));
 
-  fillLastColumnWith(hidden, -1000.0f);
+  hidden = add_bias(hidden, -1000.0f);
 
   log1pexp(hidden);
 
@@ -243,7 +243,7 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
 
       v1 = getBatchData(data, itr, layer);
       // v1 = data.getX(*itr);
-      add_bias(v1);
+      v1 = add_bias(v1);
 
       // Up propagation
       up_propagate(W, v1, h1, hid_type);
@@ -253,7 +253,7 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
 
       // Sampling
       sample(h1, hid_type);
-      add_bias(h1);
+      h1 = add_bias(h1);
 
       // Down-and-Up propagation
       down_propagate(W, v2, h1, vis_type);

@@ -6,13 +6,14 @@ using namespace rapidxml;
 /* ! Multiple Input Multiple Output (MIMO)
  *   Feature transformation
  * */
-class MIMOFeatureTransform {
+class MIMOFeatureTransform : public FeatureTransform {
 public:
 
   MIMOFeatureTransform() {}
   MIMOFeatureTransform(size_t n_input_maps, size_t n_output_maps);
 
   virtual void read(xml_node<> *node);
+  virtual void read(istream& is) {}
   virtual void write(ostream& os) const;
 
   virtual MIMOFeatureTransform* clone() const = 0;
@@ -20,18 +21,18 @@ public:
 
   virtual void feedForward(mat& fouts, const mat& fins) = 0;
   virtual void feedBackward(mat& errors, const mat& deltas) = 0;
+  virtual void backPropagate(mat& errors, const mat& fins, const mat& fouts, float learning_rate) = 0;
 
-  virtual void backPropagate(mat& errors, const mat& fins,
-      const mat& fouts, float learning_rate) = 0;
-
-  virtual SIZE get_output_img_size() const = 0;
+  virtual size_t getInputDimension() const = 0;
+  virtual size_t getOutputDimension() const = 0;
 
   virtual void status() const = 0;
 
   friend ostream& operator << (ostream& os, const MIMOFeatureTransform *ft);
 
   void set_input_img_size(const SIZE& s);
-  SIZE get_input_img_size() const;
+  virtual SIZE get_input_img_size() const;
+  virtual SIZE get_output_img_size() const = 0;
 
   size_t getNumInputMaps() const;
   size_t getNumOutputMaps() const;
@@ -62,18 +63,18 @@ public:
   void read(const string &fn);
   void save(const string &fn) const;
 
-  size_t getInputDimension() const;
-  size_t getOutputDimension() const;
+  virtual size_t getInputDimension() const;
+  virtual size_t getOutputDimension() const;
 
   void status() const;
 
-  perf::Timer timer1, timer2;
+  bool is_cnn_dnn_boundary(size_t i) const;
 
   friend ostream& operator << (ostream& os, const CNN& cnn);
 
 private:
 
-  std::vector<MIMOFeatureTransform*> _transforms;
+  std::vector<FeatureTransform*> _transforms;
   std::vector<mat > _houts;
 };
 
@@ -94,17 +95,18 @@ public:
    * */
   ConvolutionalLayer(size_t n, size_t m, int h, int w = -1);
 
-  virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const;
-
   virtual ConvolutionalLayer* clone() const;
   virtual string toString() const;
 
+  virtual void read(xml_node<> *node);
+  virtual void write(ostream& os) const;
+
   virtual void feedForward(mat& fouts, const mat& fins);
   virtual void feedBackward(mat& errors, const mat& deltas);
+  virtual void backPropagate(mat& errors, const mat& fins, const mat& fouts, float learning_rate);
 
-  virtual void backPropagate(mat& errors, const mat& fins,
-      const mat& fouts, float learning_rate);
+  virtual size_t getInputDimension() const;
+  virtual size_t getOutputDimension() const;
 
   virtual SIZE get_output_img_size() const;
 
@@ -126,17 +128,18 @@ public:
 
   SubSamplingLayer(size_t n, size_t m, size_t scale);
 
-  virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const;
-
   virtual SubSamplingLayer* clone() const;
   virtual string toString() const;
 
+  virtual void read(xml_node<> *node);
+  virtual void write(ostream& os) const;
+
   virtual void feedForward(mat& fouts, const mat& fins);
   virtual void feedBackward(mat& errors, const mat& deltas);
+  virtual void backPropagate(mat& errors, const mat& fins, const mat& fouts, float learning_rate);
 
-  virtual void backPropagate(mat& errors, const mat& fins,
-      const mat& fouts, float learning_rate);
+  virtual size_t getInputDimension() const;
+  virtual size_t getOutputDimension() const;
 
   virtual SIZE get_output_img_size() const;
 

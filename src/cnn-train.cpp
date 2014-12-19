@@ -26,13 +26,10 @@ Config config;
 vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim);
 void cuda_profiling_ground();
 
-size_t cnn_predict(const DNN& dnn, CNN& cnn, DataSet& data,
-    ERROR_MEASURE errorMeasure);
+size_t cnn_predict(CNN& cnn, DataSet& data, ERROR_MEASURE errorMeasure);
 
-void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
+void cnn_train(CNN& cnn, DataSet& train, DataSet& valid,
     size_t batchSize, const string& fn, ERROR_MEASURE errorMeasure);
-
-void save_model(const CNN& cnn, const DNN& dnn, const string& fn);
 
 int main(int argc, char* argv[]) {
 
@@ -106,10 +103,14 @@ int main(int argc, char* argv[]) {
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
 
+  // Filename for output model
+  if (model_out.empty())
+    model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
+
   // Load data
   DataSet train, valid;
 
-  if ((valid_fn.empty() || valid_fn == "-" ) && ratio != 0) {
+  if ((valid_fn.empty() or valid_fn == "-" ) && ratio != 0) {
     DataSet data(train_fn, input_dim, base, n_type);
     DataSet::split(data, train, valid, ratio);
   }
@@ -123,44 +124,27 @@ int main(int argc, char* argv[]) {
 
   // Initialize CNN
   CNN cnn;
-  DNN dnn;
 
   if (model_in.empty() or model_in == "-") {
     string structure  = cmd["--struct"];
     size_t output_dim = cmd["--output-dim"];
 
-    // Parse structure
-    string cnn_struct, nn_struct;
-    parseNetworkStructure(structure, cnn_struct, nn_struct);
-
-    cnn.init(cnn_struct, imgSize);
-    dnn.init(getRandWeights(cnn.getOutputDimension(), nn_struct, output_dim));
+    structure += "-" + to_string(output_dim);
+    cnn.init(structure, imgSize);
   }
-  else {
+  else
     cnn.read(model_in);
-    dnn.read(model_in);
-  }
 
   cnn.status();
-  dnn.status();
 
-  if (model_out.empty())
-    model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
+  cnn_train(cnn, train, valid, batchSize, model_out, CROSS_ENTROPY);
 
-  cnn_train(cnn, dnn, train, valid, batchSize, model_out, CROSS_ENTROPY);
-
-  save_model(cnn, dnn, model_out);
+  cnn.save(model_out);
 
   return 0;
 }
 
-void save_model(const CNN& cnn, const DNN& dnn, const string& fn) {
-  ofstream fout(fn.c_str());
-  fout << cnn << dnn;
-  fout.close();
-}
-
-void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
+void cnn_train(CNN& cnn, DataSet& train, DataSet& valid,
     size_t batchSize, const string& model_out, ERROR_MEASURE errorMeasure) {
 
   perf::Timer timer;
@@ -174,7 +158,7 @@ void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
   size_t nTrain = train.size(),
 	 nValid = valid.size();
 
-  mat fmiddle, fout;
+  mat fout;
   float t_start = timer.getTime();
 
   for (size_t epoch=0; epoch<config.maxEpoch; ++epoch) {
@@ -182,18 +166,17 @@ void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
     Batches batches(batchSize, nTrain);
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
       auto data = train[itr];
+      auto x = removeBiasAndTranspose(data.x);
 
-      cnn.feedForward(fmiddle, data.x);
-      dnn.feedForward(fout, fmiddle);
+      cnn.feedForward(fout, x);
 
       mat error = getError( data.y, fout, errorMeasure);
 
-      dnn.backPropagate(error, fmiddle, fout, config.learningRate / itr->nData );
-      cnn.backPropagate(error, data.x, fmiddle, config.learningRate);
+      cnn.backPropagate(error, x, fout, config.learningRate / itr->nData);
     }
 
-    size_t Ein  = cnn_predict(dnn, cnn, train, errorMeasure),
-	   Eout = cnn_predict(dnn, cnn, valid, errorMeasure);
+    size_t Ein  = cnn_predict(cnn, train, errorMeasure),
+	   Eout = cnn_predict(cnn, valid, errorMeasure);
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
     float validAcc = 1.0f - (float) Eout / nValid;
@@ -203,7 +186,7 @@ void cnn_train(CNN& cnn, DNN& dnn, DataSet& train, DataSet& valid,
     if (validAcc > config.minValidAccuracy)
       break;
 
-    save_model(cnn, dnn, model_out + "." + to_string(epoch));
+    cnn.save("." + model_out);
     t_start = timer.getTime();
   }
 
@@ -233,17 +216,18 @@ vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim
   return weights;
 }
 
-size_t cnn_predict(const DNN& dnn, CNN& cnn, DataSet& data,
-    ERROR_MEASURE errorMeasure) {
+size_t cnn_predict(CNN& cnn, DataSet& data, ERROR_MEASURE errorMeasure) {
 
   size_t nError = 0;
-  mat fmiddle;
+  mat fout;
 
   Batches batches(2048, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     auto d = data[itr];
-    cnn.feedForward(fmiddle, d.x);
-    nError += zeroOneError(dnn.feedForward(fmiddle), d.y, errorMeasure);
+    auto x = removeBiasAndTranspose(d.x);
+
+    cnn.feedForward(fout, x);
+    nError += zeroOneError(fout, d.y, errorMeasure);
   }
 
   return nError;
