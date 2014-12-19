@@ -3,6 +3,8 @@
 #include <tools/rapidxml-1.13/rapidxml_utils.hpp>
 using namespace rapidxml;
 
+vector<mat> toSubBlocks(const mat& big, SIZE imgSize);
+
 /* ! Multiple Input Multiple Output (MIMO)
  *   Feature transformation
  * */
@@ -18,11 +20,11 @@ public:
   virtual MIMOFeatureTransform* clone() const = 0;
   virtual string toString() const = 0;
 
-  virtual void feedForward(vector<mat>& fouts, const vector<mat>& fins) = 0;
-  virtual void feedBackward(vector<mat>& errors, const vector<mat>& deltas) = 0;
+  virtual void feedForward(mat& fouts, const mat& fins) = 0;
+  virtual void feedBackward(mat& errors, const mat& deltas) = 0;
 
-  virtual void backPropagate(vector<mat>& errors, const vector<mat>& fins,
-      const vector<mat>& fouts, float learning_rate) = 0;
+  virtual void backPropagate(mat& errors, const mat& fins,
+      const mat& fouts, float learning_rate) = 0;
 
   virtual SIZE get_output_img_size() const = 0;
 
@@ -67,12 +69,14 @@ public:
 
   void status() const;
 
+  perf::Timer timer1, timer2;
+
   friend ostream& operator << (ostream& os, const CNN& cnn);
 
 private:
 
   std::vector<MIMOFeatureTransform*> _transforms;
-  std::vector<vector<mat> > _houts;
+  std::vector<mat > _houts;
 };
 
 ostream& operator << (ostream& os, const CNN& cnn);
@@ -98,11 +102,11 @@ public:
   virtual ConvolutionalLayer* clone() const;
   virtual string toString() const;
 
-  virtual void feedForward(vector<mat>& fouts, const vector<mat>& fins);
-  virtual void feedBackward(vector<mat>& errors, const vector<mat>& deltas);
+  virtual void feedForward(mat& fouts, const mat& fins);
+  virtual void feedBackward(mat& errors, const mat& deltas);
 
-  virtual void backPropagate(vector<mat>& errors, const vector<mat>& fins,
-      const vector<mat>& fouts, float learning_rate);
+  virtual void backPropagate(mat& errors, const mat& fins,
+      const mat& fouts, float learning_rate);
 
   virtual SIZE get_output_img_size() const;
 
@@ -130,11 +134,11 @@ public:
   virtual SubSamplingLayer* clone() const;
   virtual string toString() const;
 
-  virtual void feedForward(vector<mat>& fouts, const vector<mat>& fins);
-  virtual void feedBackward(vector<mat>& errors, const vector<mat>& deltas);
+  virtual void feedForward(mat& fouts, const mat& fins);
+  virtual void feedBackward(mat& errors, const mat& deltas);
 
-  virtual void backPropagate(vector<mat>& errors, const vector<mat>& fins,
-      const vector<mat>& fouts, float learning_rate);
+  virtual void backPropagate(mat& errors, const mat& fins,
+      const mat& fouts, float learning_rate);
 
   virtual SIZE get_output_img_size() const;
 

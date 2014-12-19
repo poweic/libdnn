@@ -26,6 +26,25 @@
 #undef VECTOR
 #undef WHERE
 
+vector<mat> toSubBlocks(const mat& big, SIZE imgSize) {
+
+  size_t block_rows = imgSize.area();
+
+  size_t nBlock = big.getRows() / block_rows;
+
+  vector<mat> blocks(nBlock);
+  for (size_t i=0; i<nBlock; ++i) {
+    blocks[i].resize(block_rows, big.getCols());
+    memcpy2D(blocks[i], big, i * block_rows, 0, block_rows, big.getCols(), 0, 0);
+  }
+
+  if (nrm2(big - vercat(blocks)) != 0)
+    throw std::runtime_error(RED_ERROR + "l2norm != 0");
+
+  return blocks;
+}
+
+
 /*!
  * Implementation of MIMOFeatureTransform goes here.
  */
@@ -106,24 +125,27 @@ void CNN::feedForward(mat& fout, const mat& fin) {
   // First 1st layer of CNN MUST have only 1 input feature map
   vector<mat> fins(1);
 
-  // Transpose the input feature (fin) so that rows = feature dimension, cols =
-  // the number of data in a single batch.
+  // Transpose the input feature (fin) so that:
+  //   1) rows = feature dimension
+  //   2) cols = the number of data in a single batch.
   // FIXME the last column in fin is the bias needed ONLY by DNN, not by CNN.
   fins[0].resize(fin.getRows(), fin.getCols() - 1);
   memcpy2D(fins[0], fin, 0, 0, fin.getRows(), fin.getCols() - 1, 0, 0);
   fins[0] = ~fins[0];
+  // FIXME here
+  mat FIN = vercat(fins);
 
   // FIXME SubSamplingLayer does NOT need temporary buffer.
   // MAYBE just reserve those for ConvolutionalLayer.
   _houts.resize(_transforms.size());
 
-  _transforms[0]->feedForward(_houts[0], fins);
+  _transforms[0]->feedForward(_houts[0], FIN);
 
   for (size_t i=1; i<_transforms.size(); ++i)
     _transforms[i]->feedForward(_houts[i], _houts[i-1]);
 
   // Concatenate
-  fout = ~concat(_houts.back());
+  fout = ~concat(toSubBlocks(_houts.back(), _transforms.back()->get_output_img_size()));
 
   // Reserve one more column for bias
   fout.reserve(fout.size() + fout.getRows());
@@ -143,18 +165,26 @@ void CNN::backPropagate(mat& error, const mat& fin, const mat& fout,
   vector<mat> fouts = de_concat(~_fout, N),
 	      errors = de_concat(~_error, N);
 
-  vector<mat> fins;
-  fins.push_back(~fin);
+  // FIXME later, stupid and useless
+  // First 1st layer of CNN MUST have only 1 input feature map
+  vector<mat> fins(1);
+  fins[0].resize(fin.getRows(), fin.getCols() - 1);
+  memcpy2D(fins[0], fin, 0, 0, fin.getRows(), fin.getCols() - 1, 0, 0);
+  fins[0] = ~fins[0];
 
-  _transforms.back()->backPropagate(errors, _houts.back(), fouts, learning_rate);
+  mat FIN = vercat(fins);
+  mat FOUT = vercat(fouts);
+  mat ERRORS = vercat(errors);
+
+  _transforms.back()->backPropagate(ERRORS, _houts.back(), FOUT, learning_rate);
 
   for (int i=_transforms.size() - 2; i >= 1; --i)
-    _transforms[i]->backPropagate(errors, _houts[i-1], _houts[i], learning_rate);
+    _transforms[i]->backPropagate(ERRORS, _houts[i-1], _houts[i], learning_rate);
 
-  _transforms[0]->backPropagate(errors, fins, _houts[0], learning_rate);
+  _transforms[0]->backPropagate(ERRORS, FIN, _houts[0], learning_rate);
 
   // Concatenate
-  error = ~concat(errors);
+  error = ~concat(toSubBlocks(ERRORS, _transforms[0]->get_input_img_size()));
 }
 
 void CNN::feedBackward(mat& error, const mat& delta) {
@@ -428,7 +458,10 @@ string ConvolutionalLayer::toString() const {
  *	, there're multiple input feature maps comes from multiple training data.
  * */
 
-void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) {
+void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
+
+  // FIXME here
+  auto fins = toSubBlocks(fin, get_input_img_size());
 
   size_t nInputs  = getNumInputMaps(),
 	 nOutputs = getNumOutputMaps();
@@ -442,8 +475,7 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
 
   SIZE s = get_output_img_size();
 
-  if (fouts.size() != nOutputs)
-    fouts.resize(nOutputs);
+  vector<mat> fouts(nOutputs);
 
   for (size_t j=0; j<nOutputs; ++j)
     fouts[j].resize(s.m * s.n, batch_size, 0);
@@ -453,10 +485,15 @@ void ConvolutionalLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins
       fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, VALID_SHM);
     fouts[j] = sigmoid(fouts[j] + _bias[j]);
   }
+
+  // FIXME here
+  fout = vercat(fouts);
 }
 
-void ConvolutionalLayer::feedBackward(
-    vector<mat>& errors, const vector<mat>& deltas) {
+void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
+
+  // FIXME here
+  vector<mat> deltas = toSubBlocks(delta, get_output_img_size());
 
   // Since nInputs == nOutputs for subsampling layer, I just use N.
   size_t nInputs = getNumInputMaps(),
@@ -465,8 +502,7 @@ void ConvolutionalLayer::feedBackward(
   SIZE s = this->get_input_img_size();
   size_t batch_size = deltas[0].getCols();
 
-  if (errors.size() != nInputs)
-    errors.resize(nInputs);
+  vector<mat> errors(nInputs);
 
   for (size_t i=0; i<nInputs; ++i)
     errors[i].resize(s.m * s.n, batch_size, 0);
@@ -474,6 +510,8 @@ void ConvolutionalLayer::feedBackward(
   for (size_t i=0; i<nInputs; ++i)
     for (size_t j=0; j<nOutputs; ++j)
       errors[i] += convn(deltas[j], rot180(_kernels[i][j]), this->get_output_img_size(), FULL_SHM);
+
+  error = vercat(errors);
 }
 
 // NOTE: in MATLAB
@@ -487,8 +525,13 @@ void ConvolutionalLayer::feedBackward(
 //     ^
 //     |_____ which is obviously faster
 
-void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& fins,
-    const vector<mat>& fouts, float learning_rate) {
+void ConvolutionalLayer::backPropagate(mat& error, const mat& fin,
+    const mat& fout, float learning_rate) {
+
+  // FIXME here
+  vector<mat> fins = toSubBlocks(fin, get_input_img_size());
+  vector<mat> fouts = toSubBlocks(fout, get_output_img_size());
+  vector<mat> errors = toSubBlocks(error, get_output_img_size());
 
   size_t nInputs = getNumInputMaps(),
 	 nOutputs = getNumOutputMaps();
@@ -503,7 +546,10 @@ void ConvolutionalLayer::backPropagate(vector<mat>& errors, const vector<mat>& f
   for (size_t j=0; j<nOutputs; ++j)
     deltas[j] = fouts[j] & ( 1.0f - fouts[j] ) & errors[j];
 
-  this->feedBackward(errors, deltas);
+  // FIXME here
+  error = vercat(errors);
+
+  this->feedBackward(error, vercat(deltas));
 
   assert(learning_rate > 0);
   float lr = learning_rate / batch_size;
@@ -610,34 +656,37 @@ SIZE SubSamplingLayer::get_output_img_size() const {
   return _input_img_size / _scale;
 }
 
-void SubSamplingLayer::feedForward(vector<mat>& fouts, const vector<mat>& fins) {
+void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
+
+  vector<mat> fins = toSubBlocks(fin, get_input_img_size());
 
   // Since nInputs == nOutputs for subsampling layer, I just use N.
   size_t N = fins.size();
 
-  if (fouts.size() != N)
-    fouts.resize(N);
-
+  vector<mat> fouts(N);
   for (size_t i=0; i<N; ++i)
     fouts[i] = downsample(fins[i], _scale, _input_img_size);
+
+  fout = vercat(fouts);
 }
 
-void SubSamplingLayer::feedBackward(
-    vector<mat>& errors, const vector<mat>& deltas) {
+void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
+
+  vector<mat> deltas = toSubBlocks(delta, get_output_img_size());
 
   // Since nInputs == nOutputs for subsampling layer, I just use N.
   size_t N = deltas.size();
 
-  if (errors.size() != N)
-    errors.resize(N);
-
+  vector<mat> errors(N);
   for (size_t i=0; i<N; ++i)
     errors[i] = upsample(deltas[i], _input_img_size, this->get_output_img_size()) / (_scale * _scale);
+
+  error = vercat(errors);
 }
 
-void SubSamplingLayer::backPropagate(vector<mat>& errors, const vector<mat>& fins,
-    const vector<mat>& fouts, float learning_rate) {
+void SubSamplingLayer::backPropagate(mat& error, const mat& fin,
+    const mat& fout, float learning_rate) {
 
   // Copy errors element by element to deltas
-  this->feedBackward(errors, errors);
+  this->feedBackward(error, error);
 }
