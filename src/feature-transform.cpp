@@ -30,8 +30,6 @@ std::map<FeatureTransform::Type, string> FeatureTransform::type2token = {
 FeatureTransform::Type FeatureTransform::token2type(string token) {
   std::transform(token.begin(), token.end(), token.begin(), ::tolower);
 
-  FeatureTransform::Type type;
-
   for (const auto& itr : type2token) {
     if (itr.second == token)
       return itr.first;
@@ -264,6 +262,10 @@ void AffineTransform::write(ostream& os) const {
 
 void AffineTransform::status() const {
   // TODO
+}
+
+size_t AffineTransform::getNumParams() const {
+  return getInputDimension() * getOutputDimension() + getOutputDimension();
 }
 
 AffineTransform* AffineTransform::clone() const {

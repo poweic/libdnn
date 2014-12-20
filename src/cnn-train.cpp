@@ -221,7 +221,8 @@ size_t cnn_predict(CNN& cnn, DataSet& data, ERROR_MEASURE errorMeasure) {
   size_t nError = 0;
   mat fout;
 
-  Batches batches(2048, data.size());
+  // TODO automatically compute the best batch_size !!
+  Batches batches(256, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     auto d = data[itr];
     auto x = removeBiasAndTranspose(d.x);

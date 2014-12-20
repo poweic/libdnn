@@ -31,6 +31,12 @@ struct SIZE {
     return SIZE(max(s1.m, s2.m), max(s1.n, s2.n));
   }
 
+  operator string () {
+    char buffer[12];
+    sprintf(buffer, "%2lu x %-2lu", m, n);
+    return buffer;
+  }
+
   friend ostream& operator << (ostream& os, const SIZE& s) {
     os << setw(3) << s.m <<  " x " << std::left << setw(3) << s.n;
     return os;

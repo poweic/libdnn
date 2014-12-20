@@ -74,14 +74,13 @@ void DNN::status() const {
 
   int nHiddens = 0;
 
-  printf("._____._____________._____________________.____________.\n");
-  printf("|     |             |                     |            |\n");
-  printf("|     |  Transform  |  Feature Dimension  | Number of  |\n");
-  printf("| No. |             |_____________________|            |\n");
-  printf("|     |    Type     |          |          | Parameters |\n");
-  printf("|     |             |   Input  |  Output  |            |\n");
-  printf("|_____|_____________|__________|__________|____________|\n");
-  printf("|     |             |          |          |            |\n");
+  printf("._____._____________.___________.___________.________.____________.\n");
+  printf("|     |             |           |           |        |            |\n");
+  printf("|     |  Transform  |   Input   |  Output   | kernel | Number of  |\n");
+  printf("| No. |             |           |           |        |            |\n");
+  printf("|     |    Type     | Dimension | Dimension |  size  | Parameters |\n");
+  printf("|_____|_____________|___________|___________|________|____________|\n");
+  printf("|     |             |           |           |        |            |\n");
 
   for (size_t i=0; i<t.size(); ++i) {
     string type = t[i]->toString();
@@ -104,14 +103,19 @@ void DNN::status() const {
     else if (nParams > 0)
       sprintf(nParamStr, "  %5d   ", (int) nParams);
 
-    printf("|  %s%-2lu%s |  %s%-9s%s  |  %s%6lu%s  |  %s%6lu%s  | %10s |\n",
-	isAffine ? "" : "\33[1;30m", i		 , "\33[0m",
-	isAffine ? "" : "\33[1;30m", type.c_str(), "\33[0m",
-	isAffine ? "" : "\33[1;30m", in		 , "\33[0m",
-	isAffine ? "" : "\33[1;30m", out	 , "\33[0m", nParamStr);
+    string prefix_str = isAffine ? "" : "\33[1;30m";
+    const char* prefix = prefix_str.c_str();
+    const char* suffix = "\33[0m";
+
+    printf("|  %s%-2lu%s |  %s%-9s%s  |  %s%6lu%s   |  %s%6lu%s   | %s%6s%s | %10s |\n",
+	prefix, i           , suffix,
+	prefix, type.c_str(), suffix,
+	prefix, in          , suffix,
+	prefix, out         , suffix,
+	prefix, "N/A"       , suffix, nParamStr);
   }
 
-  printf("|_____|_____________|__________|__________|____________|\n");
+  printf("|_____|_____________|___________|___________|________|____________|\n");
 
   nHiddens = std::max(0, nHiddens - 1);
   printf("Number of hidden layers: %2d \n", nHiddens);

@@ -245,8 +245,6 @@ void CNN::read(const string &fn) {
 
     for (auto node = doc.first_node("transform"); node; node = node->next_sibling()) {
 
-      auto x = node->first_attribute("type");
-
       string token = node->first_attribute("type")->value();
       FeatureTransform::Type type = FeatureTransform::token2type(token);
 
@@ -306,13 +304,64 @@ size_t CNN::getOutputDimension() const {
 
 void CNN::status() const {
 
-  printf("+--------------+---------------+--------------+---------------+\n");
-  printf("| # input maps | # output maps | kernel width | kernel height |\n");
+  const auto& t = _transforms;
 
-  for (size_t i=0; i<_transforms.size(); ++i)
-    _transforms[i]->status();
+  int nHiddens = 0;
 
-  printf("+-------------------------------------------------------------+\n");
+  printf("._____._____________.___________.___________._________._________.____________.\n");
+  printf("|     |             |           |           |         |         |            |\n");
+  printf("|     |  Transform  |   Input   |  Output   | kernel  | kernel  | Number of  |\n");
+  printf("| No. |             |           |           |         |         |            |\n");
+  printf("|     |    Type     | Dimension | Dimension | number  |  size   | Parameters |\n");
+  printf("|_____|_____________|___________|___________|_________|_________|____________|\n");
+  printf("|     |             |           |           |         |         |            |\n");
+
+  for (size_t i=0; i<t.size(); ++i) {
+    string type = t[i]->toString();
+    size_t in  = t[i]->getInputDimension(),
+	   out = t[i]->getOutputDimension();
+
+    std::transform(type.begin(), type.end(), type.begin(), ::tolower);
+
+    if (type == "affine")
+      ++nHiddens;
+
+    // create string for kernel size
+    ConvolutionalLayer* ptr = dynamic_cast<ConvolutionalLayer*>(t[i]);
+    string kernel_size, kernel_number;
+    if (ptr != nullptr) {
+      kernel_size = ptr->get_kernel_size();
+      kernel_number = to_string(ptr->getNumInputMaps()) +
+	" x " + to_string(ptr->getNumOutputMaps());
+    }
+    else
+      kernel_size = kernel_number = "\33[1;30m  N/A  \33[0m";
+
+    // Compute Number of parameters in this layer.
+    char nParamStr[20] = {'\0'};
+
+    float nParams = t[i]->getNumParams();
+    
+    if (nParams > 1e8)
+      sprintf(nParamStr, "~ %6.3f G", nParams / 1e9);
+    else if (nParams > 1e5)
+      sprintf(nParamStr, "~ %6.3f M", nParams / 1e6);
+    else if (nParams > 1e2)
+      sprintf(nParamStr, "~ %6.3f K", nParams / 1e3);
+    else if (nParams > 0)
+      sprintf(nParamStr, "  %5d   ", (int) nParams);
+    else
+      sprintf(nParamStr, "\33[1;30m       N/A\33[0m");
+
+    printf("|  %-2lu | %-11s |  %6lu   |  %6lu   | %7s | %7s | %10s |\n",
+	i, type.c_str(), in, out, kernel_number.c_str(), kernel_size.c_str(), nParamStr);
+    printf("|     |             |           |           |         |         |            |\n");
+  }
+
+  printf("|_____|_____________|___________|___________|_________|_________|____________|\n");
+
+  nHiddens = std::max(0, nHiddens - 1);
+  printf("Number of hidden layers: %2d \n", nHiddens);
 }
 
 bool CNN::is_cnn_dnn_boundary(size_t i) const {
@@ -570,6 +619,11 @@ void ConvolutionalLayer::status() const {
   printf("+--------------+---------------+--------------+---------------+\n");
   printf("|      %-5lu   |       %-5lu   |      %-5lu   |       %-5lu   |\n",
       getNumInputMaps(), getNumOutputMaps(), getKernelWidth(), getKernelHeight());
+}
+
+size_t ConvolutionalLayer::getNumParams() const {
+  return getNumInputMaps() * getNumOutputMaps() 
+    * getKernelWidth() * getKernelHeight() + getNumOutputMaps();
 }
 
 SIZE ConvolutionalLayer::get_output_img_size() const {

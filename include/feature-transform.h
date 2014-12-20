@@ -9,6 +9,7 @@ class FeatureTransform {
 public:
   FeatureTransform() { }
   FeatureTransform(size_t input_dim, size_t output_dim);
+  virtual ~FeatureTransform() {}
 
   virtual void read(xml_node<> *node);
   virtual void read(istream& is) = 0;
@@ -24,6 +25,7 @@ public:
   virtual size_t getOutputDimension() const { return _output_dim; }
 
   virtual void status() const = 0;
+  virtual size_t getNumParams() const { return 0; }
 
   friend ostream& operator << (ostream& os, FeatureTransform* ft);
   friend istream& operator >> (istream& is, FeatureTransform* &ft);
@@ -68,6 +70,7 @@ public:
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
   virtual void status() const;
+  virtual size_t getNumParams() const;
 
   mat& get_w();
   mat const& get_w() const;

@@ -393,8 +393,8 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
 
   if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE) {
     char buf[512];
-    sprintf(buf, "Exceeds maximum shared memory available. (%lu bytes)\n"
-	"kernel = (%lu, %lu), grids = (%u, %u, %u), threads = (%u, %u, %u) "
+    sprintf(buf, "Exceeds maximum shared memory available. (%d bytes)\n"
+	"kernel = (%d, %d), grids = (%u, %u, %u), threads = (%u, %u, %u) "
 	" => %lu bytes of shared memory needed.", MAX_SHARED_MEMORY_SIZE, kH, kW,
 	grids.x, grids.y, grids.z, threads.x, threads.y, threads.z, SHM_SIZE);
     throw std::runtime_error(RED_ERROR + to_string(buf));

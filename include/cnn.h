@@ -11,6 +11,7 @@ public:
 
   MIMOFeatureTransform() {}
   MIMOFeatureTransform(size_t n_input_maps, size_t n_output_maps);
+  virtual ~MIMOFeatureTransform() {}
 
   virtual void read(xml_node<> *node);
   virtual void read(istream& is) {}
@@ -111,6 +112,7 @@ public:
   virtual SIZE get_output_img_size() const;
 
   virtual void status() const;
+  virtual size_t getNumParams() const;
 
   SIZE get_kernel_size() const;
   size_t getKernelWidth() const;
