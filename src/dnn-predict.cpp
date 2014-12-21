@@ -15,6 +15,7 @@
 #include <iostream>
 #include <string>
 #include <dnn.h>
+#include <cnn.h>
 #include <cmdparser.h>
 #include <batch.h>
 using namespace std;
@@ -61,7 +62,6 @@ int main (int argc, char* argv[]) {
   string model_fn   = cmd[2];
   string output_fn  = cmd[3];
 
-  size_t input_dim  = cmd["--input-dim"];
   NormType n_type   = (NormType) (int) cmd["--normalize"];
   string n_filename = cmd["--nf"];
   int base	    = cmd["--base"];
@@ -73,30 +73,36 @@ int main (int argc, char* argv[]) {
 
   size_t cache_size   = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
+
+  // Parse Input dimension.
+  size_t input_dim  = parseInputDimension((string) cmd["--input-dim"]);
   
   // Use Log(prior) because log(x) would check whether x has zero in it.
   mat log_prior = log(getPriorProbability(prior_fn));
   bool prior = !prior_fn.empty();
-  /* --- Load prior probability --- */
 
+  // Load data from file
   DataSet test(test_fn, input_dim, base, n_type);
 
-  ERROR_MEASURE errorMeasure = CROSS_ENTROPY;
-
-  DNN dnn(model_fn);
+  // Load model from file
+  CNN cnn(model_fn);
+  if (!silent)
+    cnn.status();
 
   size_t nError = 0;
 
   FILE* fid = openFileOrStdout(output_fn);
 
   mat log_priors;
-  Batches batches(1024, test.size());
+  Batches batches(256, test.size());
   for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
     auto data = test[itr];
-    mat prob = dnn.feedForward(data.x);
+
+    mat prob;
+    cnn.feedForward(prob, data.x);
 
     if (calcAcc && !silent)
-      nError += zeroOneError(prob, data.y, errorMeasure);
+      nError += zeroOneError(prob, data.y, CROSS_ENTROPY);
 
     if (calcAcc && output_fn.empty() && output_type == 0)
       continue;

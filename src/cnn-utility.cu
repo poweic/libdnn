@@ -91,7 +91,7 @@ void showImage(const mat& x) {
   cout << "\33[0m" << endl;
 }
 
-SIZE parseInputDimension(const string &m_by_n) {
+SIZE parseImageDimension(const string &m_by_n) {
   size_t pos = m_by_n.find("x");
 
   if (pos == string::npos)
@@ -99,6 +99,15 @@ SIZE parseInputDimension(const string &m_by_n) {
 	"please use --input-dim like this: 32x32");
 
   return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
+}
+
+size_t parseInputDimension(const string &input_dim) {
+  if (input_dim.find("x") == string::npos)
+    return str2int(input_dim);
+  else {
+    SIZE imgSize = parseImageDimension(input_dim);
+    return imgSize.m * imgSize.n;
+  }
 }
 
 __device__ void load_kernel_into_shm(float* const K, const float* const kernel,

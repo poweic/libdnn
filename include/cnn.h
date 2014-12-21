@@ -67,6 +67,8 @@ public:
   virtual size_t getInputDimension() const;
   virtual size_t getOutputDimension() const;
 
+  std::vector<FeatureTransform*>& getTransforms() { return _transforms; }
+
   void status() const;
 
   bool is_cnn_dnn_boundary(size_t i) const;

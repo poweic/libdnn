@@ -49,7 +49,8 @@ void showImage(const mat& x);
 vector<mat> reshapeVectors2Images(const mat& data, const SIZE s);
 mat reshapeImages2Vectors(const vector<mat>& images);
 
-SIZE parseInputDimension(const string &m_by_n);
+SIZE parseImageDimension(const string &m_by_n);
+size_t parseInputDimension(const string &input_dim);
 
 __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, int W);
 __global__ void upsample_kernel(float *dst, float *src, size_t scale, int H, int W);

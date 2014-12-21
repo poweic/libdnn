@@ -91,7 +91,7 @@ int main (int argc, char* argv[]) {
   // If it's convolutional neural network, there's a "x" in string structure
   if (structure.find("x") != string::npos) {
 
-    SIZE imgSize = parseInputDimension((string) cmd["--input-dim"]);
+    SIZE imgSize = parseImageDimension((string) cmd["--input-dim"]);
 
     structure += "-" + to_string(output_dim);
     CNN cnn;

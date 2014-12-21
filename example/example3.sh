@@ -3,8 +3,8 @@
 # Example 3
 TRAIN=data/train2.dat
 TEST=data/test2.dat
-stacked_rbm=model/train2.dat.rbm
-model=model/train2.dat.model
+stacked_rbm=model/train2.rbm.xml
+model=model/train2.dnn.mature.xml
 
 opts="--input-dim 1024 --normalize 1"
 

@@ -51,7 +51,7 @@ void MIMOFeatureTransform::read(xml_node<> *node) {
   attr = node->first_attribute("input-dim");
   if (!attr)
     throw std::runtime_error(RED_ERROR + "Missing input-dim");
-  this->set_input_img_size(parseInputDimension(attr->value()));
+  this->set_input_img_size(parseImageDimension(attr->value()));
 }
 
 void MIMOFeatureTransform::write(ostream& os) const {
@@ -101,19 +101,23 @@ CNN::~CNN() {
 
 void CNN::feedForward(mat& fout, const mat& fin) {
 
+  mat fin_t = fin;
+  if (_transforms[0]->toString() == "convolution")
+    fin_t = removeBiasAndTranspose(fin_t);
+
   // FIXME SubSamplingLayer does NOT need temporary buffer.
   // MAYBE just reserve those for ConvolutionalLayer.
   _houts.resize(_transforms.size() - 1);
 
   if (_houts.size() > 0) {
-    _transforms[0]->feedForward(_houts[0], fin);
+    _transforms[0]->feedForward(_houts[0], fin_t);
 
     for (size_t i=1; i<_transforms.size() - 1; ++i) {
       _transforms[i]->feedForward(_houts[i], _houts[i-1]);
 
       // Handle boundary between CNN and DNN
       if ( is_cnn_dnn_boundary(i) ) {
-	// printf("t[%lu]: %s - t[%lu]: %s\n", i, _transforms[i]->toString().c_str(), i+1, _transforms[i+1]->toString().c_str());
+	// Add one more column, which is bias in DNN.
 	_houts[i] = ~_houts[i];
 	_houts[i] = add_bias(_houts[i], 1.0f, true);
       }
@@ -122,7 +126,7 @@ void CNN::feedForward(mat& fout, const mat& fin) {
     _transforms.back()->feedForward(fout, _houts.back());
   }
   else
-    _transforms.back()->feedForward(fout, fin);
+    _transforms.back()->feedForward(fout, fin_t);
 
   fout.resize(fout.getRows(), fout.getCols() - 1);
 }
@@ -141,14 +145,17 @@ void CNN::backPropagate(mat& error, const mat& fin, const mat& fout,
     _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
 
     if ( is_cnn_dnn_boundary (i-1) ) {
-      // printf("t[%d]: %s - t[%d]: %s\n", i-1, _transforms[i-1]->toString().c_str(), i, _transforms[i]->toString().c_str());
       // Remove last column, which is bias in DNN.
       _houts[i-1] = removeBiasAndTranspose(_houts[i-1]);
       error = removeBiasAndTranspose(error);
     }
   }
 
-  _transforms[0]->backPropagate(error, fin, _houts[0], learning_rate);
+  mat fin_t = fin;
+  if (_transforms[0]->toString() == "convolution")
+    fin_t = removeBiasAndTranspose(fin_t);
+
+  _transforms[0]->backPropagate(error, fin_t, _houts[0], learning_rate);
   error = ~error;
 }
 
@@ -338,7 +345,7 @@ void CNN::status() const {
       kernel_size = kernel_number = "\33[1;30m  N/A  \33[0m";
 
     // Compute Number of parameters in this layer.
-    char nParamStr[20] = {'\0'};
+    char nParamStr[32] = {'\0'};
 
     float nParams = t[i]->getNumParams();
     
@@ -427,7 +434,7 @@ void ConvolutionalLayer::read(xml_node<> *node) {
 
   MIMOFeatureTransform::read(node);
 
-  SIZE k = parseInputDimension(node->first_attribute("kernel-dim")->value());
+  SIZE k = parseImageDimension(node->first_attribute("kernel-dim")->value());
 
   // Allocate memory for kernels and bias
   _kernels.resize(_n_input_maps);

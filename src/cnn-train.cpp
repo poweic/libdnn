@@ -82,8 +82,7 @@ int main(int argc, char* argv[]) {
   CudaMemManager<float>::setCacheSize(cache_size);
 
   // Parse input dimension
-  SIZE imgSize = parseInputDimension((string) cmd["--input-dim"]);
-  size_t input_dim = imgSize.m * imgSize.n;
+  size_t input_dim = parseInputDimension((string) cmd["--input-dim"]);
 
   // Set configurations
   config.learningRate = learningRate;
@@ -143,13 +142,12 @@ void cnn_train(CNN& cnn, DataSet& train, DataSet& valid,
     Batches batches(batchSize, nTrain);
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
       auto data = train[itr];
-      auto x = removeBiasAndTranspose(data.x);
 
-      cnn.feedForward(fout, x);
+      cnn.feedForward(fout, data.x);
 
       mat error = getError( data.y, fout, errorMeasure);
 
-      cnn.backPropagate(error, x, fout, config.learningRate / itr->nData);
+      cnn.backPropagate(error, data.x, fout, config.learningRate / itr->nData);
     }
 
     size_t Ein  = cnn_predict(cnn, train, errorMeasure),
@@ -163,7 +161,6 @@ void cnn_train(CNN& cnn, DataSet& train, DataSet& valid,
     if (validAcc > config.minValidAccuracy)
       break;
 
-    cnn.save("." + model_out);
     t_start = timer.getTime();
   }
 
@@ -178,11 +175,10 @@ size_t cnn_predict(CNN& cnn, DataSet& data, ERROR_MEASURE errorMeasure) {
 
   // TODO automatically compute the best batch_size !!
   Batches batches(256, data.size());
+
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     auto d = data[itr];
-    auto x = removeBiasAndTranspose(d.x);
-
-    cnn.feedForward(fout, x);
+    cnn.feedForward(fout, d.x);
     nError += zeroOneError(fout, d.y, errorMeasure);
   }
 
