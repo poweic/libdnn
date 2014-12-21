@@ -18,7 +18,7 @@ INCLUDE= -I ./ \
 CPPFLAGS= -std=c++0x $(CFLAGS) $(INCLUDE) #-Werror -Wall 
 
 SOURCES=cnn-utility.cu\
-	cnn.cpp\
+	nnet.cpp\
 	dnn-utility.cu\
 	utility.cpp\
 	rbm.cu\
@@ -31,7 +31,6 @@ SOURCES=cnn-utility.cu\
 EXECUTABLES=dnn-train\
 	    dnn-predict\
 	    dnn-init\
-	    cnn-train\
 	    dnn-info\
 	    dnn-print\
 	    data-statistics\

@@ -14,7 +14,7 @@
 
 #include <iostream>
 #include <string>
-#include <cnn.h>
+#include <nnet.h>
 #include <dnn-utility.h>
 #include <cmdparser.h>
 using namespace std;
