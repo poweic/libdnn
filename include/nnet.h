@@ -3,12 +3,12 @@
 #include <utility.h>
 #include <dnn-utility.h>
 
-class CNN {
+class NNet {
 public:
 
-  CNN();
-  CNN(const string& model_fn);
-  ~CNN();
+  NNet();
+  NNet(const string& model_fn);
+  ~NNet();
 
   void init(const string &structure, SIZE img_size);
 
@@ -34,7 +34,7 @@ public:
   void setConfig(const Config& config);
   Config getConfig() const;
 
-  friend ostream& operator << (ostream& os, const CNN& cnn);
+  friend ostream& operator << (ostream& os, const NNet& nnet);
 
 private:
 
@@ -50,4 +50,4 @@ private:
   Config _config;
 };
 
-ostream& operator << (ostream& os, const CNN& cnn);
+ostream& operator << (ostream& os, const NNet& nnet);

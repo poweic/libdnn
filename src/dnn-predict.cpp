@@ -84,9 +84,9 @@ int main (int argc, char* argv[]) {
   DataSet test(test_fn, input_dim, base, n_type);
 
   // Load model from file
-  CNN cnn(model_fn);
+  NNet nnet(model_fn);
   if (!silent)
-    cnn.status();
+    nnet.status();
 
   size_t nError = 0;
 
@@ -98,7 +98,7 @@ int main (int argc, char* argv[]) {
     auto data = test[itr];
 
     mat prob;
-    cnn.feedForward(prob, data.x);
+    nnet.feedForward(prob, data.x);
 
     if (calcAcc && !silent)
       nError += zeroOneError(prob, data.y, CROSS_ENTROPY);

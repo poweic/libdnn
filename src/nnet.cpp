@@ -15,23 +15,23 @@
 #include <nnet.h>
 
 /*! 
- * Implementation of CNN goes here.
+ * Implementation of NNet goes here.
  */
 
-CNN::CNN(): _transforms() {
+NNet::NNet(): _transforms() {
 
 }
 
-CNN::CNN(const string& model_fn) : _transforms() {
+NNet::NNet(const string& model_fn) : _transforms() {
   this->read(model_fn);
 }
 
-CNN::~CNN() {
+NNet::~NNet() {
   for (size_t i=0; i<_transforms.size(); ++i)
     delete _transforms[i];
 }
 
-void CNN::feedForward(mat& fout, const mat& fin) {
+void NNet::feedForward(mat& fout, const mat& fin) {
 
   mat fin_t = fin;
   if (_transforms[0]->toString() == "convolution")
@@ -47,7 +47,7 @@ void CNN::feedForward(mat& fout, const mat& fin) {
     for (size_t i=1; i<_transforms.size() - 1; ++i) {
       _transforms[i]->feedForward(_houts[i], _houts[i-1]);
 
-      // Handle boundary between CNN and DNN
+      // Handle boundary between NNet and DNN
       if ( is_cnn_dnn_boundary(i) ) {
 	// Add one more column, which is bias in DNN.
 	_houts[i] = ~_houts[i];
@@ -63,7 +63,7 @@ void CNN::feedForward(mat& fout, const mat& fin) {
   fout.resize(fout.getRows(), fout.getCols() - 1);
 }
 
-void CNN::backPropagate(mat& error, const mat& fin, const mat& fout,
+void NNet::backPropagate(mat& error, const mat& fin, const mat& fout,
     float learning_rate) {
 
   // Copy from dnn.cpp -- begin
@@ -91,11 +91,11 @@ void CNN::backPropagate(mat& error, const mat& fin, const mat& fout,
   error = ~error;
 }
 
-void CNN::feedBackward(mat& error, const mat& delta) {
+void NNet::feedBackward(mat& error, const mat& delta) {
   // TODO
 }
 
-void CNN::init(const string &structure, SIZE img_size) {
+void NNet::init(const string &structure, SIZE img_size) {
 
   // Parse structure
   vector<string> layers = split(structure, '-');
@@ -159,7 +159,7 @@ void CNN::init(const string &structure, SIZE img_size) {
   }
 }
 
-void CNN::read(const string &fn) {
+void NNet::read(const string &fn) {
   ifstream fin(fn.c_str());
 
   if (!fin.is_open())
@@ -222,7 +222,7 @@ void CNN::read(const string &fn) {
     clog << RED_ERROR << "while reading XML file." << endl;
 }
 
-void CNN::save(const string &fn) const {
+void NNet::save(const string &fn) const {
   ofstream fout(fn.c_str());
 
   if (!fout.is_open())
@@ -233,15 +233,15 @@ void CNN::save(const string &fn) const {
   fout.close();
 }
 
-size_t CNN::getInputDimension() const { 
+size_t NNet::getInputDimension() const { 
   return _transforms[0]->getInputDimension();
 }
 
-size_t CNN::getOutputDimension() const { 
+size_t NNet::getOutputDimension() const { 
   return _transforms.back()->getOutputDimension();
 }
 
-void CNN::status() const {
+void NNet::status() const {
 
   const auto& t = _transforms;
 
@@ -303,11 +303,11 @@ void CNN::status() const {
   printf("Number of hidden layers: %2d \n", nHiddens);
 }
 
-bool CNN::is_cnn_dnn_boundary(size_t i) const {
+bool NNet::is_cnn_dnn_boundary(size_t i) const {
 
-  // the boundary between CNN and DNN must be:
+  // the boundary between NNet and DNN must be:
   // a instance of MIMOFeatureTransform -> affine
-  // and this affine transform must the first one to encounter after CNN.
+  // and this affine transform must the first one to encounter after NNet.
   
   bool has_mimo = false;
   for (size_t x=0; x<_transforms.size(); ++x) {
@@ -323,7 +323,7 @@ bool CNN::is_cnn_dnn_boundary(size_t i) const {
   return false;
 }
 
-void CNN::setDropout(bool flag) {
+void NNet::setDropout(bool flag) {
   auto& t = _transforms;
   for (size_t i=0; i<t.size(); ++i) {
     string type = t[i]->toString();
@@ -334,16 +334,16 @@ void CNN::setDropout(bool flag) {
   }
 }
 
-void CNN::setConfig(const Config& config) {
+void NNet::setConfig(const Config& config) {
   _config = config;
 }
 
-Config CNN::getConfig() const {
+Config NNet::getConfig() const {
   return _config;
 }
 
-ostream& operator << (ostream& os, const CNN& cnn) {
-  for (size_t i=0; i<cnn._transforms.size(); ++i)
-    os << cnn._transforms[i];
+ostream& operator << (ostream& os, const NNet& nnet) {
+  for (size_t i=0; i<nnet._transforms.size(); ++i)
+    os << nnet._transforms[i];
   return os;
 }

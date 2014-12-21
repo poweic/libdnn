@@ -18,7 +18,7 @@
 #include <cmdparser.h>
 using namespace std;
 
-void print(CNN& cnn, ostream& os, string layer);
+void print(NNet& nnet, ostream& os, string layer);
 
 int main (int argc, char* argv[]) {
 
@@ -40,23 +40,23 @@ int main (int argc, char* argv[]) {
   string output_model_fn = cmd[2];
   string layer		 = cmd["--layer"];
 
-  CNN cnn(input_model_fn);
+  NNet nnet(input_model_fn);
   if (output_model_fn.empty())
-    print(cnn, cout, layer);
+    print(nnet, cout, layer);
   else {
     ofstream fout(output_model_fn.c_str());
     if (!fout.is_open())
       throw std::runtime_error(RED_ERROR + "Cannot open file " + output_model_fn);
-    print(cnn, fout, layer);
+    print(nnet, fout, layer);
     fout.close();
   }
 
   return 0;
 }
 
-void print(CNN& cnn, ostream& os, string layer) {
+void print(NNet& nnet, ostream& os, string layer) {
 
-  const auto& t = cnn.getTransforms();
+  const auto& t = nnet.getTransforms();
 
   vector<size_t> layerIds;
 

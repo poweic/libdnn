@@ -53,11 +53,6 @@ namespace util {
   inline string cyan(const string& str)   { return "\33[36m" + str + "\33[0m"; }
 };
 
-/*! \brief divide --struct into cnn-structure and nn-structure
- */
-void parseNetworkStructure(const string &structure,
-    string& cnn_struct, string& nn_struct);
-
 template <typename T>
 void print(const vector<T>& v) {
   cout << "[";

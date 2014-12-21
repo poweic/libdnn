@@ -36,16 +36,16 @@ int main (int argc, char* argv[]) {
   string model_out    = cmd[2];
 
   // Load model
-  CNN cnn(model_in);
+  NNet nnet(model_in);
 
-  if (AffineTransform* T = dynamic_cast<AffineTransform*>(cnn.getTransforms()[0])) {
+  if (AffineTransform* T = dynamic_cast<AffineTransform*>(nnet.getTransforms()[0])) {
     mat M(351, 351);
     memcpy2D(M, T->get_w(), 0, 0, 351, 351, 0, 0);
     M = ~M;
     memcpy2D(T->get_w(), M, 0, 0, 351, 351, 0, 0);
   }
 
-  cnn.save(model_out);
+  nnet.save(model_out);
 
   return 0;
 }

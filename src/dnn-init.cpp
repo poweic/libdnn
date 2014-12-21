@@ -92,9 +92,9 @@ int main (int argc, char* argv[]) {
     SIZE imgSize = parseImageDimension((string) cmd["--input-dim"]);
 
     structure += "-" + to_string(output_dim);
-    CNN cnn;
-    cnn.init(structure, imgSize);
-    cnn.save(model_fn);
+    NNet nnet;
+    nnet.init(structure, imgSize);
+    nnet.save(model_fn);
 
   }
   else {  // Codes for RBM pre-training

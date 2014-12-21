@@ -31,9 +31,9 @@ int main (int argc, char* argv[]) {
 
   string model_fn = cmd[1];
 
-  CNN cnn(model_fn);
+  NNet nnet(model_fn);
 
-  cnn.status();
+  nnet.status();
 
   return 0;
 }
