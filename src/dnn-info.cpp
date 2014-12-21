@@ -14,7 +14,7 @@
 
 #include <iostream>
 #include <string>
-#include <dnn.h>
+#include <cnn.h>
 #include <cmdparser.h>
 using namespace std;
 
@@ -24,16 +24,16 @@ int main (int argc, char* argv[]) {
 
   cmd.add("model_file");
 
-  cmd.addGroup("Example usage: dnn-info train.dat.model");
+  cmd.addGroup("Example usage: dnn-info train.dat.xml");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
 
   string model_fn = cmd[1];
 
-  DNN dnn(model_fn);
+  CNN cnn(model_fn);
 
-  dnn.status();
+  cnn.status();
 
   return 0;
 }

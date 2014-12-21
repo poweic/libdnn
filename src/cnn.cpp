@@ -315,13 +315,13 @@ void CNN::status() const {
 
   int nHiddens = 0;
 
-  printf("._____._____________.___________.___________._________._________.____________.\n");
-  printf("|     |             |           |           |         |         |            |\n");
-  printf("|     |  Transform  |   Input   |  Output   | kernel  | kernel  | Number of  |\n");
-  printf("| No. |             |           |           |         |         |            |\n");
-  printf("|     |    Type     | Dimension | Dimension | number  |  size   | Parameters |\n");
-  printf("|_____|_____________|___________|___________|_________|_________|____________|\n");
-  printf("|     |             |           |           |         |         |            |\n");
+  printf(".____._____________.___________.___________.___________._________.____________.\n");
+  printf("|    |             |           |           |           |         |            |\n");
+  printf("|    |  Transform  |   Input   |  Output   | Number of | Size of | Number of  |\n");
+  printf("| No |             |           |           |           |         |            |\n");
+  printf("|    |    Type     | Dimension | Dimension | Kernels   | Kernels | Parameters |\n");
+  printf("|____|_____________|___________|___________|___________|_________|____________|\n");
+  printf("|    |             |           |           |           |         |            |\n");
 
   for (size_t i=0; i<t.size(); ++i) {
     string type = t[i]->toString();
@@ -360,12 +360,12 @@ void CNN::status() const {
     else
       sprintf(nParamStr, "\33[1;30m       N/A\33[0m");
 
-    printf("|  %-2lu | %-11s |  %6lu   |  %6lu   | %7s | %7s | %10s |\n",
+    printf("| %2lu | %-11s |  %6lu   |  %6lu   |  %7s  | %7s | %10s |\n",
 	i, type.c_str(), in, out, kernel_number.c_str(), kernel_size.c_str(), nParamStr);
-    printf("|     |             |           |           |         |         |            |\n");
+    printf("|    |             |           |           |           |         |            |\n");
   }
 
-  printf("|_____|_____________|___________|___________|_________|_________|____________|\n");
+  printf("|____|_____________|___________|___________|___________|_________|____________|\n");
 
   nHiddens = std::max(0, nHiddens - 1);
   printf("Number of hidden layers: %2d \n", nHiddens);
@@ -389,6 +389,25 @@ bool CNN::is_cnn_dnn_boundary(size_t i) const {
   }
 
   return false;
+}
+
+void CNN::setDropout(bool flag) {
+  auto& t = _transforms;
+  for (size_t i=0; i<t.size(); ++i) {
+    string type = t[i]->toString();
+
+    auto ptr = dynamic_cast<Dropout*>(t[i]);
+    if (ptr != nullptr)
+      ptr->setDropout(flag);
+  }
+}
+
+void CNN::setConfig(const Config& config) {
+  _config = config;
+}
+
+Config CNN::getConfig() const {
+  return _config;
 }
 
 ostream& operator << (ostream& os, const CNN& cnn) {

@@ -88,10 +88,11 @@ size_t DataSet::size() const {
 
 void DataSet::showSummary() const {
 
-  printf("+--------------------------------+-----------+\n");
-  printf("| Number of input feature (data) | %9lu |\n", this->size());
-  printf("| Dimension of  input feature    | %9lu |\n", _dim);
-  printf("+--------------------------------+-----------+\n");
+  printf(".______________________________._________.\n");
+  printf("|                              |         |\n");
+  printf("| # of input features (data)   | %7lu |\n", this->size());
+  printf("| Dimension of input features  | %7lu |\n", _dim);
+  printf("|______________________________|_________|\n");
 
 }
 

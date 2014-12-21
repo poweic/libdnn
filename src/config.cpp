@@ -26,13 +26,18 @@ Config::Config():
 
 void Config::print() const {
 
-  printf("| learning rate                  | %9g |\n", learningRate);
-  printf("| maxEpoch                       | %9lu |\n", maxEpoch);
-  printf("| batchSize                      | %9lu |\n", batchSize);
-  printf("| training / validation          | %9lu |\n", trainValidRatio);
-  printf("| minimun validation accuracy    | %9g |\n", minValidAccuracy);
-  printf("| random permuation each epoch   | %9s |\n", randperm?"true":"false");
-  printf("+--------------------------------+-----------+\n");
+  printf(".________________________________________.\n");
+  printf("|                                        |\n");
+  printf("|             Configurations             |\n");
+  printf("|______________________________._________|\n");
+  printf("|                              |         |\n");
+  printf("| learning rate                | %7g |\n", learningRate);
+  printf("| maxEpoch                     | %7lu |\n", maxEpoch);
+  printf("| batchSize                    | %7lu |\n", batchSize);
+  printf("| training / validation        | %7lu |\n", trainValidRatio);
+  printf("| minimun validation accuracy  | %7g |\n", minValidAccuracy);
+  printf("| random permuation each epoch | %7s |\n", randperm?"true":"false");
+  printf("|______________________________|_________|\n");
   printf("\33[34m[Note]\33[0m When the accuracy on validation set doesn't go up"
       "for %lu epochs, the training procedure would stop.\n\n", nNonIncEpoch);
 

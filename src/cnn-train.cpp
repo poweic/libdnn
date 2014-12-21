@@ -18,7 +18,6 @@
 #include <pbar.h>
 
 #include <dataset.h>
-#include <dnn.h>
 #include <cnn.h>
 
 Config config;

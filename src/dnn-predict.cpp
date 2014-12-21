@@ -14,7 +14,6 @@
 
 #include <iostream>
 #include <string>
-#include <dnn.h>
 #include <cnn.h>
 #include <cmdparser.h>
 #include <batch.h>

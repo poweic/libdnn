@@ -1,4 +1,7 @@
+#include <feature-transform.h>
+#include <config.h>
 #include <utility.h>
+#include <dnn-utility.h>
 #include <cnn-utility.h>
 #include <tools/rapidxml-1.13/rapidxml_utils.hpp>
 using namespace rapidxml;
@@ -73,12 +76,24 @@ public:
 
   bool is_cnn_dnn_boundary(size_t i) const;
 
+  void setDropout(bool flag);
+  void setConfig(const Config& config);
+  Config getConfig() const;
+
   friend ostream& operator << (ostream& os, const CNN& cnn);
 
 private:
 
   std::vector<FeatureTransform*> _transforms;
   std::vector<mat > _houts;
+
+  /* Hidden Outputs: outputs of each hidden layers
+   * The first element in the std::vector (i.e. _houts[0])
+   * is the output of first hidden layer. 
+   * ( Note: this means no input data will be kept in _houts. )
+   * ( Also, no output data will be kept in _houts. )
+   * */
+  Config _config;
 };
 
 ostream& operator << (ostream& os, const CNN& cnn);

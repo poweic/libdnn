@@ -14,9 +14,7 @@
 
 #include <iostream>
 #include <string>
-#include <dnn.h>
 #include <cnn.h>
-#include <dnn-utility.h>
 #include <cmdparser.h>
 #include <rbm.h>
 using namespace std;
