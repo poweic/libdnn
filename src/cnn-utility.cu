@@ -380,7 +380,7 @@ SIZE get_convn_size(SIZE data, SIZE kernel, ConvType type) {
     case FULL_SHM:
       return data + kernel - 1;
     default:
-      throw std::runtime_error("Unknown type of convolution.");
+      throw std::runtime_error(RED_ERROR + "Unknown type of convolution.");
   };
 }
 
@@ -668,7 +668,7 @@ mat downsample(const mat& x, size_t scale, SIZE s) {
       w = W / scale;
 
   if ( x.getRows() != H * W )
-    throw std::runtime_error(DEBUG_STR(x.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
+    throw std::runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
 
   mat output(h * w, batch_size);
 
@@ -718,7 +718,7 @@ mat upsample(const mat& x, SIZE s, SIZE img) {
       w = img.n;
 
   if ( x.getRows() != img.m * img.n )
-    throw std::runtime_error(DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
+    throw std::runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
 
   mat output(H * W, batch_size);
   ALLOCATE_GRIDS_AND_THREADS(H, W);

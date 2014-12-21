@@ -5,13 +5,11 @@ NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
-KALDIIO_ROOT=tools/libkaldiio/
 
 INCLUDE= -I ./ \
 	 -I include/ \
 	 -I $(BOTON_UTIL_ROOT)/include/ \
 	 -I $(CUMATRIX_ROOT)/include \
-	 -I $(KALDIIO_ROOT)/include \
  	 -I /usr/local/cuda/samples/common/inc/ \
 	 -I /usr/local/cuda/include
 
@@ -28,13 +26,12 @@ SOURCES=cnn-utility.cu\
 	batch.cpp\
 	config.cpp
 
-EXECUTABLES=dnn-train\
-	    dnn-predict\
-	    dnn-init\
-	    dnn-info\
-	    dnn-print\
-	    data-statistics\
-	    dnn-transpose
+EXECUTABLES=nn-train\
+	    nn-predict\
+	    nn-init\
+	    nn-info\
+	    nn-print\
+	    data-statistics
 
 EXECUTABLES:=$(addprefix bin/, $(EXECUTABLES))
 
@@ -60,9 +57,6 @@ LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/
 
 $(EXECUTABLES): bin/% : obj/%.o $(OBJ)
 	$(CXX) -o $@ $(CFLAGS) -std=c++0x $(INCLUDE) $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
-
-#%.o: %.cpp
-#	$(CXX) $(CFLAGS) -std=c++0x $(INCLUDE) -o $@ -c $^
 
 # +==============================+
 # +===== Other Phony Target =====+

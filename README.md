@@ -1,5 +1,6 @@
 libdnn
 ======
+（下面有中文說明）
 
 [libdnn](https://github.com/botonchou/libdnn) is an open source CUDA-based C++ Library of Deep Neural Network. It aims to provide an user-friendly neural network library, which allow researchers, developers, or anyone interested in it to harness and experience the power of DNN and extend it whenever you need.
 
@@ -13,11 +14,17 @@ You need
 - g++ (>= 4.6)
 - NVIDIA's Graphic Processing Unit (GPU)
 - Linux/Unix (I use Ubuntu. Mac OS X should be fine, but not tested yet.)
-- [NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit) (>= CUDA 5.0) with CUDA Samples
+- [NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit) (>= CUDA 5.0) with CUDA Samples  
+(If you don't know how to install CUDA, please go check [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions))
 
 I use **Ubuntu 14.04** and **NVIDIA GTX-660**.
 
 # Quick Start
+
+Before you install, you should be able to run `g++`, `nvcc` and have your
+ environment variable `PATH` and `LD_LIBRARY_PATH` set.
+If you feel that you have little doubt about what I'm talking about, I refer you to go through
+ [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
 
 ### Install
 1. `git clone https://github.com/botonchou/libdnn.git`
@@ -30,6 +37,7 @@ There're 3 example scripts in `example/`, you should give it a try:
 - `./example1.sh`
 - `./example2.sh`
 - `./example3.sh`
+- `./example4.sh`
 
 Alternatively, you can run all of them by `./go_all.sh`
 
@@ -41,7 +49,7 @@ In general, you'll need two data, training data (with labels) and test data (opt
 Of course, you can always split your data into two, using a ratio about 5:1 or something like that (5 for training, 1 for testing). If you just want to play around but without your own data, you can simply run through the **example** provided above or download some from the [LibSVM website](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/). 
 
 #### Data Format
-The data can be provided either in sparse (like those in LIBSVM) or in dense format.
+The data can be provided either in sparse (like those in LibSVM) or in dense format.
 
 ##### Sparse Format (like LibSVM):
 ```
@@ -71,35 +79,71 @@ The first column of each row are the labels (e.g., 1 for cancer, -1 for no cance
 You can also store the data in a dense format, this is the same data as the above (but in dense format).
 
 ## How to Use ?
-There're mainly 3 programs, `dnn-init`, `dnn-train`, `dnn-predict`.
+There're mainly 3 programs, `nn-init`, `nn-train`, `nn-predict`.
 
-### dnn-init
+### nn-init
 ```
-dnn-init [options] training_data [model_out]
+nn-init [options] [training_data] -o model_out
 ```
-This program will initialize a deep belief network (DBN) using stacked Restricted Boltzmann Machine (stacked RBM). For example:
-```
-dnn-init --input-dim 1024 --nodes 1024-1024 --output-dim 12 train.dat
-```
-`--input-dim` stands for the dimensional of input feature vector, `--output-dim` is the number of target classes.
-In this example, `dnn-init` will built you a new neural network model of the structure `1024-1024-1024-12`.
+This program will initialize a new neural network model (in XML format) in three ways:
 
-### dnn-train
+0. random initialization
+1. Bernoulli-Bernoulli RBM
+2. Gaussian-Bernoulli RBM
+
+(see command line option `--type` for more detail)
+
+For example:
 ```
-dnn-train [options] training_data model_in [model_out]
+nn-init --input-dim 600 --struct 1024-1024 --output-dim 12 train.dat -o train.init.xml
 ```
-This program will use mini-batch stochastic gradient descent (mini-batch SGD) to train the model initialized by `dnn-init`.
+where `--input-dim` stands for the dimensional of input feature vector, `--output-dim` is the number of target classes to predict.
+In this example, `nn-init` will built you a new neural network model of the structure `600-1024-1024-12`, and save the model as `train.init.xml`.
+
+You can also initialize a Convolutional Nerual Network like this:
 ```
-dnn-train train.dat train.dat.model
+nn-init --input-dim 32x24 --struct 20x5x5-2s-10x3x3-2s-512-512 --output-dim 10
+```
+Here, `32x24` (in `hxw` format) means an input image of `32` pixels in height by `24` pixels wide, and `20x5x5-2s-10x3x3-2s-512-512` means:
+
+|  Token  | Explanation |
+|:-------:|:-----------|
+| 20x5x5  | 20 kernels. The first 5 is height, the second 5 is width. Just like the above |
+| 2s      | down-sampling factor 2 |
+| 10x3x3  | 20x10 kernels instead of only 10 kernels (because the previous conv layer has 20 kernels) |
+| 2s      | down-sampling factor 2 |
+| 512-512 | 2 hidden layers, each with 512 hidden nodes. |
+
+Because **BLAS** use **column-major**, you have to provide data in **column-major** (i.e. in ↓ order, not → order).  
+For example, if you have an `5x6` image letter **E** like this (5 pixels in height by 6 pixels wide):
+```
+111111
+1     
+111111
+1     
+111111
+```
+You should provide this image in sparse format like this:
+```
+1:1 2:1 3:1 4:1 5:1 6:1 8:1 10:1 11:1 13:1 15:1 16:1 18:1 20:1 21:1 23:1 25:1 26:1 28:1 30:1
 ```
 
-### dnn-predict
+### nn-train
 ```
-dnn-predict testing_data model_in [predict_out]
+nn-train [options] training_data model_in [validation_data] [model_out]
+```
+This program will use mini-batch stochastic gradient descent (mini-batch SGD) to train the model initialized by `nn-init`.
+```
+nn-train train.dat train.dat.model
+```
+
+### nn-predict
+```
+nn-predict testing_data model_in [prediction_out]
 ```
 For example:
 ```
-dnn-predict test.dat train.dat.model
+nn-predict test.dat train.dat.model
 ```
 
 For more detail, please check [Wiki](https://github.com/botonchou/libdnn/wiki)
@@ -120,12 +164,19 @@ libdnn 中文說明
 你需要：
 - g++ (>= 4.6)
 - 一張NVIDIA的顯示卡 (ex: GTX-660)
-- Linux/Unix 作業系統 (我用Ubuntu。Mac OS X應該也行，但還沒空測試。）
-- 安裝 [NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit) (至少要CUDA 5.0，或更新)
+- Linux/Unix 作業系統 (我用 Ubuntu 。 Mac OS X 應該也行，但還沒空測試。）
+- 安裝 [NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit)  （CUDA 5.0 以上或更新的版本）  
+(如果你不知道怎麼安裝 CUDA toolkit，請參考[FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions))
 
 我的是 **Ubuntu 14.04** 和 **NVIDIA GTX-660**.
 
 # 快速上手
+
+安裝前，確認一下你可以執行`g++`, `nvcc` ，並且正確地設定環境變數 `PATH`, `LD_LIBRARY_PATH`.
+如果你有一絲絲的懷疑、不太確定我在講什麼，我建議你看過一遍
+ [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions) 再回來。
+
+如果上述這些都搞定了，那就可以開始安裝了!!
 
 ### 安裝
 1. `git clone https://github.com/botonchou/libdnn.git`
@@ -138,6 +189,7 @@ libdnn 中文說明
 - `./example1.sh`
 - `./example2.sh`
 - `./example3.sh`
+- `./example4.sh`
 
 如果想要一次執行全部的範例，你也可以執行位在`example/`下的`./go_all.sh`
 
@@ -149,7 +201,7 @@ libdnn 中文說明
 
 #### 資料格式
 
-資料格式有兩種，一種是LibSVM的格式（稀疏矩陣），另一種則是緊密排列的方式(dense)。
+資料格式有兩種，一種是稀疏矩陣的格式（像 LibSVM 那樣），另一種則是緊密排列的方式(dense)。
 
 ##### Sparse Format (like LibSVM):
 ```
@@ -180,34 +232,69 @@ libdnn 中文說明
 
 ## 如何使用 
 
-主要有三個程式，一個是`dnn-init`, `dnn-train`, `dnn-predict`.
+主要有三個程式，一個是`nn-init`, `nn-train`, `nn-predict`.
 
-### dnn-init
+### nn-init
 ```
-dnn-init [options] training_data [model_out]
+nn-init [options] [training_data] -o model_out
 ```
-透過這個程式，你可以建立一個全新的神經網路模型。它會將很多個 Restricted Boltzmann Machine (RBM) 疊在一起建立出一個Deep Belief Network (DBN) 。如下所示：
-```
-dnn-init --input-dim 1024 --nodes 1024-1024 --output-dim 12 train.dat
-```
-`--input-dim`就是資料（或特徵向量）的維度，而`--output-dim`則是**總共要分成幾類**。在上述的例子中，`dnn-init`會建立一個結構為`1024-1024-1024-12`的神經網路模型。
+透過這個程式，你可以初始化一個全新的神經網路模型（存成 XML 格式），方法有：
+1. random initialization
+2. Bernoulli-Bernoulli RBM
+3. Gaussian-Bernoulli RBM
 
-### dnn-train
+(詳細說明請參考 command line option `--type`) 。
+
+例如：
 ```
-dnn-train [options] training_data model_in [model_out]
+nn-init --input-dim 600 --struct 1024-1024 --output-dim 12 -o train.init.xml
 ```
-有了上述`dnn-init`產生出來的神經網路模型後，你可以透過`dnn-train`所提供的mini-batch stochastic gradient descent (mini-batch SGD)對神經網路模型進行訓練。
+其中`--input-dim`就是資料（或特徵向量）的維度，而`--output-dim`則是**總共要分成幾類**。在上述的例子中，`nn-init`會建立一個結構為`600-1024-1024-12`的神經網路模型，並將模型存在`train.init.xml`。
+
+你也可以建立一個 Convolutional Neural Network ，如下所示：
 ```
-dnn-train train.dat train.dat.model
+nn-init --input-dim 32x24 --struct 20x5x5-2s-10x3x3-2s-512-512 --output-dim 10
+```
+這邊的 `32x24`(以`高x寬`的形式) 代表這一張高 32 像素，寬 24 像素的影像，而後面的 `20x5x5-2s-10x3x3-2s-512-512` 則代表：
+
+|   字串  |    說明    |
+|:-------:|:-----------|
+| 20x5x5  | 20 kernels. 第一個 5 是高度，第二個 5 是寬度（同上，單位一樣是像素） |
+| 2s      | 減縮取樣的比例是 2 |
+| 10x3x3  | 20x10 kernels instead of only 10 kernels （因為前一層已經是 20 個 kernel ） |
+| 2s      | 減縮取樣的比例是 2 |
+| 512-512 | 兩層寬度均為 512 的隱藏層。 |
+
+由於 **BLAS** 記憶體布局的方式是 **column-major**，所以資料也要以 **column-major** 的方式儲存 (  ↓  而不是 → ) 。譬如說，有一張 `5x6` 的英文字母 E 如下所示：
+
+```
+111111
+1     
+111111
+1     
+111111
+```
+則應該將該圖存成以下形式：
+```
+1:1 2:1 3:1 4:1 5:1 6:1 8:1 10:1 11:1 13:1 15:1 16:1 18:1 20:1 21:1 23:1 25:1 26:1 28:1 30:1
 ```
 
-### dnn-predict
+### nn-train
 ```
-dnn-predict testing_data model_in [predict_out]
+nn-train [options] training_data model_in [validion_data] [model_out]
 ```
-當你訓練完神經網路模型後，即可用`dnn-predict`對新的資料進行預測。
+有了上述`nn-init`產生出來的神經網路模型後，你可以透過`nn-train`所提供的mini-batch stochastic gradient descent (mini-batch SGD) 對神經網路模型進行訓練。
 ```
-dnn-predict test.dat train.dat.model
+nn-train train.dat train.dat.model
+```
+
+### nn-predict
+```
+nn-predict testing_data model_in [prediction_out]
+```
+當你訓練完神經網路模型後，即可用`nn-predict`對新的資料進行預測。
+```
+nn-predict test.dat train.dat.model
 ```
 
 更多的教學和細節，請參考[Wiki](https://github.com/botonchou/libdnn/wiki).

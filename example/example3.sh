@@ -8,6 +8,6 @@ model=model/train2.dnn.mature.xml
 
 opts="--input-dim 1024 --normalize 1"
 
-../bin/dnn-init $TRAIN $opts --type 1 --output-dim 12 --struct 1024-1024-1024 -o $stacked_rbm
-../bin/dnn-train $opts $TRAIN $stacked_rbm $TEST $model --min-acc 0.77 --base 1
-../bin/dnn-predict $opts $TEST $model --base 1
+../bin/nn-init $TRAIN $opts --type 1 --output-dim 12 --struct 1024-1024-1024 -o $stacked_rbm
+../bin/nn-train $opts $TRAIN $stacked_rbm $TEST $model --min-acc 0.77 --base 1
+../bin/nn-predict $opts $TEST $model --base 1

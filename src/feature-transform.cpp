@@ -612,7 +612,7 @@ void ConvolutionalLayer::write(ostream& os) const {
 
   char buffer[256];
   sprintf(buffer, "<transform type=\"%s\" learning-rate=\"%f\" kernel-dim=\"%lux%lu\" %s>",
-      "convolution", 0.01, getKernelWidth(), getKernelHeight(), oss.str().c_str());
+      "convolution", 0.01, getKernelHeight(), getKernelWidth(), oss.str().c_str());
   os << buffer << endl;
 
   for (size_t j=0; j<_n_output_maps; ++j) {
