@@ -20,7 +20,6 @@ CPPFLAGS= -std=c++0x $(CFLAGS) $(INCLUDE) #-Werror -Wall
 SOURCES=cnn-utility.cu\
 	cnn.cpp\
 	dnn-utility.cu\
-	dnn.cpp\
 	utility.cpp\
 	rbm.cu\
 	feature-transform.cu\

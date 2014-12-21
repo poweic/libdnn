@@ -14,7 +14,7 @@
 
 #include <iostream>
 #include <string>
-#include <dnn.h>
+#include <cnn.h>
 #include <dnn-utility.h>
 #include <cmdparser.h>
 using namespace std;
@@ -36,16 +36,16 @@ int main (int argc, char* argv[]) {
   string model_out    = cmd[2];
 
   // Load model
-  DNN dnn(model_in);
+  CNN cnn(model_in);
 
-  if (AffineTransform* T = dynamic_cast<AffineTransform*>(dnn.getTransforms()[0])) {
+  if (AffineTransform* T = dynamic_cast<AffineTransform*>(cnn.getTransforms()[0])) {
     mat M(351, 351);
     memcpy2D(M, T->get_w(), 0, 0, 351, 351, 0, 0);
     M = ~M;
     memcpy2D(T->get_w(), M, 0, 0, 351, 351, 0, 0);
   }
 
-  dnn.save(model_out);
+  cnn.save(model_out);
 
   return 0;
 }
