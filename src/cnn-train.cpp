@@ -23,7 +23,6 @@
 
 Config config;
 
-vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim);
 void cuda_profiling_ground();
 
 size_t cnn_predict(CNN& cnn, DataSet& data, ERROR_MEASURE errorMeasure);
@@ -36,8 +35,8 @@ int main(int argc, char* argv[]) {
   CmdParser cmd(argc, argv);
 
   cmd.add("training_set_file")
+     .add("model_in")
      .add("valid_set_file", false)
-     .add("model_in", false)
      .add("model_out", false);
 
   cmd.addGroup("Feature options:")
@@ -48,18 +47,7 @@ int main(int argc, char* argv[]) {
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
 	"2 -- Normalize to standard score. z = (x-u)/sigma ."
 	"filename -- Read mean and variance from file", "0")
-     .add("--base", "Label id starts from 0 or 1 ?", "0")
-     .add("--output-dim", "specify the output dimension (the # of class to predict).\n", "");
-
-  cmd.addGroup("Network structure:")
-     .add("--struct",
-      "Specify the structure of Convolutional neural network\n"
-      "For example: --struct=9x5x5-3s-4x3x3-2s-256-128\n"
-      "\"9x5x5-3s\" means a convolutional layer consists of 9 output feature maps\n"
-      "with a 5x5 kernel, which is followed by a sub-sampling layer with scale\n"
-      "of 3. After \"9x5x5-3s-4x3x3-2s\", a neural network of of 2 hidden layers\n"
-      "of width 256 and 128 is appended to it.\n"
-      "Each layer should be seperated by a hyphen \"-\".", "");
+     .add("--base", "Label id starts from 0 or 1 ?", "0");
 
   cmd.addGroup("Training options:")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
@@ -77,8 +65,8 @@ int main(int argc, char* argv[]) {
     cmd.showUsageAndExit();
 
   string train_fn     = cmd[1];
-  string valid_fn     = cmd[2];
-  string model_in     = cmd[3];
+  string model_in     = cmd[2];
+  string valid_fn     = cmd[3];
   string model_out    = cmd[4];
 
   NormType n_type   = (NormType) (int) cmd["--normalize"];
@@ -96,7 +84,6 @@ int main(int argc, char* argv[]) {
   // Parse input dimension
   SIZE imgSize = parseInputDimension((string) cmd["--input-dim"]);
   size_t input_dim = imgSize.m * imgSize.n;
-  printf("\33[34m[Info]\33[0m Image dimension = %ld x %lu\n", imgSize.m, imgSize.n);
 
   // Set configurations
   config.learningRate = learningRate;
@@ -122,19 +109,9 @@ int main(int argc, char* argv[]) {
   train.showSummary();
   valid.showSummary();
 
-  // Initialize CNN
+  // Load CNN
   CNN cnn;
-
-  if (model_in.empty() or model_in == "-") {
-    string structure  = cmd["--struct"];
-    size_t output_dim = cmd["--output-dim"];
-
-    structure += "-" + to_string(output_dim);
-    cnn.init(structure, imgSize);
-  }
-  else
-    cnn.read(model_in);
-
+  cnn.read(model_in);
   cnn.status();
 
   cnn_train(cnn, train, valid, batchSize, model_out, CROSS_ENTROPY);
@@ -192,28 +169,6 @@ void cnn_train(CNN& cnn, DataSet& train, DataSet& valid,
 
   timer.elapsed();
   printf("# of total epoch = %lu\n", config.maxEpoch);
-}
-
-vector<mat> getRandWeights(size_t input_dim, string structure, size_t output_dim) {
-
-  auto dims = splitAsInt(structure, '-');
-  dims.push_back(output_dim);
-  dims.insert(dims.begin(), input_dim);
-  for (size_t i=0; i<dims.size(); ++i)
-    dims[i] += 1;
-
-  size_t nWeights = dims.size() - 1;
-  vector<mat> weights(nWeights);
-
-  for (size_t i=0; i<nWeights; ++i) {
-    float coeff = (2 * sqrt(6.0f / (dims[i] + dims[i+1]) ) );
-    weights[i] = coeff * (rand(dims[i], dims[i+1]) - 0.5);
-    printf("Initialize weights[%lu] using %.4f x (rand(%3lu,%3lu) - 0.5)\n", i,
-	coeff, dims[i], dims[i+1]);
-  }
-
-  CCE(cudaDeviceSynchronize());
-  return weights;
 }
 
 size_t cnn_predict(CNN& cnn, DataSet& data, ERROR_MEASURE errorMeasure) {

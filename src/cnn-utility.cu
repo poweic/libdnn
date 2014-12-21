@@ -95,12 +95,14 @@ SIZE parseInputDimension(const string &m_by_n) {
   size_t pos = m_by_n.find("x");
 
   if (pos == string::npos)
-    throw std::runtime_error(RED_ERROR + "Please use --input-dim like this: 32x32");
+    throw std::runtime_error(RED_ERROR + "For convolutional neural network, "
+	"please use --input-dim like this: 32x32");
 
   return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
 }
 
-__device__ void load_kernel_into_shm(float* const K, const float* const kernel, int kH, int kW, int tid, int nThreads) {
+__device__ void load_kernel_into_shm(float* const K, const float* const kernel,
+    int kH, int kW, int tid, int nThreads) {
 
   // Copy kernel in global memory to shared memory
   int nTotal = kW * kH;
@@ -214,7 +216,9 @@ __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
     output[ x * vH + y ] = sum;
 } 
 
-__global__ void convn_valid_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_valid_kernel(float *output, float *data, float *kernel,
+    int H, int W, int kH, int kW) { 
+
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -243,7 +247,9 @@ __global__ void convn_valid_kernel(float *output, float *data, float *kernel, in
   output[ x * vH + y ] = sum;
 } 
 
-__global__ void convn_same_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_same_kernel(float *output, float *data, float *kernel,
+    int H, int W, int kH, int kW) { 
+
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -271,7 +277,8 @@ __global__ void convn_same_kernel(float *output, float *data, float *kernel, int
   output[x * H + y] = sum;
 } 
 
-__global__ void convn_full_kernel_with_shm(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_full_kernel_with_shm(float *output, float *data,
+    float *kernel, int H, int W, int kH, int kW) { 
 
   __CUDA_CONSTANTS__;
 
@@ -320,7 +327,9 @@ __global__ void convn_full_kernel_with_shm(float *output, float *data, float *ke
   output[ x * fH + y ] = sum;
 }
 
-__global__ void convn_full_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_full_kernel(float *output, float *data, float *kernel,
+    int H, int W, int kH, int kW) { 
+
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -499,17 +508,6 @@ mat convn(const mat& data, const mat& kernel, SIZE imgIn, ConvType type) {
 
 mat convn(const mat& data, const mat& kernel, ConvType type) {
 
-  const size_t N_STREAM = 4;
-  static vector<cudaStream_t> streams(N_STREAM);
-  static bool first = true;
-  static int counter = 0;
-
-  if (first) {
-    first = false;
-    for (size_t i=0; i<streams.size(); ++i)
-      cudaStreamCreate ( &streams[i] );
-  }
-
   int H = data.getRows(),
       W = data.getCols(),
       kH = kernel.getRows(),
@@ -520,11 +518,7 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
   mat output(s.m, s.n);
   ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
 
-  // printf("stream-id #%lu, grid: (%lu, %lu), threads: (%lu, %lu)\n", counter, grids.x, grids.y, threads.x, threads.y);
-
-  // cudaStream_t& stream = streams[counter];
   cudaStream_t stream = 0;
-  counter = (counter + 1) % N_STREAM;
 
   switch (type) {
     case SAME:

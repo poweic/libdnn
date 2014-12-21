@@ -357,20 +357,6 @@ vector<size_t> StackedRbm::parseDimensions(
   return dims;
 }
 
-// Show a dialogue and ask user for the output dimension
-size_t StackedRbm::AskUserForOutputDimension() {
-  string userInput = "";
-
-  while (!is_number(userInput)) {
-    printf("\33[33m Since RBM is a kind of UNSUPERVISED pre-training. "
-	   "Please enter how many nodes you want in the output layer.\33[0m "
-	   "[      ]\b\b\b\b\b");
-    cin >> userInput;
-  }
-
-  return atoi(userInput.c_str());
-}
-
 // Calculuate standard deviation of each dimension of x.
 // After that, average over all standard deviations.
 float calcAverageStandardDeviation(const mat& x) {

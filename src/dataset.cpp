@@ -25,6 +25,8 @@ DataSet::DataSet(): _normalizer(nullptr) {
 
 DataSet::DataSet(const string &fn, size_t dim, int base, NormType n_type)
   : _dim(dim), _base(base), _normalizer(nullptr) {
+    if (fn.empty())
+      throw std::runtime_error(RED_ERROR + "No filename provided.");
     this->_stream = DataStream::create(fn, 0, -1);
     this->setNormType(n_type);
 }
