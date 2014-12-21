@@ -36,6 +36,7 @@ EXECUTABLES=nn-train\
 EXECUTABLES:=$(addprefix bin/, $(EXECUTABLES))
 
 .PHONY: debug all o3 dump_nrv ctags clean
+
 all: $(EXECUTABLES) ctags
 
 o3: CFLAGS+=-O3
@@ -49,32 +50,36 @@ vpath %.h include/
 vpath %.cpp src/
 vpath %.cu src/
 
-OBJ:=$(addprefix obj/, $(addsuffix .o,$(basename $(SOURCES))))
+OBJDIR:=obj/
+OBJ:=$(addprefix $(OBJDIR)/, $(addsuffix .o,$(basename $(SOURCES))))
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
 
 LIBRARY=-lpbar -lcumatrix
 CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 
-$(EXECUTABLES): bin/% : obj/%.o $(OBJ)
+$(EXECUTABLES): bin/% : $(OBJ) $(OBJDIR)/%.o
 	$(CXX) -o $@ $(CFLAGS) -std=c++0x $(INCLUDE) $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
 
 # +==============================+
 # +===== Other Phony Target =====+
 # +==============================+
-obj/%.o: %.cpp
+$(OBJDIR)/%.o: %.cpp
 	$(CXX) $(CPPFLAGS) -std=c++0x -o $@ -c $<
 
-obj/%.o: %.cu include/%.h
+$(OBJDIR)/%.o: %.cu include/%.h
 	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
 
-obj/%.d: %.cpp
+$(OBJDIR)/%.d: %.cpp | $(OBJDIR)
 	@$(CXX) -MM $(CPPFLAGS) $< > $@.$$$$; \
-	sed 's,\($*\)\.o[ :]*,obj/\1.o $@ : ,g' < $@.$$$$ > $@;\
+	sed 's,\($*\)\.o[ :]*,$(OBJDIR)/\1.o $@ : ,g' < $@.$$$$ > $@;\
 	rm -f $@.$$$$
 
--include $(addprefix obj/,$(subst .cpp,.d,$(SOURCES)))
+-include $(addprefix $(OBJDIR)/,$(subst .cpp,.d,$(SOURCES)))
 
 ctags:
 	@if command -v ctags >/dev/null 2>&1; then ctags -R --langmap=C:+.cu *; fi
 clean:
-	rm -rf $(EXECUTABLES) obj/*
+	rm -rf $(EXECUTABLES) $(OBJDIR)/*
