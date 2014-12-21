@@ -36,8 +36,6 @@ public:
 
   mat getBatchData(DataSet& data, const Batches::iterator& itr, int layer);
 
-  static size_t AskUserForOutputDimension();
-
   static vector<size_t> parseDimensions(
       size_t input_dim, 
       const string& hidden_structure, 

@@ -318,7 +318,7 @@ BatchData KaldiStream::read(int N, size_t dim, size_t base) {
     }
 
     for(int i = 0; i < r; i++) {
-      for(int j = 0; j < dim; j++)
+      for(int j = 0; j < (int) dim; j++)
 	CFRE(fread((void*) &data.x(counter, j), sizeof(float), 1, fis));
       data.x(counter, dim) = 1;
 

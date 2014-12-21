@@ -14,11 +14,11 @@
 
 #include <iostream>
 #include <string>
-#include <dnn.h>
+#include <nnet.h>
 #include <cmdparser.h>
 using namespace std;
 
-void print(DNN& dnn, ostream& os, string layer);
+void print(NNet& nnet, ostream& os, string layer);
 
 int main (int argc, char* argv[]) {
 
@@ -40,23 +40,23 @@ int main (int argc, char* argv[]) {
   string output_model_fn = cmd[2];
   string layer		 = cmd["--layer"];
 
-  DNN dnn(input_model_fn);
+  NNet nnet(input_model_fn);
   if (output_model_fn.empty())
-    print(dnn, cout, layer);
+    print(nnet, cout, layer);
   else {
     ofstream fout(output_model_fn.c_str());
     if (!fout.is_open())
       throw std::runtime_error(RED_ERROR + "Cannot open file " + output_model_fn);
-    print(dnn, fout, layer);
+    print(nnet, fout, layer);
     fout.close();
   }
 
   return 0;
 }
 
-void print(DNN& dnn, ostream& os, string layer) {
+void print(NNet& nnet, ostream& os, string layer) {
 
-  const auto& t = dnn.getTransforms();
+  const auto& t = nnet.getTransforms();
 
   vector<size_t> layerIds;
 

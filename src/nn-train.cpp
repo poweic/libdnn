@@ -14,15 +14,14 @@
 
 #include <iostream>
 #include <string>
-#include <dnn.h>
-#include <dnn-utility.h>
+#include <nnet.h>
 #include <cmdparser.h>
 #include <rbm.h>
 #include <batch.h>
 using namespace std;
 
-size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure);
-void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
+size_t nnet_predict(NNet& nnet, DataSet& data, ERROR_MEASURE errorMeasure);
+void cnn_train(NNet& nnet, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
 bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
 
 int main (int argc, char* argv[]) {
@@ -31,8 +30,8 @@ int main (int argc, char* argv[]) {
 
   cmd.add("training_set_file")
      .add("model_in")
-     .add("model_out", false)
-     .add("valid_set_file", false);
+     .add("valid_set_file", false)
+     .add("model_out", false);
 
   cmd.addGroup("Feature options:")
      .add("--input-dim", "specify the input dimension (dimension of feature).")
@@ -45,7 +44,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Training options:")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
-     .add("--max-epoch", "number of maximum epochs", "100000")
+     .add("--max-epoch", "number of maximum epochs", "200")
      .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
      .add("--learning-rate", "learning rate in back-propagation", "0.1")
      .add("--batch-size", "number of data per mini-batch", "32");
@@ -60,10 +59,9 @@ int main (int argc, char* argv[]) {
 
   string train_fn     = cmd[1];
   string model_in     = cmd[2];
-  string model_out    = cmd[3];
-  string valid_fn     = cmd[4];
+  string valid_fn     = cmd[3];
+  string model_out    = cmd[4];
 
-  size_t input_dim    = cmd["--input-dim"];
   NormType n_type     = (NormType) (int) cmd["--normalize"];
   string n_filename   = cmd["--nf"];
   int base	      = cmd["--base"];
@@ -77,14 +75,17 @@ int main (int argc, char* argv[]) {
   size_t cache_size   = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
 
-  // Load model
-  DNN dnn(model_in);
-  dnn.status();
+  // Parse input dimension
+  size_t input_dim = parseInputDimension((string) cmd["--input-dim"]);
+  
+  // Filename for output model
+  if (model_out.empty())
+    model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
 
   // Load data
   DataSet train, valid;
 
-  if (valid_fn.empty() && ratio != 0) {
+  if ((valid_fn.empty() or valid_fn == "-" ) && ratio != 0) {
     DataSet data(train_fn, input_dim, base, n_type);
     DataSet::split(data, train, valid, ratio);
   }
@@ -102,34 +103,31 @@ int main (int argc, char* argv[]) {
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
   config.print();
-  dnn.setConfig(config);
+
+  // Load model
+  NNet nnet(model_in);
+  nnet.status();
+  nnet.setConfig(config);
 
   // Start Training
-  ERROR_MEASURE err = CROSS_ENTROPY;
-  dnn_train(dnn, train, valid, batchSize, err);
+  cnn_train(nnet, train, valid, batchSize, CROSS_ENTROPY);
 
-  // Save the model
-  if (model_out.empty())
-    model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
-
-  dnn.save(model_out);
+  nnet.save(model_out);
 
   return 0;
 }
 
-void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
+void cnn_train(NNet& nnet, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
 
   printf("Training...\n");
   perf::Timer timer;
   timer.start();
 
-  vector<mat> O(dnn.getNLayer());
-
   size_t Ein = 1;
-  size_t MAX_EPOCH = dnn.getConfig().maxEpoch, epoch;
+  size_t MAX_EPOCH = nnet.getConfig().maxEpoch, epoch;
   std::vector<size_t> Eout;
 
-  float lr = dnn.getConfig().learningRate / batchSize;
+  float lr = nnet.getConfig().learningRate / batchSize;
 
   size_t nTrain = train.size(),
 	 nValid = valid.size();
@@ -155,17 +153,15 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
       // Copy a batch of data from host to device
       auto data = train[itr];
 
-      dnn.feedForward(fout, data.x);
+      nnet.feedForward(fout, data.x);
 
       mat error = getError( data.y, fout, errorMeasure);
 
-      dnn.backPropagate(error, data.x, fout, lr);
+      nnet.backPropagate(error, data.x, fout, lr);
     }
 
-    dnn.setDropout(false);
-    Ein = dnn_predict(dnn, train, errorMeasure);
-    Eout.push_back(dnn_predict(dnn, valid, errorMeasure));
-    dnn.setDropout(true);
+    Ein = nnet_predict(nnet, train, errorMeasure);
+    Eout.push_back(nnet_predict(nnet, valid, errorMeasure));
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
 
@@ -181,13 +177,13 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
     printf("|%4lu   | %6.2f %% |  %7lu     | %6.2f %% |  %7lu     |  %8.2f |\n",
       epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eout[epoch], time);
 
-    if (validAcc > dnn.getConfig().minValidAccuracy && isEoutStopDecrease(Eout, epoch, dnn.getConfig().nNonIncEpoch))
+    if (validAcc > nnet.getConfig().minValidAccuracy &&
+	isEoutStopDecrease(Eout, epoch, nnet.getConfig().nNonIncEpoch))
       break;
-
-    dnn.adjustLearningRate(trainAcc);
   }
 
   // Show Summary
+  printf("|_______|__________|______________|__________|______________|___________|\n");
   printf("\n%ld epochs in total\n", epoch);
   timer.elapsed();
 
@@ -197,15 +193,20 @@ void dnn_train(DNN& dnn, DataSet& train, DataSet& valid, size_t batchSize, ERROR
   showAccuracy(Eout.back(), valid.size());
 }
 
-size_t dnn_predict(const DNN& dnn, DataSet& data, ERROR_MEASURE errorMeasure) {
-  size_t nError = 0;
+size_t nnet_predict(NNet& nnet, DataSet& data, ERROR_MEASURE errorMeasure) {
 
-  Batches batches(2048, data.size());
+  const size_t batchSize = 256;
+  size_t nError = 0;
+  mat prob;
+
+  nnet.setDropout(false);
+  Batches batches(batchSize, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     auto d = data[itr];
-    mat prob = dnn.feedForward(d.x);
+    nnet.feedForward(prob, d.x);
     nError += zeroOneError(prob, d.y, errorMeasure);
   }
+  nnet.setDropout(true);
 
   return nError;
 }

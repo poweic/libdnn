@@ -9,5 +9,7 @@ tags
 test.cpp
 test
 *.model
+example/*.xml
+example/model/*.xml
 *.dat
 log

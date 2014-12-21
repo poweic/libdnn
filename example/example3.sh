@@ -3,11 +3,11 @@
 # Example 3
 TRAIN=data/train2.dat
 TEST=data/test2.dat
-stacked_rbm=model/train2.dat.rbm
-model=model/train2.dat.model
+stacked_rbm=model/train2.rbm.xml
+model=model/train2.dnn.mature.xml
 
 opts="--input-dim 1024 --normalize 1"
 
-../bin/dnn-init $opts --type 1 --output-dim 12 --nodes 1024-1024-1024 $TRAIN $stacked_rbm
-../bin/dnn-train $opts $TRAIN $stacked_rbm $model --min-acc 0.78 --base 1
-../bin/dnn-predict $opts $TEST $model --base 1
+../bin/nn-init $TRAIN $opts --type 1 --output-dim 12 --struct 1024-1024-1024 -o $stacked_rbm
+../bin/nn-train $opts $TRAIN $stacked_rbm $TEST $model --min-acc 0.77 --base 1
+../bin/nn-predict $opts $TEST $model --base 1

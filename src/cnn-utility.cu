@@ -27,39 +27,6 @@
   const int x = x0 + tx;\
   const int y = y0 + ty;
 
-
-void test_batch_convn_full() {
-
-}
-
-void gogo() {
-
-  mat x("sheep.mat");
-  mat gk = gaussian_kernel(5, 5);
-
-  showImage(x);
-  showImage(gk);
-
-  mat y = convn(x, gk, VALID);
-
-  printf("\n\n\n");
-  showImage(y);
-
-  y = (y - 0.5f) * 5;
-  y = sigmoid(y);
-  showImage(y);
-
-  mat z = downsample(y, 2);
-  showImage(z);
-
-  mat a = upsample(z, 2);
-  showImage(a);
-
-  mat b = upsample(a, 2);
-  showImage(b);
-}
-
-
 /*! Convert each row to a 2D image
  * \param data Each col in data is a feature vector. # of cols = # of data
 						     # of rows = image size
@@ -124,12 +91,27 @@ void showImage(const mat& x) {
   cout << "\33[0m" << endl;
 }
 
-SIZE parseInputDimension(const string &m_by_n) {
+SIZE parseImageDimension(const string &m_by_n) {
   size_t pos = m_by_n.find("x");
+
+  if (pos == string::npos)
+    throw std::runtime_error(RED_ERROR + "For convolutional neural network, "
+	"please use --input-dim like this: 32x32");
+
   return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
 }
 
-__device__ void load_kernel_into_shm(float* const K, const float* const kernel, int kH, int kW, int tid, int nThreads) {
+size_t parseInputDimension(const string &input_dim) {
+  if (input_dim.find("x") == string::npos)
+    return str2int(input_dim);
+  else {
+    SIZE imgSize = parseImageDimension(input_dim);
+    return imgSize.m * imgSize.n;
+  }
+}
+
+__device__ void load_kernel_into_shm(float* const K, const float* const kernel,
+    int kH, int kW, int tid, int nThreads) {
 
   // Copy kernel in global memory to shared memory
   int nTotal = kW * kH;
@@ -243,7 +225,9 @@ __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
     output[ x * vH + y ] = sum;
 } 
 
-__global__ void convn_valid_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_valid_kernel(float *output, float *data, float *kernel,
+    int H, int W, int kH, int kW) { 
+
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -272,7 +256,9 @@ __global__ void convn_valid_kernel(float *output, float *data, float *kernel, in
   output[ x * vH + y ] = sum;
 } 
 
-__global__ void convn_same_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_same_kernel(float *output, float *data, float *kernel,
+    int H, int W, int kH, int kW) { 
+
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -300,7 +286,8 @@ __global__ void convn_same_kernel(float *output, float *data, float *kernel, int
   output[x * H + y] = sum;
 } 
 
-__global__ void convn_full_kernel_with_shm(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_full_kernel_with_shm(float *output, float *data,
+    float *kernel, int H, int W, int kH, int kW) { 
 
   __CUDA_CONSTANTS__;
 
@@ -349,7 +336,9 @@ __global__ void convn_full_kernel_with_shm(float *output, float *data, float *ke
   output[ x * fH + y ] = sum;
 }
 
-__global__ void convn_full_kernel(float *output, float *data, float *kernel, int H, int W, int kH, int kW) { 
+__global__ void convn_full_kernel(float *output, float *data, float *kernel,
+    int H, int W, int kH, int kW) { 
+
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -391,7 +380,7 @@ SIZE get_convn_size(SIZE data, SIZE kernel, ConvType type) {
     case FULL_SHM:
       return data + kernel - 1;
     default:
-      throw std::runtime_error("Unknown type of convolution.");
+      throw std::runtime_error(RED_ERROR + "Unknown type of convolution.");
   };
 }
 
@@ -422,8 +411,8 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
 
   if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE) {
     char buf[512];
-    sprintf(buf, "Exceeds maximum shared memory available. (%lu bytes)\n"
-	"kernel = (%lu, %lu), grids = (%u, %u, %u), threads = (%u, %u, %u) "
+    sprintf(buf, "Exceeds maximum shared memory available. (%d bytes)\n"
+	"kernel = (%d, %d), grids = (%u, %u, %u), threads = (%u, %u, %u) "
 	" => %lu bytes of shared memory needed.", MAX_SHARED_MEMORY_SIZE, kH, kW,
 	grids.x, grids.y, grids.z, threads.x, threads.y, threads.z, SHM_SIZE);
     throw std::runtime_error(RED_ERROR + to_string(buf));
@@ -528,17 +517,6 @@ mat convn(const mat& data, const mat& kernel, SIZE imgIn, ConvType type) {
 
 mat convn(const mat& data, const mat& kernel, ConvType type) {
 
-  const size_t N_STREAM = 4;
-  static vector<cudaStream_t> streams(N_STREAM);
-  static bool first = true;
-  static int counter = 0;
-
-  if (first) {
-    first = false;
-    for (size_t i=0; i<streams.size(); ++i)
-      cudaStreamCreate ( &streams[i] );
-  }
-
   int H = data.getRows(),
       W = data.getCols(),
       kH = kernel.getRows(),
@@ -549,11 +527,7 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
   mat output(s.m, s.n);
   ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
 
-  // printf("stream-id #%lu, grid: (%lu, %lu), threads: (%lu, %lu)\n", counter, grids.x, grids.y, threads.x, threads.y);
-
-  // cudaStream_t& stream = streams[counter];
   cudaStream_t stream = 0;
-  counter = (counter + 1) % N_STREAM;
 
   switch (type) {
     case SAME:
@@ -634,23 +608,6 @@ vector<mat> de_concat(const mat& big, int N) {
   return smalls;
 }
 
-mat concat(const vector<mat>& smalls) {
-  int nFeatures = smalls.size(),
-      img_size  = smalls[0].getRows(),
-      batchSize = smalls[0].getCols();
-
-  mat big(img_size * nFeatures, batchSize);
-
-  int MAP_SIZE = smalls[0].size();
-
-  for (int i=0; i<nFeatures; ++i)
-    memcpy2D(big, smalls[i], 0, 0, img_size, batchSize, i * img_size, 0);
-
-  CCE(cudaDeviceSynchronize());
-
-  return big;
-}
-
 __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, int W) { 
   int tx = threadIdx.x;
   int ty = threadIdx.y;
@@ -711,7 +668,7 @@ mat downsample(const mat& x, size_t scale, SIZE s) {
       w = W / scale;
 
   if ( x.getRows() != H * W )
-    throw std::runtime_error(DEBUG_STR(x.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
+    throw std::runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
 
   mat output(h * w, batch_size);
 
@@ -761,7 +718,7 @@ mat upsample(const mat& x, SIZE s, SIZE img) {
       w = img.n;
 
   if ( x.getRows() != img.m * img.n )
-    throw std::runtime_error(DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
+    throw std::runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
 
   mat output(H * W, batch_size);
   ALLOCATE_GRIDS_AND_THREADS(H, W);
@@ -832,251 +789,3 @@ float sum_all(const mat& x) {
   CCE(cudaDeviceSynchronize());
   return s;
 }
-
-/* Codes for unit-testing 
- * 
- * 
- */
-
-void plotL2normInSemilogy() {
-  const float threshold = 1e-6;
-  printf("N = length(L2norm);\n");
-  printf("threshold = %f * ones(1, N);\n", threshold);
-  printf("semilogy(1:N, L2norm, 1:N, threshold);\n");
-  printf("axis([1, N, %e, %e]);\n", threshold / 100, threshold * 100);
-  printf("legend('Minimum Acceptable Error', 'L2-norm');\n");
-}
-
-void test_downsample() {
-
-  int counter = 1;
-
-  for (int i = 0; i<20; ++i) {
-    int M = rand() % 35 + 69,
-	N = rand() % 43 + 28;
-
-    mat x = rand(M, N);
-
-    for (int scale = 2; scale < 10; ++scale) {
-      mat y = downsample(x, scale);
-
-      matlog(x);
-      matlog(y);
-
-      printf("tmp = convn(x, ones(%d) / (%d ^ 2), 'valid');\n", scale, scale);
-      printf("y_gold = tmp(1:%d:end, 1:%d:end);\n", scale, scale);
-      printf("delta = y - y_gold;\n");
-      printf("L2norm(%d) = norm(delta(:)) / norm(y_gold(:)) / 2;\n", counter++);
-    }
-  }
-
-  plotL2normInSemilogy();
-}
-
-void test_convn(ConvType type) {
-
-// #undef matlog
-// #define matlog(x) { printf(#x" = [\n"); x.print(); printf("];\n"); }
-
-  const int N = 10000;
-
-  for (int i=0; i<N; ++i) {
-    int W = rand() % 50 + 5,
-	H = rand() % 50 + 5,
-	kW = rand() % (W-1) + 1,
-	kH = rand() % (H-1) + 1;
-
-    mat data = rand(W, H);
-    mat kernel = rand(kW, kH);
-
-    mat z = convn(data, kernel, type);
-    matlog(data);
-    matlog(kernel);
-    matlog(z);
-
-    printf("z_gold = convn(data, kernel, '%d');\n", type);
-    printf("delta = z_gold - z;\n");
-    printf("L2norm(%d) = norm(delta(:)) / norm(z_gold(:)) / 2;\n", i + 1);
-  }
-
-  plotL2normInSemilogy();
-}
-
-void test_convn_with_and_without_shm(ConvType type, const int N) {
-
-  bool all_pass = true;
-
-  for (int i=0; i<N; ++i) {
-    int W = rand() % 120 + 40,
-	H = rand() % 120 + 40,
-	kW = rand() % 20 + 4,
-	kH = rand() % 20 + 4;
-
-    mat x = randn(H, W),
-	k = randn(kH, kW);
-
-    mat z_gold = convn(x, k, type);
-    mat z = convn(x, k, (ConvType) ((int) type + 1));
-
-    float L2norm = nrm2(z - z_gold) / nrm2(z_gold);
-    printf("L2norm = %.7e ...", L2norm);
-
-    if (L2norm < 1e-6) {
-      printf("\33[32m[Passed]\33[0m\n");
-    }
-    else {
-      printf("\33[31m[Failed]\33[0m\n");
-      all_pass = false;
-    }
-  }
-
-  if (all_pass)
-    printf("\33[32m !!! Congrats! ALL %d test cases PASSED !!! \33[0m\n", N);
-  else
-    printf("\33[31m !!! Oh oh! some test cases FAILED !!! \33[0m\n");
-}
-
-void test_valid_shm_vs_valid_2() {
-  mat x = randn(200, 200);
-  for (int i=5; i<77; ++i)  {
-    for (int j=5; j<77; ++j) {
-      printf("kernel: %d x %d\t", i, j);
-      mat kernel = randn(i, j);
-
-      mat z1 = convn(x, kernel, VALID_SHM);
-      mat z2 = convn(x, kernel, VALID);
-
-      float a = nrm2(z1 - z2),
-	    b = nrm2(z2);
-      float l2error = a / b / 2;
-
-      assert(l2error == l2error);
-      printf("l2error = %.7e / %.7e / 2 = %.7e \t", a, b, l2error);
-      if (l2error > 1e-6)
-	printf("\33[31m[FAILED]\33[0m\n");
-      else
-	printf("\33[32m[PASSED]\33[0m\n");
-      printf("\n");
-    }
-  }
-}
-
-// Unit-testing codes for reshapeImages2Vectors & reshapeVectors2Images
-void test_reshape_images_between_vectors() {
-  int batch_size = 12;
-  SIZE img(4, 5);
-  mat x = randn(img.m * img.n, batch_size);
-
-  vector<mat> images = reshapeVectors2Images(x, img);
-
-  for (size_t i=0; i<images.size(); ++i)
-    matlog(images[i]);
-
-  mat y = reshapeImages2Vectors(images);
-
-  matlog(x);
-  matlog(y);
-
-  matlog(x-y);
-}
-
-
-void benchmark_valid_and_valid_shm() {
-
-  size_t M[] = {32, 64, 128, 256, 384, 512};
-  size_t N[] = {3, 6, 9, 12};
-
-  perf::Timer timer;
-  const size_t N_TIMES = 200;
-
-  printf("          |");
-  for (size_t j=0; j<sizeof(N) / sizeof(size_t) ; ++j)
-    printf("         %3lu x %-3lu          |", N[j], N[j]);
-  printf("\n----------+");
-  for (size_t j=0; j<sizeof(N) / sizeof(size_t); ++j)
-    printf("----------------------------+");
-  printf("\n");
-
-  for (size_t i=0; i< sizeof(M) / sizeof(size_t) ; ++i) {
-    mat x = randn(M[i], M[i]);
-
-    printf("%3lu x %-3lu | ", M[i], M[i]);
-    for (size_t j=0; j<sizeof(N) / sizeof(size_t); ++j) {
-      mat kernel = randn(N[j], N[j]);
-
-      timer.start();
-      for (size_t k = 1; k < N_TIMES; ++k) {
-	mat z1 = convn(x, kernel, VALID);
-      }
-      float t1 = timer.getTime();
-      timer.reset();
-
-      timer.start();
-      for (size_t k = 1; k < N_TIMES; ++k) {
-	mat z2 = convn(x, kernel, VALID_SHM);
-      }
-      float t2 = timer.getTime();
-      printf("%7.2f , %7.2f \33[34m->\33[0m %4.1fx", t1, t2, t1 / t2);
-      timer.reset();
-
-      printf(" | ");
-    }
-    printf("\n");
-  }
-}
-
-void benchmark_batch_convn() {
-
-  // Achieve 3.98x speed up for batch size 128, 3.41x speed up for batch size 32
-  const size_t N = 100;
-
-  perf::Timer timer1, timer2;
-
-  for (size_t i=0; i<N; ++i) {
-    int nImages = 128;
-    int m = rand() % 17 + 23;
-    int n = rand() % 13 + 27;
-    int kh = 5 + rand() % 2; // rand() % 22 + 4;
-    int kw = 5 + rand() % 2; // rand() % 22 + 8;
-
-    SIZE s(m, n);
-    mat X = randn(m * n, nImages);
-    mat kernel = randn(kh, kw);
-
-    // Slow method
-    timer1.start();
-    vector<mat> images = reshapeVectors2Images(X, s);
-    vector<mat> z_golds(nImages);
-
-    for (int i=0; i<nImages; ++i)
-      z_golds[i] = convn(images[i], kernel, VALID_SHM);
-
-    mat z_gold = reshapeImages2Vectors(z_golds);
-    timer1.stop();
-
-    // Fast method
-    timer2.start();
-    mat z = convn(X, kernel, s, VALID_SHM);
-    timer2.stop();
-
-    printf("# of images = %3d, images size: %3d x %-3d, kernel: %3d x %-3d\t", 
-	nImages, m, n, kh, kw);
-
-    if (z.getRows() == z_gold.getRows() && z.getCols() == z_gold.getCols()) {
-      float l2norm = nrm2(z - z_gold) / nrm2(z_gold) / 2;
-      printf("L2norm = %.7e\t", l2norm);
-      if (l2norm < 1e-6)
-	printf("\33[32m[PASSED]\33[0m\n");
-      else
-	printf("\33[31m[FAILED]\33[0m\n");
-    }
-    else
-	printf("\33[35m[DIMENSION MISMATCH]\33[0m\n");
-  }
-
-  float t1 = timer1.getTime(),
-	t2 = timer2.getTime();
-
-  printf("%.4f => %.4f. %.4f x speed up !!\n", t1, t2, t1 / t2);
-}
-

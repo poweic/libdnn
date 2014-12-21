@@ -1,26 +1,23 @@
 CC=gcc
-CXX=g++-4.6
+CXX=g++
 CFLAGS=
 NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
-KALDIIO_ROOT=tools/libkaldiio/
 
 INCLUDE= -I ./ \
 	 -I include/ \
 	 -I $(BOTON_UTIL_ROOT)/include/ \
 	 -I $(CUMATRIX_ROOT)/include \
-	 -I $(KALDIIO_ROOT)/include \
  	 -I /usr/local/cuda/samples/common/inc/ \
 	 -I /usr/local/cuda/include
 
 CPPFLAGS= -std=c++0x $(CFLAGS) $(INCLUDE) #-Werror -Wall 
 
 SOURCES=cnn-utility.cu\
-	cnn.cpp\
+	nnet.cpp\
 	dnn-utility.cu\
-	dnn.cpp\
 	utility.cpp\
 	rbm.cu\
 	feature-transform.cu\
@@ -29,14 +26,12 @@ SOURCES=cnn-utility.cu\
 	batch.cpp\
 	config.cpp
 
-EXECUTABLES=dnn-train\
-	    dnn-predict\
-	    dnn-init\
-	    cnn-train\
-	    dnn-info\
-	    dnn-print\
-	    data-statistics\
-	    dnn-transpose
+EXECUTABLES=nn-train\
+	    nn-predict\
+	    nn-init\
+	    nn-info\
+	    nn-print\
+	    data-statistics
 
 EXECUTABLES:=$(addprefix bin/, $(EXECUTABLES))
 
@@ -60,14 +55,8 @@ LIBRARY=-lpbar -lcumatrix
 CUDA_LIBRARY=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 
-test: test.cpp
-	g++ -std=c++0x $(INCLUDE) $(LIBRARY_PATH) -o test test.cpp -lpthread  $(CUDA_LIBRARY)
-
 $(EXECUTABLES): bin/% : obj/%.o $(OBJ)
 	$(CXX) -o $@ $(CFLAGS) -std=c++0x $(INCLUDE) $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
-
-#%.o: %.cpp
-#	$(CXX) $(CFLAGS) -std=c++0x $(INCLUDE) -o $@ -c $^
 
 # +==============================+
 # +===== Other Phony Target =====+

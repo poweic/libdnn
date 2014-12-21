@@ -8,6 +8,6 @@ model=model/train.dat.model
 
 opts="--normalize 1 --input-dim 20"
 
-../bin/dnn-init $opts --type 1 --output-dim 2 --nodes 64-64 $TRAIN $stacked_rbm
-../bin/dnn-train $opts $TRAIN $stacked_rbm $model --min-acc 0.74
-../bin/dnn-predict $opts $TEST $model
+../bin/nn-init $TRAIN $opts --type 1 --output-dim 2 --struct 64-64 -o $stacked_rbm
+../bin/nn-train $opts $TRAIN $stacked_rbm $TEST $model --min-acc 0.74
+../bin/nn-predict $opts $TEST $model

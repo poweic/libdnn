@@ -343,9 +343,30 @@ void SubstractMaxPerRow(device_matrix<T>& x) {
 }
 
 template <typename T>
-void fillLastColumnWith(device_matrix<T>& A, const T value) {
-  thrust::device_ptr<T> ptr(A.getData());
-  thrust::fill(ptr + A.size() - A.getRows(), ptr + A.size(), value);
+device_matrix<T> add_bias(const device_matrix<T>& A, const T value, bool add_new_column) {
+  device_matrix<T> B;
+
+  if (add_new_column) {
+    B.resize(A.getRows(), A.getCols() + 1);
+    CCE(cudaMemcpy(B.getData(), A.getData(), sizeof(T) * A.size(), cudaMemcpyDeviceToDevice));
+  }
+  else
+    B = A;
+
+  thrust::device_ptr<T> ptr(B.getData());
+  thrust::fill(ptr + B.size() - B.getRows(), ptr + B.size(), value);
+
+  return B;
+}
+
+mat removeBiasAndTranspose(const mat& x) {
+  // Transpose the input feature (fin) so that:
+  //   1) rows = feature dimension
+  //   2) cols = the number of data in a single batch.
+  // FIXME the last column in fin is the bias needed ONLY by DNN, not by CNN.
+  mat y(x.getRows(), x.getCols() - 1);
+  memcpy2D(y, x, 0, 0, x.getRows(), x.getCols() - 1, 0, 0);
+  return ~y;
 }
 
 template <typename T>
@@ -417,7 +438,7 @@ device_matrix<T> softmax(const device_matrix<T>& x) {
 #define register_device_matrix_utility(T) \
   template device_matrix<T> operator &<T> (const device_matrix<T>& A, const device_matrix<T>& B); \
   template device_matrix<T>& operator &=<T> (device_matrix<T>& A, const device_matrix<T>& B); \
-  template void fillLastColumnWith<T>(device_matrix<T>& A, const T value); \
+  template device_matrix<T> add_bias<T>(const device_matrix<T>& A, const T value, bool add_new_column); \
   template device_matrix<T> exp<T>(const device_matrix<T>& x); \
   template device_matrix<T> log<T>(const device_matrix<T>& x); \
   template device_matrix<T> log1pexp<T>(const device_matrix<T>& x); \
