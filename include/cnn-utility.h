@@ -67,12 +67,8 @@ mat cross_convn(const mat& dataIn, const mat& dataOut, SIZE imgIn, SIZE imgOut, 
 vector<mat> de_concat(const mat& concated_features, int n);
 mat concat(const vector<mat>& smalls);
 
-mat downsample(const mat& x, size_t scale);
 mat downsample(const mat& x, size_t scale, SIZE s);
 
 mat upsample(const mat& x, SIZE s, SIZE img);
-mat upsample(const mat& x, SIZE s);
-mat upsample(const mat& x, size_t scale);
 
 mat rot180(const mat& x);
-float sum_all(const mat& x);

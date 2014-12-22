@@ -33,34 +33,31 @@ NNet::~NNet() {
 
 void NNet::feedForward(mat& fout, const mat& fin) {
 
-  mat fin_t = fin;
+  mat fin2 = fin;
   if (_transforms[0]->toString() == "convolution")
-    fin_t = removeBiasAndTranspose(fin_t);
+    fin2 = remove_bias(fin2);
 
   // FIXME SubSamplingLayer does NOT need temporary buffer.
   // MAYBE just reserve those for ConvolutionalLayer.
   _houts.resize(_transforms.size() - 1);
 
   if (_houts.size() > 0) {
-    _transforms[0]->feedForward(_houts[0], fin_t);
+    _transforms[0]->feedForward(_houts[0], fin2);
 
     for (size_t i=1; i<_transforms.size() - 1; ++i) {
       _transforms[i]->feedForward(_houts[i], _houts[i-1]);
 
-      // Handle boundary between NNet and DNN
-      if ( is_cnn_dnn_boundary(i) ) {
-	// Add one more column, which is bias in DNN.
-	_houts[i] = ~_houts[i];
+      // Handle boundary between NNet and DNN, add one more column for DNN.
+      if ( is_cnn_dnn_boundary(i) )
 	_houts[i] = add_bias(_houts[i], 1.0f, true);
-      }
     }
 
     _transforms.back()->feedForward(fout, _houts.back());
   }
   else
-    _transforms.back()->feedForward(fout, fin_t);
+    _transforms.back()->feedForward(fout, fin2);
 
-  fout.resize(fout.getRows(), fout.getCols() - 1);
+  fout = remove_bias(fout);
 }
 
 void NNet::backPropagate(mat& error, const mat& fin, const mat& fout,
@@ -76,19 +73,18 @@ void NNet::backPropagate(mat& error, const mat& fin, const mat& fout,
   for (int i=_transforms.size() - 2; i >= 1; --i) {
     _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
 
+    // Remove last column, which is bias in DNN.
     if ( is_cnn_dnn_boundary (i-1) ) {
-      // Remove last column, which is bias in DNN.
-      _houts[i-1] = removeBiasAndTranspose(_houts[i-1]);
-      error = removeBiasAndTranspose(error);
+      _houts[i-1] = remove_bias(_houts[i-1]);
+      error = remove_bias(error);
     }
   }
 
-  mat fin_t = fin;
+  mat fin2 = fin;
   if (_transforms[0]->toString() == "convolution")
-    fin_t = removeBiasAndTranspose(fin_t);
+    fin2 = remove_bias(fin2);
 
-  _transforms[0]->backPropagate(error, fin_t, _houts[0], learning_rate);
-  error = ~error;
+  _transforms[0]->backPropagate(error, fin2, _houts[0], learning_rate);
 }
 
 void NNet::feedBackward(mat& error, const mat& delta) {
@@ -146,6 +142,7 @@ void NNet::init(const string &structure, SIZE img_size) {
 
       float coeff = 2 * sqrt(6.0f / (fan_in + fan_out + 2) );
       mat weight = coeff * (rand(fan_in + 1, fan_out + 1) - 0.5);
+      weight = ~weight;
       _transforms.push_back(new AffineTransform(weight));
 
       if ( i < layers.size() - 1 )

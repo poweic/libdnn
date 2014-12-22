@@ -129,7 +129,7 @@ AffineTransform::AffineTransform(size_t input_dim, size_t output_dim)
 }
 
 AffineTransform::AffineTransform(const mat& w)
-  : FeatureTransform(w.getRows() - 1, w.getCols() - 1), _w(w) {
+  : FeatureTransform(w.getCols() - 1, w.getRows() - 1), _w(w) {
 }
 
 AffineTransform::AffineTransform(istream& is) {
@@ -140,8 +140,8 @@ void AffineTransform::read(xml_node<> * node) {
 
   FeatureTransform::read(node);
 
-  const size_t& rows = _input_dim;
-  const size_t& cols = _output_dim;
+  const size_t& rows = _output_dim;
+  const size_t& cols = _input_dim;
 
   auto attr = node->first_attribute("learning-rate");
   float learning_rate = (attr) ? stof(attr->value()) : 0.1;
@@ -167,14 +167,17 @@ void AffineTransform::read(xml_node<> * node) {
       CSE( ss >> hw(i, j) );
 
   ss << bias->value();
-  for (size_t j=0; j<cols; ++j)
-    CSE( ss >> hw(rows, j) );
+
+  for (size_t j=0; j<rows; ++j)
+    CSE( ss >> hw(j, cols) );
 
   _w = (mat) hw;
 }
  
 void AffineTransform::read(istream& is) {
 
+  throw std::runtime_error("deprecated !!");
+  /*
   string dummy;
 
   size_t rows, cols;
@@ -199,6 +202,7 @@ void AffineTransform::read(istream& is) {
   _w = (mat) hw;
   _input_dim = rows;
   _output_dim = cols;
+  */
 }
 
 void AffineTransform::write(ostream& os) const {
@@ -212,9 +216,8 @@ void AffineTransform::write(ostream& os) const {
 
   sprintf(buffer, "<transform type=\"%s\" input-dim=\"%lu\" output-dim=\"%lu\""
       " momentum=\"%f\" learning-rate=\"%f\" >", this->toString().c_str(),
-      rows - 1, cols - 1, 0.1, 0.1);
+      cols - 1, rows - 1, 0.1, 0.1);
   os << buffer << endl;
-
 
   sprintf(buffer, "  <weight rows=\"%lu\" cols=\"%lu\">", rows - 1, cols - 1);
   os << buffer << endl;
@@ -229,12 +232,12 @@ void AffineTransform::write(ostream& os) const {
 
   os << "  </weight>" << endl;
 
-  sprintf(buffer, "  <bias rows=\"%d\" cols=\"%lu\">", 1, cols - 1);
+  sprintf(buffer, "  <bias rows=\"%lu\" cols=\"1\">", rows - 1);
   os << buffer << endl;
 
   os << "    ";
-  for (size_t j=0; j<cols-1; ++j)
-    os << data[j * rows + rows - 1] << " ";
+  for (size_t j=0; j<rows-1; ++j)
+    os << data[rows * (cols - 1) + j] << " ";
 
   os << endl
      << "  </bias>" << endl
@@ -283,30 +286,36 @@ string AffineTransform::toString() const {
 }
 
 void AffineTransform::feedForward(mat& fout, const mat& fin) {
-  fout = add_bias(fin) * _w;
+  fout = _w * add_bias(fin);
+}
+
+void AffineTransform::feedBackward(mat& error, const mat& delta) {
+
+  error.resize(_w.getCols(), delta.getCols());
+
+  // Perform error = delta(1:end-1) * _w(:, 1:end-1)^T
+  // Perform error2= _w(:, 1:end-1)^T * delta(1:end-1)
+  // The last row of _w is bias. The last column of _w is reserved for
+  // computational efficiency. Therefore, ignore the last column in _w.
+  size_t traceLength = delta.getRows() - 1;
+
+  device_matrix<float>::cublas_gemm(
+      CUBLAS_OP_T, CUBLAS_OP_N,
+      error.getRows(), error.getCols(), traceLength, 
+      1.0,
+      _w.getData(), _w.getRows(),
+      delta.getData(), delta.getRows(),
+      0.0,
+      error.getData(), error.getRows());
 }
 
 void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
   mat delta = error;
 
-  error.resize(delta.getRows(), _w.getRows());
-
-  // Perform error = delta(1:end-1) * _w(:, 1:end-1)^T
-  // The last row of _w is bias. The last column of _w is reserved for
-  // computational efficiency. Therefore, ignore the last column in _w.
-  size_t traceLength = delta.getCols() - 1;
-
-  device_matrix<float>::cublas_gemm(
-      CUBLAS_OP_N, CUBLAS_OP_T,
-      delta.getRows(), _w.getRows(), traceLength, 
-      1.0,
-      delta.getData(), delta.getRows(),
-      _w.getData(), _w.getRows(),
-      0.0,
-      error.getData(), error.getRows());
+  this->feedBackward(error, delta);
 
   // FIXME later add_bias(fin) is weird !!
-  gemm(add_bias(fin), delta, _w, -learning_rate, 1.0f, true, false);
+  gemm(delta, add_bias(fin), _w, -learning_rate, 1.0f, false, true);
 }
 
 mat& AffineTransform::get_w() {
@@ -869,7 +878,7 @@ void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
   for (size_t i=0; i<errors.size(); ++i)
     errors[i] = upsample(deltas[i], _input_img_size, get_output_img_size());
 
-  error = vercat(errors);// TODO / (_scale * _scale);
+  error = vercat(errors);
 }
 
 void SubSamplingLayer::backPropagate(mat& error, const mat& fin,

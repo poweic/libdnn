@@ -96,12 +96,13 @@ int main (int argc, char* argv[]) {
   Batches batches(256, test.size());
   for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
     auto data = test[itr];
+    mat x = data.x;
 
     mat prob;
-    nnet.feedForward(prob, data.x);
+    nnet.feedForward(prob, ~x);
 
     if (calcAcc && !silent)
-      nError += zeroOneError(prob, data.y, CROSS_ENTROPY);
+      nError += zeroOneError(prob, data.y);
 
     if (calcAcc && output_fn.empty() && output_type == 0)
       continue;

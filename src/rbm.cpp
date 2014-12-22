@@ -34,10 +34,11 @@ StackedRbm::StackedRbm(const vector<size_t>& dims)
     _weights.resize(_dims.size() - 1);
 
     for (size_t i=0; i<_weights.size(); ++i) {
-      size_t m = _dims[i] + 1,
-	     n = _dims[i + 1] + 1;
+      size_t in = _dims[i] + 1,
+	     out = _dims[i + 1] + 1;
 
-      _weights[i] = randn(m, n) * sqrt(0.1 / n);
+      _weights[i] = randn(in, out) * sqrt(0.1 / out);
+      _weights[i] = ~_weights[i];
     }
 }
 
@@ -82,7 +83,7 @@ void StackedRbm::train(DataSet& data, UNIT_TYPE vis_type) {
 }
 
 void StackedRbm::up_propagate(const mat& W, const mat& visible, mat& hidden, UNIT_TYPE type) {
-  hidden = visible * W;
+  hidden = W * visible;
 
   if (type == BERNOULLI)
     hidden = sigmoid(hidden);
@@ -91,7 +92,7 @@ void StackedRbm::up_propagate(const mat& W, const mat& visible, mat& hidden, UNI
 }
 
 void StackedRbm::down_propagate(const mat& W, mat& visible, const mat& hidden, UNIT_TYPE type) {
-  visible = hidden * ~W;
+  visible = ~W * hidden;
 
   if (type == BERNOULLI)
     visible = sigmoid(visible);
@@ -128,7 +129,6 @@ float StackedRbm::getReconstructionError(DataSet& data, const mat& W,
     mat v1, v2, h1;
 
     v1 = getBatchData(data, itr, layer);
-    // v1 = data.getX(*itr);
     v1 = add_bias(v1);
 
     // Up propagation
@@ -152,27 +152,21 @@ float StackedRbm::getReconstructionError(DataSet& data, const mat& W,
 }
 
 float StackedRbm::getFreeEnergy(const mat& visible, const mat& W) {
-  int N = visible.getRows();
-  mat hidden = visible * W;
+  int N = visible.getCols();
+  mat hidden = W * visible;
 
-  mat va(N, 1);
-  CCE(cudaMemcpy(va.getData(),
-	hidden.getData() + hidden.size() - N,
-	sizeof(float) * N, cudaMemcpyDeviceToDevice));
+  mat va(1, N);
+  memcpy2D(va, hidden, hidden.getRows() - 1, 0, 1, N, 0, 0);
+  //CCE(cudaMemcpy(va.getData(), hidden.getData() + hidden.size() - N, sizeof(float) * N, cudaMemcpyDeviceToDevice));
 
   hidden = add_bias(hidden, -1000.0f);
 
   log1pexp(hidden);
 
-  mat e = hidden * mat(hidden.getCols(), 1, 1) + va;
-  mat sum_of_e = mat(1, N, 1) * e;
+  // mat e = hidden * mat(hidden.getCols(), 1, 1) + va;
+  mat e = mat(1, hidden.getRows(), 1) * hidden + va;
 
-  float free_energy = 0;
-  CCE(cudaMemcpy(&free_energy, sum_of_e.getData(), sizeof(float), cudaMemcpyDeviceToHost));
-
-  free_energy = - free_energy / N;
-
-  return free_energy;
+  return -sum_all(e) / N;
 }
 
 float StackedRbm::getFreeEnergyGap(DataSet& data, size_t batch_size, const mat& W, int layer) {
@@ -191,8 +185,9 @@ float StackedRbm::getFreeEnergyGap(DataSet& data, size_t batch_size, const mat& 
 
 mat StackedRbm::getBatchData(DataSet& data, const Batches::iterator& itr, int layer) {
   mat x = (mat) data[itr].x;
+  x = ~x;
   for (int i=0; i<layer; ++i)
-    x = sigmoid(x * _weights[i]);
+    x = sigmoid(_weights[i] * x);
   return x;
 }
 
@@ -242,14 +237,13 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
       mat v1, v2, h1, h2;
 
       v1 = getBatchData(data, itr, layer);
-      // v1 = data.getX(*itr);
       v1 = add_bias(v1);
 
       // Up propagation
       up_propagate(W, v1, h1, hid_type);
 
       // Calculate positive
-      mat positive = ~v1 * h1;
+      mat positive = h1 * ~v1;
 
       // Sampling
       sample(h1, hid_type);
@@ -260,7 +254,7 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
       up_propagate(W, v2, h2, hid_type);
 
       // Calculate negative
-      mat negative = ~v2 * h2;
+      mat negative = h2 * ~v2;
 
       // Prevent weight explosion (cf. "kaldi-trunk/src/nnet/nnet-rbm.cc")
       antiWeightExplosion(W, v1, v2, lr);

@@ -150,16 +150,17 @@ void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
     etimer.start();
 
     Batches batches(nnet.getConfig().batchSize, nTrain);
-    for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+    for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
 
       // Copy a batch of data from host to device
       auto data = train[itr];
+      mat x = ~mat(data.x);
 
-      nnet.feedForward(fout, data.x);
+      nnet.feedForward(fout, x);
 
-      mat error = getError( data.y, fout, nnet.getConfig().errorMeasure);
+      mat error = getError( data.y, fout, nnet.getConfig().errorMeasure );
 
-      nnet.backPropagate(error, data.x, fout, lr / itr->nData);
+      nnet.backPropagate(error, x, fout, lr / itr->nData);
     }
 
     Ein = nnet_predict(nnet, train);
@@ -177,7 +178,7 @@ void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
 	isEoutStopDecrease(Eouts, epoch, nnet.getConfig().nNonIncEpoch))
       break;
     
-    nnet.save(model_out + "." + to_string(epoch));
+    // nnet.save(model_out + "." + to_string(epoch));
   }
 
   // Show Summary
@@ -201,8 +202,9 @@ size_t nnet_predict(NNet& nnet, DataSet& data) {
   Batches batches(batchSize, data.size());
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     auto d = data[itr];
-    nnet.feedForward(prob, d.x);
-    nError += zeroOneError(prob, d.y, nnet.getConfig().errorMeasure);
+    mat x = d.x;
+    nnet.feedForward(prob, ~x);
+    nError += zeroOneError(prob, d.y);
   }
   nnet.setDropout(true);
 

@@ -436,7 +436,7 @@ mat convn_2(const mat& data, const mat& kernels, SIZE k) {
 
   mat output(imgOut.m * imgOut.n, N);
 
-  ALLOCATE_GRIDS_AND_THREADS(imgOut.m, imgOut.n);
+  ALLOCATE_GRIDS_AND_THREADS(imgOut.n, imgOut.m);
   grids.z = N;
 
   size_t SHM_SIZE = getSuitableShmConfig(grids, threads, k.m, k.n);
@@ -475,7 +475,7 @@ mat convn(const mat& data, const mat& kernel, SIZE imgIn, ConvType type) {
 
   mat output(imgOut.m * imgOut.n, N);
 
-  ALLOCATE_GRIDS_AND_THREADS(imgOut.m, imgOut.n);
+  ALLOCATE_GRIDS_AND_THREADS(imgOut.n, imgOut.m);
   grids.z = N;
 
   size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
@@ -525,7 +525,7 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
   SIZE s = get_convn_size(data, kernel, type);
 
   mat output(s.m, s.n);
-  ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
+  ALLOCATE_GRIDS_AND_THREADS(output.getCols(), output.getRows());
 
   cudaStream_t stream = 0;
 
@@ -622,18 +622,18 @@ __global__ void downsample_kernel(float *dst, float *src, size_t scale, int H, i
   src += blockIdx.z * H * W;
   dst += blockIdx.z * h * w;
 
-  if (x >= w || y >= h)
+  if (y >= w || x >= h)
     return;
 
   float sum;
   for (int i=0; i<scale; ++i) {
     for (int j=0; j<scale; ++j) {
-      if ( x*scale + i < W && y*scale + j < H )
-	sum += src[(x*scale + i) * H + (y*scale + j)];
+      if ( y*scale + i < W && x*scale + j < H )
+	sum += src[(y*scale + i) * H + (x*scale + j)];
     }
   }
 
-  dst[x * h + y] = sum / (scale * scale);
+  dst[y * h + x] = sum / (scale * scale);
 }
 
 __global__ void upsample_kernel(float *dst, float *src, int h, int w, int H, int W) { 
@@ -649,14 +649,14 @@ __global__ void upsample_kernel(float *dst, float *src, int h, int w, int H, int
 
   int scale = H / h;
 
-  if (x >= W || y >= H)
+  if (y >= W || x >= H)
     return;
 
-  int sx = x / scale, sy = y / scale;
-  if (sx == w) --sx;
-  if (sy == h) --sy;
+  int sy = y / scale, sx = x / scale;
+  if (sy == w) --sy;
+  if (sx == h) --sx;
 
-  dst[x * H + y] = src[sx * h + sy];
+  dst[y * H + x] = src[sy * h + sx];
 }
 
 mat downsample(const mat& x, size_t scale, SIZE s) {
@@ -685,30 +685,6 @@ mat downsample(const mat& x, size_t scale, SIZE s) {
   return output;
 }
 
-mat downsample(const mat& x, size_t scale) {
-  int H = x.getRows(),
-      W = x.getCols(),
-      h = H / scale,
-      w = W / scale;
-
-  mat output(h, w);
-
-  ALLOCATE_GRIDS_AND_THREADS(h, w);
-
-  downsample_kernel<<<grids, threads>>>(
-      output.getData(),
-      x.getData(),
-      scale, H, W);
-
-  CCE(cudaDeviceSynchronize());
-
-  return output;
-}
-
-mat upsample(const mat& x, size_t scale) {
-  return upsample(x, SIZE(x.getRows() * scale, x.getCols() * scale));
-}
-
 mat upsample(const mat& x, SIZE s, SIZE img) {
 
   int batch_size = x.getCols();
@@ -734,24 +710,6 @@ mat upsample(const mat& x, SIZE s, SIZE img) {
   return output;
 }
 
-mat upsample(const mat& x, SIZE s) {
-  mat output(s.m, s.n);
-
-  ALLOCATE_GRIDS_AND_THREADS(output.getRows(), output.getCols());
-
-  upsample_kernel<<<grids, threads>>>(
-      output.getData(),
-      x.getData(),
-      x.getRows(),
-      x.getCols(),
-      output.getRows(),
-      output.getCols());
-
-  CCE(cudaDeviceSynchronize());
-
-  return output;
-}
-
 template <typename T>
 __global__ void rot180_kernel(T *odata, const T *idata, const int rows, const int cols) {
 
@@ -768,24 +726,8 @@ mat rot180(const mat& x) {
       cols = x.getCols();
 
   mat y(rows, cols);
-  ALLOCATE_GRIDS_AND_THREADS(rows, cols);
+  ALLOCATE_GRIDS_AND_THREADS(cols, rows);
   rot180_kernel<<<grids, threads>>>(y.getData(), x.getData(), rows, cols);
 
   return y;
-}
-
-/* ! \brief Sum all the elements in a matrix.
- * \fn sum_all(const device_matrix<float>& x)
- * \param x matrix x to be sum
- * return the result in host memory.
- */
-float sum_all(const mat& x) {
-  int r = x.getRows(),
-      c = x.getCols();
-  mat d_s = mat(1, r, 1) * x * mat(c, 1, 1);
-
-  float s;
-  CCE(cudaMemcpy(&s, d_s.getData(), sizeof(float), cudaMemcpyDeviceToHost));
-  CCE(cudaDeviceSynchronize());
-  return s;
 }
