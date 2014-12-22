@@ -20,9 +20,9 @@
 #include <batch.h>
 using namespace std;
 
-size_t nnet_predict(NNet& nnet, DataSet& data, ERROR_MEASURE errorMeasure);
-void cnn_train(NNet& nnet, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure);
-bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch);
+size_t nnet_predict(NNet& nnet, DataSet& data);
+void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out);
+bool isEoutStopDecrease(const std::vector<size_t> Eouts, size_t epoch, size_t nNonIncEpoch);
 
 int main (int argc, char* argv[]) {
 
@@ -102,6 +102,8 @@ int main (int argc, char* argv[]) {
   config.learningRate = learningRate;
   config.minValidAccuracy = minValidAcc;
   config.maxEpoch = maxEpoch;
+  config.batchSize = batchSize;
+  config.errorMeasure = CROSS_ENTROPY;
   config.print();
 
   // Load model
@@ -110,27 +112,27 @@ int main (int argc, char* argv[]) {
   nnet.setConfig(config);
 
   // Start Training
-  cnn_train(nnet, train, valid, batchSize, CROSS_ENTROPY);
+  nnet_train(nnet, train, valid, model_out);
 
   nnet.save(model_out);
 
   return 0;
 }
 
-void cnn_train(NNet& nnet, DataSet& train, DataSet& valid, size_t batchSize, ERROR_MEASURE errorMeasure) {
+void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
 
   printf("Training...\n");
   perf::Timer timer;
   timer.start();
 
-  size_t Ein = 1;
+  size_t Ein = 0, Eout = 0;
   size_t MAX_EPOCH = nnet.getConfig().maxEpoch, epoch;
-  std::vector<size_t> Eout;
+  std::vector<size_t> Eouts;
 
-  float lr = nnet.getConfig().learningRate / batchSize;
+  float lr = nnet.getConfig().learningRate;
 
-  size_t nTrain = train.size(),
-	 nValid = valid.size();
+  size_t nTrain = train.size();
+  size_t nValid = valid.size();
 
   mat fout;
 
@@ -147,7 +149,7 @@ void cnn_train(NNet& nnet, DataSet& train, DataSet& valid, size_t batchSize, ERR
     etimer.reset();
     etimer.start();
 
-    Batches batches(batchSize, nTrain);
+    Batches batches(nnet.getConfig().batchSize, nTrain);
     for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
 
       // Copy a batch of data from host to device
@@ -155,31 +157,27 @@ void cnn_train(NNet& nnet, DataSet& train, DataSet& valid, size_t batchSize, ERR
 
       nnet.feedForward(fout, data.x);
 
-      mat error = getError( data.y, fout, errorMeasure);
+      mat error = getError( data.y, fout, nnet.getConfig().errorMeasure);
 
-      nnet.backPropagate(error, data.x, fout, lr);
+      nnet.backPropagate(error, data.x, fout, lr / itr->nData);
     }
 
-    Ein = nnet_predict(nnet, train, errorMeasure);
-    Eout.push_back(nnet_predict(nnet, valid, errorMeasure));
+    Ein = nnet_predict(nnet, train);
+    Eout = nnet_predict(nnet, valid);
+    Eouts.push_back(Eout);
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
-
-    if (trainAcc < 0) {
-      cout << "."; cout.flush();
-      continue;
-    }
-
-    float validAcc = 1.0f - (float) Eout[epoch] / nValid;
-
-    float time = etimer.getTime() / 1000;
+    float validAcc = 1.0f - (float) Eouts[epoch] / nValid;
 
     printf("|%4lu   | %6.2f %% |  %7lu     | %6.2f %% |  %7lu     |  %8.2f |\n",
-      epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eout[epoch], time);
+      epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eouts[epoch],
+      etimer.getTime() / 1000);
 
     if (validAcc > nnet.getConfig().minValidAccuracy &&
-	isEoutStopDecrease(Eout, epoch, nnet.getConfig().nNonIncEpoch))
+	isEoutStopDecrease(Eouts, epoch, nnet.getConfig().nNonIncEpoch))
       break;
+    
+    nnet.save(model_out + "." + to_string(epoch));
   }
 
   // Show Summary
@@ -190,10 +188,10 @@ void cnn_train(NNet& nnet, DataSet& train, DataSet& valid, size_t batchSize, ERR
   printf("[   In-Sample   ] ");
   showAccuracy(Ein, train.size());
   printf("[ Out-of-Sample ] ");
-  showAccuracy(Eout.back(), valid.size());
+  showAccuracy(Eouts.back(), valid.size());
 }
 
-size_t nnet_predict(NNet& nnet, DataSet& data, ERROR_MEASURE errorMeasure) {
+size_t nnet_predict(NNet& nnet, DataSet& data) {
 
   const size_t batchSize = 256;
   size_t nError = 0;
@@ -204,20 +202,19 @@ size_t nnet_predict(NNet& nnet, DataSet& data, ERROR_MEASURE errorMeasure) {
   for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
     auto d = data[itr];
     nnet.feedForward(prob, d.x);
-    nError += zeroOneError(prob, d.y, errorMeasure);
+    nError += zeroOneError(prob, d.y, nnet.getConfig().errorMeasure);
   }
   nnet.setDropout(true);
 
   return nError;
 }
 
-bool isEoutStopDecrease(const std::vector<size_t> Eout, size_t epoch, size_t nNonIncEpoch) {
+bool isEoutStopDecrease(const std::vector<size_t> Eouts, size_t epoch, size_t nNonIncEpoch) {
 
   for (size_t i=0; i<nNonIncEpoch; ++i) {
-    if (epoch - i > 0 && Eout[epoch] > Eout[epoch - i])
+    if (epoch - i > 0 && Eouts[epoch] > Eouts[epoch - i])
       return false;
   }
 
   return true;
 }
-
