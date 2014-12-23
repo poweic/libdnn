@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-# Example 4
+# Example 4: CNN-DNN with random initialization
 TRAIN=data/train2.dat
 struct="--struct 10x5x5-2s-10x3x3-2s-512-512"
 model=model/train2.cnn.init.xml

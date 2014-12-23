@@ -270,6 +270,10 @@ size_t AffineTransform::getNumParams() const {
   return getInputDimension() * getOutputDimension() + getOutputDimension();
 }
 
+void AffineTransform::set_w(const mat& w) {
+  _w = w;
+}
+
 mat& AffineTransform::get_w() {
   return _w;
 }

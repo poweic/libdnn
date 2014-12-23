@@ -64,7 +64,7 @@ void NNet::feedForward(mat& fout, const mat& fin) {
 
     for (size_t i=1; i<_transforms.size() - 1; ++i) {
       _transforms[i]->feedForward(_houts[i], _houts[i-1]);
-
+      
       // Handle boundary between NNet and DNN, add one more column for DNN.
       if ( is_cnn_dnn_boundary(i) )
 	_houts[i] = add_bias(_houts[i], 1.0f, true);
@@ -244,7 +244,7 @@ void NNet::weight_initialize() {
   for (size_t i=0; i<t.size(); ++i) {
 
     // Test if i-th layer is affine transform ? Yes/No
-    auto p = dynamic_cast<AffineTransform*>(t[i]);
+    AffineTransform* p = dynamic_cast<AffineTransform*>(t[i]);
 
     // No.
     if (p == nullptr) continue;
@@ -257,13 +257,17 @@ void NNet::weight_initialize() {
 	   out = p->getOutputDimension();
 
     // Use uniform random [0.5, 0.5] to initialize
-    p->get_w() = rand(out + 1, in + 1) - 0.5;
+    mat w = rand(out + 1, in + 1) - 0.5;
 
     // If there's an activation next to it, normalize it by multiplying a coeff
     if ( i + 1 < t.size() and dynamic_cast<Activation*>(t[i+1]) != nullptr ) {
-      p->get_w() *= GetNormalizedInitCoeff(
+      w *= GetNormalizedInitCoeff(
 	  in, out, FeatureTransform::token2type(p->toString()) );
     }
+
+    p->set_w(w);
+
+    assert_nan(p->get_w());
   }
 }
 

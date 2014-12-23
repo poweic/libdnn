@@ -18,6 +18,9 @@
 
 #endif
 
+#define assert_nan(x) { if (hasNAN(x)) \
+  throw std::runtime_error(RED_ERROR + #x " has NaN"); }
+
 #include <thrust/transform_reduce.h>
 #include <thrust/functional.h>
 #include <thrust/host_vector.h>
@@ -225,6 +228,9 @@ namespace func {
   struct hyperbolic_tangent {
     hyperbolic_tangent() {}
     __host__ __device__ T operator()(const T& x) const {
+      if (x > 9) return 1;
+      if (x < -9) return 0;
+
       T a = expf(2 * x);
       return (a - 1) / (a + 1);
     }

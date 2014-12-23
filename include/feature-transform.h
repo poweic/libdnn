@@ -73,6 +73,7 @@ public:
 
   virtual size_t getNumParams() const;
 
+  void set_w(const mat& w);
   mat& get_w();
   mat const& get_w() const;
 
