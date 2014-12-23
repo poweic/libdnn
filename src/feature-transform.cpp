@@ -25,19 +25,25 @@
 #undef WHERE
 
 std::map<FeatureTransform::Type, string> FeatureTransform::type2token = {
-  {FeatureTransform::Affine, "affine"},
-  {FeatureTransform::Sigmoid, "sigmoid"},
-  {FeatureTransform::Softmax, "softmax"},
-  {FeatureTransform::Dropout, "dropout"},
-  {FeatureTransform::Convolution, "convolution"},
-  {FeatureTransform::SubSample, "subsample"}
+  {FeatureTransform::Affine, "Affine"},
+  {FeatureTransform::Sigmoid, "Sigmoid"},
+  {FeatureTransform::Tanh, "Tanh"},
+  {FeatureTransform::ReLU, "ReLU"},
+  {FeatureTransform::Softplus, "Softplus"},
+  {FeatureTransform::Softmax, "Softmax"},
+  {FeatureTransform::Dropout, "Dropout"},
+  {FeatureTransform::Convolution, "Convolution"},
+  {FeatureTransform::SubSample, "SubSample"}
 };
 
 FeatureTransform::Type FeatureTransform::token2type(string token) {
   std::transform(token.begin(), token.end(), token.begin(), ::tolower);
 
-  for (const auto& itr : type2token) {
-    if (itr.second == token)
+  for (auto itr : type2token) {
+    string value = itr.second;
+    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+
+    if (value == token)
       return itr.first;
   }
 
@@ -70,36 +76,35 @@ bool isXmlFormat(istream& is) {
   return token == "<transform" || token == "<?xml";
 }
 
+float GetNormalizedInitCoeff(size_t fan_in, size_t fan_out,
+    FeatureTransform::Type type) {
+
+  // Yes, here are some magic numbers.
+  // Reference:
+  // 1) Bengio, Yoshua. "Practical recommendations for gradient-based training
+  //    of deep architectures." Neural Networks: Tricks of the Trade. Springer
+  //    Berlin Heidelberg, 2012. 437-478.
+  // 2) Glorot, Xavier, and Yoshua Bengio. "Understanding the difficulty of
+  //    training deep feedforward neural networks." International Conference 
+  //    on Artificial Intelligence and Statistics. 2010.
+
+  switch (type) {
+    case FeatureTransform::Tanh :
+      return sqrt(6.0f / (fan_in + fan_out));
+    case FeatureTransform::Sigmoid :
+      return 4 * sqrt(6.0f / (fan_in + fan_out));
+    default:
+      return 1;
+  }
+}
+
 ostream& operator << (ostream& os, FeatureTransform* ft) {
   ft->write(os);
   return os;
 }
 
-istream& operator >> (istream& is, FeatureTransform* &ft) {
-  string type;
-  if (!(is >> type)) {
-    ft = NULL;
-    return is;
-  }
-
-  std::transform(type.begin(), type.end(), type.begin(), ::toupper);
-
-  if (type == "<AFFINETRANSFORM>")
-    ft = new AffineTransform(is);
-  else if (type == "<SIGMOID>")
-    ft = new Sigmoid(is);
-  else if (type == "<SOFTMAX>")
-    ft = new Softmax(is);
-  else {
-    ft = NULL;
-    while (is >> type);
-  }
-
-  return is;
-}
-
-/*
- * class FeatureTransform
+/*!
+ * Implementation of FeatureTransform goes here.
  *
  * */
 
@@ -119,29 +124,27 @@ void FeatureTransform::read(xml_node<> *node) {
   _output_dim = stol(attr->value());
 }
 
-/*
- * class AffineTransform
+
+/*!
+ * Implementation of AffineTransform goes here.
  *
  * */
+
 AffineTransform::AffineTransform(size_t input_dim, size_t output_dim)
   : FeatureTransform(input_dim, output_dim) {
 
 }
 
 AffineTransform::AffineTransform(const mat& w)
-  : FeatureTransform(w.getRows() - 1, w.getCols() - 1), _w(w) {
-}
-
-AffineTransform::AffineTransform(istream& is) {
-  this->read(is);
+  : FeatureTransform(w.getCols() - 1, w.getRows() - 1), _w(w) {
 }
 
 void AffineTransform::read(xml_node<> * node) {
 
   FeatureTransform::read(node);
 
-  const size_t& rows = _input_dim;
-  const size_t& cols = _output_dim;
+  const size_t& rows = _output_dim;
+  const size_t& cols = _input_dim;
 
   auto attr = node->first_attribute("learning-rate");
   float learning_rate = (attr) ? stof(attr->value()) : 0.1;
@@ -158,120 +161,67 @@ void AffineTransform::read(xml_node<> * node) {
   if (!bias)
     throw std::runtime_error("Cannot find bias in affine transform");
 
-  hmat hw(rows + 1, cols + 1);
-  stringstream ss;
-  
-  ss << weight->value();
-  for (size_t i=0; i<rows; ++i)
-    for (size_t j=0; j<cols; ++j)
-      CSE( ss >> hw(i, j) );
+  string weight_value = weight->value();
 
-  ss << bias->value();
-  for (size_t j=0; j<cols; ++j)
-    CSE( ss >> hw(rows, j) );
+  if (!weight_value.empty()) {
 
-  _w = (mat) hw;
+    hmat hw(rows + 1, cols + 1);
+    stringstream ss;
+
+    ss << weight_value;
+    for (size_t i=0; i<rows; ++i)
+      for (size_t j=0; j<cols; ++j)
+	CSE( ss >> hw(i, j) );
+
+    ss << bias->value();
+    for (size_t j=0; j<rows; ++j)
+      CSE( ss >> hw(j, cols) );
+
+    _w = (mat) hw;
+  }
 }
  
-void AffineTransform::read(istream& is) {
-
-  string dummy;
-
-  size_t rows, cols;
-  CSE(is >> rows);
-  CSE(is >> cols);
-
-  hmat hw(rows + 1, cols + 1);
-
-  // Read matrix
-  CSE(is >> dummy);
-  for (size_t i=0; i<rows; ++i)
-    for (size_t j=0; j<cols; ++j)
-      CSE( is >> hw(i, j) );
-  CSE(is >> dummy);
-
-  // Read vector (bias)
-  CSE(is >> dummy);
-  for (size_t j=0; j<cols; ++j)
-    CSE( is >> hw(rows, j) );
-  CSE(is >> dummy);
-
-  _w = (mat) hw;
-  _input_dim = rows;
-  _output_dim = cols;
-}
-
 void AffineTransform::write(ostream& os) const {
-
-  hmat data(_w);
-
-  size_t rows = data.getRows(),
-	 cols = data.getCols();
 
   char buffer[512];
 
   sprintf(buffer, "<transform type=\"%s\" input-dim=\"%lu\" output-dim=\"%lu\""
       " momentum=\"%f\" learning-rate=\"%f\" >", this->toString().c_str(),
-      rows - 1, cols - 1, 0.1, 0.1);
+      getInputDimension(), getOutputDimension(), 0.1, 0.1);
   os << buffer << endl;
 
+  if (_w.size() > 0) {
+    hmat data(_w);
+    size_t rows = data.getRows(),
+	   cols = data.getCols();
 
-  sprintf(buffer, "  <weight rows=\"%lu\" cols=\"%lu\">", rows - 1, cols - 1);
-  os << buffer << endl;
+    // Write weight matrix
+    sprintf(buffer, "  <weight rows=\"%lu\" cols=\"%lu\">", rows - 1, cols - 1);
+    os << buffer << endl;
 
-  // Write matrix
-  for (size_t j=0; j<rows-1; ++j) {
+    for (size_t j=0; j<rows-1; ++j) {
+      os << "    ";
+      for (size_t k=0; k<cols-1; ++k)
+	os << data[k * rows + j] << " ";
+      os << endl;
+    }
+
+    os << "  </weight>" << endl;
+
+    // Write Bias vector
+    sprintf(buffer, "  <bias rows=\"%lu\" cols=\"1\">", rows - 1);
+    os << buffer << endl;
+
     os << "    ";
-    for (size_t k=0; k<cols-1; ++k)
-      os << data[k * rows + j] << " ";
-    os << endl;
+    for (size_t j=0; j<rows-1; ++j)
+      os << data[rows * (cols - 1) + j] << " ";
+
+    os << endl << "  </bias>" << endl;
   }
+  else 
+    os << "  <weight></weight>" << endl << "  <bias></bias>" << endl;
 
-  os << "  </weight>" << endl;
-
-  sprintf(buffer, "  <bias rows=\"%d\" cols=\"%lu\">", 1, cols - 1);
-  os << buffer << endl;
-
-  os << "    ";
-  for (size_t j=0; j<cols-1; ++j)
-    os << data[j * rows + rows - 1] << " ";
-
-  os << endl
-     << "  </bias>" << endl
-     << "</transform>" << endl;
-  
-
-#if 0
-  hmat data(_w);
-
-  size_t rows = data.getRows(),
-	 cols = data.getCols();
-
-  os << "<" << this->toString() << "> " << (rows - 1) << " " << (cols - 1) << endl;
-
-  // Write matrix
-  os << "[";
-  for (size_t j=0; j<rows-1; ++j) {
-    os << "\n  ";
-    for (size_t k=0; k<cols-1; ++k)
-      os << data[k * rows + j] << " ";
-  }
-  os << "]\n";
-
-  // Write vector (bias)
-  os << "[ ";
-  for (size_t j=0; j<cols-1; ++j)
-    os << data[j * rows + rows - 1] << " ";
-  os << "]\n";
-#endif
-}
-
-void AffineTransform::status() const {
-  // TODO
-}
-
-size_t AffineTransform::getNumParams() const {
-  return getInputDimension() * getOutputDimension() + getOutputDimension();
+  os << "</transform>" << endl;
 }
 
 AffineTransform* AffineTransform::clone() const {
@@ -279,34 +229,49 @@ AffineTransform* AffineTransform::clone() const {
 }
 
 string AffineTransform::toString() const {
-  return "Affine";
+  return type2token[FeatureTransform::Affine];
 }
 
 void AffineTransform::feedForward(mat& fout, const mat& fin) {
-  fout = add_bias(fin) * _w;
+  fout = _w * add_bias(fin);
+}
+
+void AffineTransform::feedBackward(mat& error, const mat& delta) {
+
+  error.resize(_w.getCols(), delta.getCols());
+
+  // In MATLAB, the following codes is equivalent to:
+  //    error = _w(:, 1:end-1)^T * delta(1:end-1)
+  //
+  // The last row of _w is bias. The last column of _w is reserved for
+  // computational efficiency. Therefore, ignore the last column in _w.
+  size_t traceLength = delta.getRows() - 1;
+
+  device_matrix<float>::cublas_gemm(
+      CUBLAS_OP_T, CUBLAS_OP_N,
+      error.getRows(), error.getCols(), traceLength, 
+      1.0,
+      _w.getData(), _w.getRows(),
+      delta.getData(), delta.getRows(),
+      0.0,
+      error.getData(), error.getRows());
 }
 
 void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
   mat delta = error;
 
-  error.resize(delta.getRows(), _w.getRows());
-
-  // Perform error = delta(1:end-1) * _w(:, 1:end-1)^T
-  // The last row of _w is bias. The last column of _w is reserved for
-  // computational efficiency. Therefore, ignore the last column in _w.
-  size_t traceLength = delta.getCols() - 1;
-
-  device_matrix<float>::cublas_gemm(
-      CUBLAS_OP_N, CUBLAS_OP_T,
-      delta.getRows(), _w.getRows(), traceLength, 
-      1.0,
-      delta.getData(), delta.getRows(),
-      _w.getData(), _w.getRows(),
-      0.0,
-      error.getData(), error.getRows());
+  this->feedBackward(error, delta);
 
   // FIXME later add_bias(fin) is weird !!
-  gemm(add_bias(fin), delta, _w, -learning_rate, 1.0f, true, false);
+  gemm(delta, add_bias(fin), _w, -learning_rate, 1.0f, false, true);
+}
+
+size_t AffineTransform::getNumParams() const {
+  return getInputDimension() * getOutputDimension() + getOutputDimension();
+}
+
+void AffineTransform::set_w(const mat& w) {
+  _w = w;
 }
 
 mat& AffineTransform::get_w() {
@@ -317,8 +282,8 @@ mat const& AffineTransform::get_w() const {
   return _w;
 }
 
-/*
- * class Activation
+/*!
+ * Implementation of AffineTransform goes here.
  *
  * */
 
@@ -338,34 +303,14 @@ void Activation::read(xml_node<> * node) {
     throw std::runtime_error(RED_ERROR + "Mismatched input/output dimension");
 }
 
-void Activation::read(istream& is) {
-
-  string remaining;
-  CSE(is >> _input_dim);
-  CSE(is >> _output_dim);
-
-  CSE(std::getline(is, remaining));
-  
-  if (_input_dim != _output_dim)
-    throw std::runtime_error(RED_ERROR + "Mismatched input/output dimension");
-}
-
 void Activation::write(ostream& os) const {
-
   os << "<transform type=\"" << this->toString() 
      << "\" input-dim=\"" << _input_dim
      << "\" output-dim=\"" << _output_dim << "\" />" << endl;
-#if 0
-  os << "<" << this->toString() << "> " << _input_dim << " " << _output_dim << endl;
-#endif
 }
 
-void Activation::status() const {
-  // TODO
-}
-
-/*
- * class Sigmoid
+/*!
+ * Implementation of Sigmoid goes here.
  *
  * */
 
@@ -374,16 +319,12 @@ Sigmoid::Sigmoid(size_t input_dim, size_t output_dim)
 
 }
 
-Sigmoid::Sigmoid(istream& is) {
-  Activation::read(is);
-}
-
 Sigmoid* Sigmoid::clone() const {
   return new Sigmoid(*this);
 }
 
 string Sigmoid::toString() const {
-  return "Sigmoid";
+  return type2token[FeatureTransform::Sigmoid];
 }
 
 void Sigmoid::feedForward(mat& fout, const mat& fin) {
@@ -391,11 +332,94 @@ void Sigmoid::feedForward(mat& fout, const mat& fin) {
 }
 
 void Sigmoid::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
-  error = error & (1.0f - fout) & fout;
+  // Note: error = error .* (1 - fout) .* fout;
+  error &= d_sigmoid(fout);
 }
 
-/*
- * class Softmax
+/*!
+ * Implementation of Tanh goes here.
+ *
+ * */
+
+Tanh::Tanh(size_t input_dim, size_t output_dim)
+  : Activation(input_dim, output_dim) {
+
+}
+
+Tanh* Tanh::clone() const {
+  return new Tanh(*this);
+}
+
+string Tanh::toString() const {
+  return type2token[FeatureTransform::Tanh];
+}
+
+void Tanh::feedForward(mat& fout, const mat& fin) {
+  fout = tanh(fin);
+}
+
+void Tanh::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  // Note: error = error .* ( 1 - fin.^2 )
+  error &= d_tanh(fout);
+}
+
+/*!
+ * Implementation of ReLU goes here.
+ *
+ * */
+
+ReLU::ReLU(size_t input_dim, size_t output_dim)
+  : Activation(input_dim, output_dim) {
+
+}
+
+ReLU* ReLU::clone() const {
+  return new ReLU(*this);
+}
+
+string ReLU::toString() const {
+  return type2token[FeatureTransform::ReLU];
+}
+
+void ReLU::feedForward(mat& fout, const mat& fin) {
+  fout = relu(fin);
+}
+
+void ReLU::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  // Note: error = error .* (fout > 0)
+  error &= is_greater(fout, 0.0f);
+}
+
+/*!
+ * Implementation of Softplus goes here.
+ *
+ * */
+
+Softplus::Softplus(size_t input_dim, size_t output_dim)
+  : Activation(input_dim, output_dim) {
+
+}
+
+Softplus* Softplus::clone() const {
+  return new Softplus(*this);
+}
+
+string Softplus::toString() const {
+  return type2token[FeatureTransform::Softplus];
+}
+
+void Softplus::feedForward(mat& fout, const mat& fin) {
+  fout = log1pexp(fin);
+}
+
+void Softplus::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  // Note: error = error .* exp(fin) .* sigmoid(-fin)
+  //             = error .* sigmoid(fin)
+  error &= sigmoid(fin);
+}
+
+/*!
+ * Implementation of Softmax goes here.
  *
  * */
 
@@ -404,16 +428,12 @@ Softmax::Softmax(size_t input_dim, size_t output_dim)
 
 }
 
-Softmax::Softmax(istream& is) {
-  Activation::read(is);
-}
-
 Softmax* Softmax::clone() const {
   return new Softmax(*this);
 }
 
 string Softmax::toString() const {
-  return "Softmax";
+  return type2token[FeatureTransform::Softmax];
 }
 
 void Softmax::feedForward(mat& fout, const mat& fin) {
@@ -422,21 +442,20 @@ void Softmax::feedForward(mat& fout, const mat& fin) {
 
 void Softmax::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
   // Do nothing.
+  // Note: it's combined in cross entropy loss function
 }
 
-/*
- * class Dropout
+
+/*!
+ * Implementation of Dropout goes here.
  *
  * */
+
 Dropout::Dropout(): _dropout_ratio(0.0f), _dropout(true) {
 }
 
 Dropout::Dropout(size_t input_dim, size_t output_dim)
   : Activation(input_dim, output_dim), _dropout_ratio(0.0f), _dropout(true) {
-}
-
-Dropout::Dropout(istream& is) {
-  Activation::read(is);
 }
 
 void Dropout::read(xml_node<> *node) {
@@ -461,7 +480,7 @@ Dropout* Dropout::clone() const {
 }
 
 string Dropout::toString() const {
-  return "Dropout";
+  return type2token[FeatureTransform::Dropout];
 }
 
 void Dropout::feedForward(mat& fout, const mat& fin) {
@@ -640,7 +659,7 @@ ConvolutionalLayer* ConvolutionalLayer::clone() const {
 }
 
 string ConvolutionalLayer::toString() const {
-  return "convolution";
+  return type2token[FeatureTransform::Convolution];
 }
 
 /* FIXME If every element in fins is a single feature map, then only a data can
@@ -767,13 +786,6 @@ size_t ConvolutionalLayer::getOutputDimension() const {
   return get_output_img_size().area() * getNumOutputMaps();
 }
 
-void ConvolutionalLayer::status() const {
-
-  printf("+--------------+---------------+--------------+---------------+\n");
-  printf("|      %-5lu   |       %-5lu   |      %-5lu   |       %-5lu   |\n",
-      getNumInputMaps(), getNumOutputMaps(), getKernelWidth(), getKernelHeight());
-}
-
 size_t ConvolutionalLayer::getNumParams() const {
   return getNumInputMaps() * getNumOutputMaps() 
     * getKernelWidth() * getKernelHeight() + getNumOutputMaps();
@@ -796,6 +808,9 @@ size_t ConvolutionalLayer::getKernelHeight() const {
   return _kernels[0][0].getRows();
 }
 
+/*!
+ * Implementation of SubSamplingLayer goes here.
+ */
 SubSamplingLayer::SubSamplingLayer(size_t m, size_t n, size_t scale)
   : MIMOFeatureTransform(m, n), _scale(scale) {
 }
@@ -826,7 +841,7 @@ SubSamplingLayer* SubSamplingLayer::clone() const {
 }
 
 string SubSamplingLayer::toString() const {
-  return "subsample";
+  return type2token[FeatureTransform::SubSample];
 }
 
 size_t SubSamplingLayer::getInputDimension() const {
@@ -837,11 +852,6 @@ size_t SubSamplingLayer::getOutputDimension() const {
   return get_output_img_size().area() * getNumOutputMaps();
 }
 
-void SubSamplingLayer::status() const {
-  printf("+-------------------------------------------------------------+\n");
-  printf("|                Sub-Sampling Factor = %-4lu                   |\n", _scale);
-}
-  
 size_t SubSamplingLayer::getScale() const {
   return _scale;
 }
@@ -869,7 +879,7 @@ void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
   for (size_t i=0; i<errors.size(); ++i)
     errors[i] = upsample(deltas[i], _input_img_size, get_output_img_size());
 
-  error = vercat(errors);// TODO / (_scale * _scale);
+  error = vercat(errors);
 }
 
 void SubSamplingLayer::backPropagate(mat& error, const mat& fin,

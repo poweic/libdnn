@@ -31,64 +31,71 @@ NNet::~NNet() {
     delete _transforms[i];
 }
 
+mat NNet::feedForward(const mat& fin) const {
+  mat output = fin;
+
+  if (_transforms[0]->toString() == "Convolution")
+    output = remove_bias(output);
+
+  for (size_t i=0; i<_transforms.size(); ++i) {
+    _transforms[i]->feedForward( output, mat(output) );
+
+    // Handle boundary between NNet and DNN, add one more column for DNN.
+    if ( is_cnn_dnn_boundary(i) )
+      output = add_bias(output, 1.0f, true);
+  }
+
+  output = remove_bias(output);
+  return output;
+}
+
 void NNet::feedForward(mat& fout, const mat& fin) {
 
-  mat fin_t = fin;
-  if (_transforms[0]->toString() == "convolution")
-    fin_t = removeBiasAndTranspose(fin_t);
+  mat fin2 = fin;
+  if (_transforms[0]->toString() == "Convolution")
+    fin2 = remove_bias(fin2);
 
   // FIXME SubSamplingLayer does NOT need temporary buffer.
   // MAYBE just reserve those for ConvolutionalLayer.
   _houts.resize(_transforms.size() - 1);
 
   if (_houts.size() > 0) {
-    _transforms[0]->feedForward(_houts[0], fin_t);
+    _transforms[0]->feedForward(_houts[0], fin2);
 
     for (size_t i=1; i<_transforms.size() - 1; ++i) {
       _transforms[i]->feedForward(_houts[i], _houts[i-1]);
-
-      // Handle boundary between NNet and DNN
-      if ( is_cnn_dnn_boundary(i) ) {
-	// Add one more column, which is bias in DNN.
-	_houts[i] = ~_houts[i];
+      
+      // Handle boundary between NNet and DNN, add one more column for DNN.
+      if ( is_cnn_dnn_boundary(i) )
 	_houts[i] = add_bias(_houts[i], 1.0f, true);
-      }
     }
 
     _transforms.back()->feedForward(fout, _houts.back());
   }
   else
-    _transforms.back()->feedForward(fout, fin_t);
-
-  fout.resize(fout.getRows(), fout.getCols() - 1);
+    _transforms.back()->feedForward(fout, fin2);
 }
 
 void NNet::backPropagate(mat& error, const mat& fin, const mat& fout,
     float learning_rate) {
 
-  // Copy from dnn.cpp -- begin
-  mat output = add_bias(fout, 1.0f, true);
-  error = add_bias(error, 1.0f, true);
-  // Copy from dnn.cpp -- end
-
-  _transforms.back()->backPropagate(error, _houts.back(), output, learning_rate);
+  _transforms.back()->backPropagate(error, _houts.back(), fout, learning_rate);
 
   for (int i=_transforms.size() - 2; i >= 1; --i) {
     _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
 
+    // Remove last column, which is bias in DNN.
     if ( is_cnn_dnn_boundary (i-1) ) {
-      // Remove last column, which is bias in DNN.
-      _houts[i-1] = removeBiasAndTranspose(_houts[i-1]);
-      error = removeBiasAndTranspose(error);
+      _houts[i-1] = remove_bias(_houts[i-1]);
+      error = remove_bias(error);
     }
   }
 
-  mat fin_t = fin;
-  if (_transforms[0]->toString() == "convolution")
-    fin_t = removeBiasAndTranspose(fin_t);
+  mat fin2 = fin;
+  if (_transforms[0]->toString() == "Convolution")
+    fin2 = remove_bias(fin2);
 
-  _transforms[0]->backPropagate(error, fin_t, _houts[0], learning_rate);
-  error = ~error;
+  _transforms[0]->backPropagate(error, fin2, _houts[0], learning_rate);
 }
 
 void NNet::feedBackward(mat& error, const mat& delta) {
@@ -144,9 +151,7 @@ void NNet::init(const string &structure, SIZE img_size) {
       size_t fan_in = _transforms.back()->getOutputDimension();
       size_t fan_out = stoi(layers[i]);
 
-      float coeff = 2 * sqrt(6.0f / (fan_in + fan_out + 2) );
-      mat weight = coeff * (rand(fan_in + 1, fan_out + 1) - 0.5);
-      _transforms.push_back(new AffineTransform(weight));
+      _transforms.push_back(new AffineTransform(fan_in, fan_out));
 
       if ( i < layers.size() - 1 )
 	_transforms.push_back(new Sigmoid(fan_out, fan_out));
@@ -194,6 +199,15 @@ void NNet::read(const string &fn) {
 	case FeatureTransform::Sigmoid :
 	  f = new Sigmoid;
 	  break;
+	case FeatureTransform::Tanh :
+	  f = new Tanh;
+	  break;
+	case FeatureTransform::ReLU :
+	  f = new ReLU;
+	  break;
+	case FeatureTransform::Softplus :
+	  f = new Softplus;
+	  break;
 	case FeatureTransform::Softmax :
 	  f = new Softmax;
 	  break;
@@ -220,6 +234,41 @@ void NNet::read(const string &fn) {
   }
   else
     clog << RED_ERROR << "while reading XML file." << endl;
+
+  weight_initialize();
+}
+
+void NNet::weight_initialize() {
+
+  const auto& t = _transforms;
+  for (size_t i=0; i<t.size(); ++i) {
+
+    // Test if i-th layer is affine transform ? Yes/No
+    AffineTransform* p = dynamic_cast<AffineTransform*>(t[i]);
+
+    // No.
+    if (p == nullptr) continue;
+
+    // Already initialized.
+    if (p->get_w().size() != 0) continue;
+
+    // Get fan-in and fan-out
+    size_t in  = p->getInputDimension(),
+	   out = p->getOutputDimension();
+
+    // Use uniform random [0.5, 0.5] to initialize
+    mat w = rand(out + 1, in + 1) - 0.5;
+
+    // If there's an activation next to it, normalize it by multiplying a coeff
+    if ( i + 1 < t.size() and dynamic_cast<Activation*>(t[i+1]) != nullptr ) {
+      w *= GetNormalizedInitCoeff(
+	  in, out, FeatureTransform::token2type(p->toString()) );
+    }
+
+    p->set_w(w);
+
+    assert_nan(p->get_w());
+  }
 }
 
 void NNet::save(const string &fn) const {
@@ -260,9 +309,7 @@ void NNet::status() const {
     size_t in  = t[i]->getInputDimension(),
 	   out = t[i]->getOutputDimension();
 
-    std::transform(type.begin(), type.end(), type.begin(), ::tolower);
-
-    if (type == "affine")
+    if (type == "Affine")
       ++nHiddens;
 
     // create string for kernel size

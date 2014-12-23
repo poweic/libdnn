@@ -15,6 +15,7 @@ struct Config {
   size_t nNonIncEpoch;
   float minValidAccuracy;
   bool randperm;
+  ERROR_MEASURE errorMeasure;
 
   void print() const;
 };

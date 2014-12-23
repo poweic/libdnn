@@ -70,7 +70,7 @@ __global__ void element_wise_curand_kernel(float* const data, curandState* globa
 void sample(mat &prob, UNIT_TYPE type) {
   static CURAND_STATE state;
 
-  ALLOCATE_GRIDS_AND_THREADS(prob.getRows(), prob.getCols());
+  ALLOCATE_GRIDS_AND_THREADS(prob.getCols(), prob.getRows());
 
   switch (type) {
     case GAUSSIAN:
@@ -96,7 +96,7 @@ mat randn(int m, int n) {
 
   mat x(m, n);
 
-  ALLOCATE_GRIDS_AND_THREADS(m, n);
+  ALLOCATE_GRIDS_AND_THREADS(n, m);
   element_wise_curand_kernel<get_curand_normal><<<grids, threads>>>(x.getData(), state.get(), m, n);
   CCE(cudaDeviceSynchronize());
 
@@ -116,7 +116,7 @@ mat rand(int m, int n) {
 
   mat x(m, n);
 
-  ALLOCATE_GRIDS_AND_THREADS(m, n);
+  ALLOCATE_GRIDS_AND_THREADS(n, m);
   element_wise_curand_kernel<get_curand_uniform><<<grids, threads>>>(x.getData(), state.get(), m, n);
   CCE(cudaDeviceSynchronize());
 
@@ -172,7 +172,9 @@ namespace ext {
   }
 };
 
-__global__ void dcrossentropy_kernel(float* error, float* const target, float* const output, unsigned int rows, unsigned int cols) {
+__global__ void compute_error_kernel(float* error, float* const target,
+    float* const output, unsigned int rows, unsigned int cols) {
+
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
@@ -180,10 +182,10 @@ __global__ void dcrossentropy_kernel(float* error, float* const target, float* c
   int x = blockIdx.x*blockDim.x + tx;
   int y = blockIdx.y*blockDim.y + ty;
 
-  if (x >= cols || y >= rows)
+  if (x >= rows || y >= cols)
     return;
 
-  int i = x * rows + y;
+  int i = y * rows + x;
 
   // target[y] need to be 0-based 
   error[i] = output[i] - (float) (target[y] == x);
@@ -191,34 +193,27 @@ __global__ void dcrossentropy_kernel(float* error, float* const target, float* c
   __syncthreads();
 }
 
-void dCrossEntropy(mat& error, const mat &target, const mat& output) {
-
-  assert(error.getRows() == output.getRows() && error.getCols() == output.getCols());
-
-  ALLOCATE_GRIDS_AND_THREADS(error.getRows(), error.getCols());
-
-  dcrossentropy_kernel<<< grids, threads >>>(
-      error.getData(), target.getData(), output.getData(),
-      error.getRows(), error.getCols());
-
-  CCE(cudaDeviceSynchronize());
-}
-
 mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
 
   mat error(output.getRows(), output.getCols());
 
   switch (errorMeasure) {
+
     case L2ERROR: 
       // FIXME
-      /*error = output - target;
-      error.reserve(error.getRows() * (error.getCols() + 1));
-      error.resize(error.getRows(), error.getCols() + 1);*/
-
+      // error = ~output - target;
+      // error = ~error;
       break;
+
     case CROSS_ENTROPY:
 
-      dCrossEntropy(error, target, output);
+      ALLOCATE_GRIDS_AND_THREADS(error.getRows(), error.getCols());
+
+      compute_error_kernel<<< grids, threads >>>(
+	  error.getData(), target.getData(), output.getData(),
+	  error.getRows(), error.getCols());
+
+      CCE(cudaDeviceSynchronize());
 
       break;
   }
@@ -233,32 +228,25 @@ mat posteriorProb2Label(const mat& prob) {
   size_t rows = prob.getRows(),
 	 cols = prob.getCols();
 
-  float* h_prob = new float[prob.size()];
-  float* h_labels  = new float[rows];
-  CCE(cudaMemcpy(h_prob, prob.getData(), sizeof(float) * prob.size(), cudaMemcpyDeviceToHost));
-  CCE(cudaDeviceSynchronize());
+  hmat h_prob(prob);
+  hmat h_labels(1, cols);
 
-  for (size_t i=0; i<rows; ++i) {
+  for (size_t j=0; j<cols; ++j) {
 
     float max = -1e10;
     size_t maxIdx = 0;
 
-    for (size_t j=0; j<cols; ++j) {
-      if (h_prob[j * rows + i] > max) {
-	max = h_prob[j * rows + i];
-	maxIdx = j;
+    for (size_t i=0; i<rows; ++i) {
+      if (h_prob(i, j) > max) {
+	max = h_prob(i, j);
+	maxIdx = i;
       }
     }
 
-    h_labels[i] = maxIdx;
+    h_labels[j] = maxIdx;
   }
 
-  mat labels(h_labels, rows, 1);
-
-  delete [] h_prob;
-  delete [] h_labels;
-
-  return labels;
+  return h_labels;
 }
 
 vector<float> copyToHost(const mat& m) {
@@ -280,36 +268,29 @@ size_t countDifference(const mat& m1, const mat& m2) {
 }
 
 
-size_t zeroOneError(const mat& prob, const mat& label, ERROR_MEASURE errorMeasure) {
-  assert(prob.getRows() == label.getRows());
+size_t zeroOneError(const mat& prob, const mat& label) {
+  assert(prob.getCols() == label.getRows());
   assert(label.getCols() == 1);
 
-  size_t nError = 0;
+  mat L = posteriorProb2Label(prob);
 
-  if (errorMeasure == L2ERROR) {
-    // nError = countDifference(label, prob);
-  }
-  else {
-    mat L = posteriorProb2Label(prob);
-    nError = countDifference(L, label);
-  }
-
-  return nError;
+  return countDifference(L, label);
 }
 
 template <typename T>
-device_matrix<T> MaxPerRow(device_matrix<T>& A) {
-  device_matrix<T> rmax(A.getRows(), 1);
-  device_matrix<T> At = ~A;
+device_matrix<T> MaxPerRow(const device_matrix<T>& A) {
+
+  device_matrix<T> At(~A);
+  device_matrix<T> rmax(At.getCols(), 1);
 
   // allocate storage for per-row results and indices
-  thrust::device_vector<T> row_indices(A.getRows());
-  thrust::device_vector<T> row_results(A.getRows());
+  thrust::device_vector<T> row_indices(At.getCols());
 
-  // compute row sums by summing values with equal row indices
+  // Originally, it compute row sums (thrust::plus) by summing values with equal
+  // row indices. I replace thrust::plus with thrust::maximum and get rowmax
   thrust::reduce_by_key
-    (thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(A.getCols())),
-     thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(A.getCols())) + A.size(),
+    (thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(At.getRows())),
+     thrust::make_transform_iterator(thrust::counting_iterator<int>(0), linear_index_to_row_index<int>(At.getRows())) + A.size(),
      thrust::device_ptr<T>(At.getData()),
      row_indices.begin(),
      thrust::device_ptr<T>(rmax.getData()),
@@ -335,38 +316,11 @@ template <typename T>
 void SubstractMaxPerRow(device_matrix<T>& x) {
   device_matrix<T> rmax = MaxPerRow(x);
 
-  ALLOCATE_GRIDS_AND_THREADS(x.getRows(), x.getCols());
+  ALLOCATE_GRIDS_AND_THREADS(x.getCols(), x.getRows());
   substract_max_per_row_kernel<float><<< grids, threads >>>
     (x.getData(), rmax.getData(), x.getRows(), x.getCols());
 
   CCE(cudaDeviceSynchronize());
-}
-
-template <typename T>
-device_matrix<T> add_bias(const device_matrix<T>& A, const T value, bool add_new_column) {
-  device_matrix<T> B;
-
-  if (add_new_column) {
-    B.resize(A.getRows(), A.getCols() + 1);
-    CCE(cudaMemcpy(B.getData(), A.getData(), sizeof(T) * A.size(), cudaMemcpyDeviceToDevice));
-  }
-  else
-    B = A;
-
-  thrust::device_ptr<T> ptr(B.getData());
-  thrust::fill(ptr + B.size() - B.getRows(), ptr + B.size(), value);
-
-  return B;
-}
-
-mat removeBiasAndTranspose(const mat& x) {
-  // Transpose the input feature (fin) so that:
-  //   1) rows = feature dimension
-  //   2) cols = the number of data in a single batch.
-  // FIXME the last column in fin is the bias needed ONLY by DNN, not by CNN.
-  mat y(x.getRows(), x.getCols() - 1);
-  memcpy2D(y, x, 0, 0, x.getRows(), x.getCols() - 1, 0, 0);
-  return ~y;
 }
 
 template <typename T>
@@ -411,25 +365,62 @@ device_matrix<T> sigmoid(const device_matrix<T>& x) {
 }
 
 template <typename T>
-device_matrix<T> softmax(const device_matrix<T>& x) {
-  mat x2(x);
-  x2.resize(x2.getRows(), x2.getCols() - 1);
-  SubstractMaxPerRow(x2);
+device_matrix<T> d_sigmoid(const device_matrix<T>& x) {
+  return transform(x, func::d_sigmoid<T>());
+}
 
-  mat p(x2.getRows(), x2.getCols());
+template <typename T>
+device_matrix<T> tanh(const device_matrix<T>& x) {
+  return transform(x, func::hyperbolic_tangent<T>());
+}
 
-  thrust::device_ptr<T> xPtr(x2.getData());
-  thrust::device_ptr<T> pPtr(p.getData());
-  thrust::transform(xPtr, xPtr + x2.size(), pPtr, func::exp<T>());
+template <typename T>
+device_matrix<T> d_tanh(const device_matrix<T>& x) {
+  return transform(x, func::d_hyperbolic_tangent<T>());
+}
 
-  mat sumOfProb = p * mat(p.getCols(), p.getCols(), 1);
+template <typename T>
+device_matrix<T> relu(const device_matrix<T>& x) {
+  return transform(x, func::max<T>(0.0f));
+}
 
-  mat y(p.getRows(), p.getCols() + 1);
-  thrust::device_ptr<T> yPtr(y.getData());
-  thrust::device_ptr<T> sPtr(sumOfProb.getData());
-  thrust::transform(pPtr, pPtr + p.size(), sPtr, yPtr, thrust::divides<T>());
+template <typename T>
+device_matrix<T> is_greater(const device_matrix<T>& x, const T value) {
+  return transform(x, func::greater<T>(value));
+}
 
-  return y;
+template <typename T>
+device_matrix<T> softmax(const device_matrix<T>& x_t) {
+  mat x(~x_t);
+  x.resize(x.getRows(), x.getCols() - 1);
+  SubstractMaxPerRow(x);
+
+  x = exp(x);
+  thrust::device_ptr<T> xPtr(x.getData());
+
+  mat sum = x * mat(x.getCols(), x.getCols(), 1);
+  mat y(x.getRows(), x.getCols() + 1);
+
+  thrust::transform(xPtr, xPtr + x.size(),
+      thrust::device_ptr<T>(sum.getData()),
+      thrust::device_ptr<T>(y.getData()),
+      thrust::divides<T>());
+
+  return ~y;
+}
+
+/* ! \brief Sum all the elements in a matrix.
+ * \fn sum_all(const device_matrix<T>& x)
+ * \param x matrix x to be sum
+ * return the result in host memory.
+ */
+template <typename T>
+T sum_all(const device_matrix<T>& x) {
+  int r = x.getRows(),
+      c = x.getCols();
+
+  mat d_s = mat(1, r, 1) * x * mat(c, 1, 1);
+  return hmat(d_s)[0];
 }
 
 /* \brief Explicit instantiation definition of template functions
@@ -443,8 +434,14 @@ device_matrix<T> softmax(const device_matrix<T>& x) {
   template device_matrix<T> log<T>(const device_matrix<T>& x); \
   template device_matrix<T> log1pexp<T>(const device_matrix<T>& x); \
   template device_matrix<T> sigmoid<T>(const device_matrix<T>& x); \
+  template device_matrix<T> d_sigmoid<T>(const device_matrix<T>& x); \
+  template device_matrix<T> tanh<T>(const device_matrix<T>& x); \
+  template device_matrix<T> d_tanh<T>(const device_matrix<T>& x); \
   template device_matrix<T> softmax<T>(const device_matrix<T>& x); \
-  template device_matrix<T> MaxPerRow<T>(device_matrix<T>& A); \
+  template device_matrix<T> relu(const device_matrix<T>& x); \
+  template device_matrix<T> is_greater(const device_matrix<T>& x, const T value); \
+  template device_matrix<T> MaxPerRow<T>(const device_matrix<T>& A); \
+  template T sum_all<T>(const device_matrix<T>& A); \
   template void SubstractMaxPerRow<T>(device_matrix<T>& x);
 
 register_device_matrix_utility(float);

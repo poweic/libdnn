@@ -21,7 +21,8 @@ Config::Config():
     trainValidRatio(5),
     nNonIncEpoch(6),
     minValidAccuracy(0),
-    randperm(false) {
+    randperm(false),
+    errorMeasure(CROSS_ENTROPY) {
   }
 
 void Config::print() const {

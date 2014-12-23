@@ -13,7 +13,6 @@ public:
   virtual ~FeatureTransform() {}
 
   virtual void read(xml_node<> *node);
-  virtual void read(istream& is) = 0;
   virtual void write(ostream& os) const = 0;
 
   virtual FeatureTransform* clone() const = 0;
@@ -25,15 +24,16 @@ public:
   virtual size_t getInputDimension() const { return _input_dim; }
   virtual size_t getOutputDimension() const { return _output_dim; }
 
-  virtual void status() const = 0;
   virtual size_t getNumParams() const { return 0; }
 
   friend ostream& operator << (ostream& os, FeatureTransform* ft);
-  friend istream& operator >> (istream& is, FeatureTransform* &ft);
 
   enum Type {
     Affine,
     Sigmoid,
+    Tanh,
+    ReLU,
+    Softplus,
     Softmax,
     Dropout,
     Convolution,
@@ -49,6 +49,8 @@ protected:
 };
 
 bool isXmlFormat(istream& is);
+float GetNormalizedInitCoeff(size_t fan_in, size_t fan_out,
+    FeatureTransform::Type type);
 
 ostream& operator << (ostream& os, FeatureTransform* ft);
 istream& operator >> (istream& is, FeatureTransform* &ft);
@@ -58,21 +60,20 @@ public:
   AffineTransform() {}
   AffineTransform(size_t input_dim, size_t output_dim);
   AffineTransform(const mat& w);
-  AffineTransform(istream& is);
 
   virtual void read(xml_node<> *node);
-  virtual void read(istream& is);
   virtual void write(ostream& os) const;
 
   virtual AffineTransform* clone() const;
   virtual string toString() const;
 
   virtual void feedForward(mat& fout, const mat& fin);
+  virtual void feedBackward(mat& error, const mat& delta);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
-  virtual void status() const;
   virtual size_t getNumParams() const;
 
+  void set_w(const mat& w);
   mat& get_w();
   mat const& get_w() const;
 
@@ -89,10 +90,7 @@ public:
   Activation(size_t input_dim, size_t output_dim);
 
   virtual void read(xml_node<> *node);
-  virtual void read(istream& is);
   virtual void write(ostream& os) const;
-
-  virtual void status() const;
 
   void dropout(mat& fout);
 };
@@ -101,9 +99,41 @@ class Sigmoid : public Activation {
 public:
   Sigmoid() {}
   Sigmoid(size_t input_dim, size_t output_dim);
-  Sigmoid(istream& is);
 
   virtual Sigmoid* clone() const;
+  virtual string toString() const;
+  virtual void feedForward(mat& fout, const mat& fin);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+};
+
+class Tanh : public Activation {
+public:
+  Tanh() {}
+  Tanh(size_t input_dim, size_t output_dim);
+
+  virtual Tanh* clone() const;
+  virtual string toString() const;
+  virtual void feedForward(mat& fout, const mat& fin);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+};
+
+class ReLU : public Activation {
+public:
+  ReLU() {}
+  ReLU(size_t input_dim, size_t output_dim);
+
+  virtual ReLU* clone() const;
+  virtual string toString() const;
+  virtual void feedForward(mat& fout, const mat& fin);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+};
+
+class Softplus : public Activation {
+public:
+  Softplus() {}
+  Softplus(size_t input_dim, size_t output_dim);
+
+  virtual Softplus* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
@@ -113,7 +143,6 @@ class Softmax : public Activation {
 public:
   Softmax() {}
   Softmax(size_t input_dim, size_t output_dim);
-  Softmax(istream& is);
 
   virtual Softmax* clone() const;
   virtual string toString() const;
@@ -125,7 +154,6 @@ class Dropout : public Activation {
 public:
   Dropout();
   Dropout(size_t input_dim, size_t output_dim);
-  Dropout(istream& is);
 
   virtual void read(xml_node<> *node);
   virtual void write(ostream& os) const;
@@ -156,7 +184,6 @@ public:
   virtual ~MIMOFeatureTransform() {}
 
   virtual void read(xml_node<> *node);
-  virtual void read(istream& is) {}
   virtual void write(ostream& os) const;
 
   virtual MIMOFeatureTransform* clone() const = 0;
@@ -168,8 +195,6 @@ public:
 
   virtual size_t getInputDimension() const = 0;
   virtual size_t getOutputDimension() const = 0;
-
-  virtual void status() const = 0;
 
   friend ostream& operator << (ostream& os, const MIMOFeatureTransform *ft);
 
@@ -218,7 +243,6 @@ public:
 
   virtual SIZE get_output_img_size() const;
 
-  virtual void status() const;
   virtual size_t getNumParams() const;
 
   SIZE get_kernel_size() const;
@@ -251,8 +275,6 @@ public:
   virtual size_t getOutputDimension() const;
 
   virtual SIZE get_output_img_size() const;
-
-  virtual void status() const;
 
   size_t getScale() const;
 

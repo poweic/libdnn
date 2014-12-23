@@ -2,24 +2,33 @@ libdnn
 ======
 （下面有中文說明）
 
-[libdnn](https://github.com/botonchou/libdnn) is an open source CUDA-based C++ Library of Deep Neural Network. It aims to provide an user-friendly neural network library, which allow researchers, developers, or anyone interested in it to harness and experience the power of DNN and extend it whenever you need.
+[libdnn](https://github.com/botonchou/libdnn) is a lightweight, user-friendly, and readable C++ library for deep learning, which allows researchers, developers, or anyone interested in it to harness and experience the power of deep learning.
 
-Deep Neural Network (DNN) is a very powerful Machine Learning (ML) algorithm which has shown significant success on numerous difficult supervised ML tasks in
+## Features
+- lightweight, user-friendly, and readable
+- support data in [LibSVM](http://www.csie.ntu.edu.tw/~cjlin/libsvm/) format
+- deep neural network (DNN)
+- convolutional neural network (CNN)
+- dropout, sigmoid, tanh, ReLU and [other nonlinearities ...](https://github.com/botonchou/libdnn/wiki/XML-model#changing-activation-functions)
+- model in [XML format](https://github.com/botonchou/libdnn/wiki/XML-model)
+- recurrent neural network (RNN, under development)
+
+DNN and CNN are powerful machine learning algorithms, which have shown significant success on numerous difficult supervised ML tasks in
 - Speech Recognition
 - Pattern Recognition and Computer Vision (CV)
 - Natural Language Processing (NLP)
 
-# Prerequisite
+## Prerequisite
 You need
-- g++ (>= 4.6)
-- NVIDIA's Graphic Processing Unit (GPU)
-- Linux/Unix (I use Ubuntu. Mac OS X should be fine, but not tested yet.)
-- [NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit) (>= CUDA 5.0) with CUDA Samples  
+- **g++** (>= 4.6)
+- **an NVIDIA GPU**
+- **Linux/Unix** 
+- **[NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit)** (>= CUDA 5.0) with CUDA Samples  
 (If you don't know how to install CUDA, please go check [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions))
 
-I use **Ubuntu 14.04** and **NVIDIA GTX-660**.
+I use **Ubuntu 14.04** and **NVIDIA GTX-660**. (Mac OS X should be fine, but not tested yet.)
 
-# Quick Start
+## Quick Start
 
 Before you install, you should be able to run `g++`, `nvcc` and have your
  environment variable `PATH` and `LD_LIBRARY_PATH` set.
@@ -33,7 +42,7 @@ If you feel that you have little doubt about what I'm talking about, I refer you
 
 ### Examples
 
-There're 3 example scripts in `example/`, you should give it a try:
+There're 4 example scripts in `example/`, you should give it a try:
 - `./example1.sh`
 - `./example2.sh`
 - `./example3.sh`
@@ -79,7 +88,11 @@ The first column of each row are the labels (e.g., 1 for cancer, -1 for no cance
 You can also store the data in a dense format, this is the same data as the above (but in dense format).
 
 ## How to Use ?
-There're mainly 3 programs, `nn-init`, `nn-train`, `nn-predict`.
+There're mainly 3 programs:
+
+1. nn-init
+2. nn-train
+3. nn-predict
 
 ### nn-init
 ```
@@ -152,28 +165,37 @@ and [Frequently Asked Questions (FAQ)](https://github.com/botonchou/libdnn/wiki/
 libdnn 中文說明
 ======
 
-[libdnn](https://github.com/botonchou/libdnn) 是一個用CUDA C++寫成的**深層神經網路**開源函式庫。目標是提供一個簡易易懂的神經網路函式庫 (library)，讓開發人員、研究員、或任何有興趣的人都可以輕鬆體驗並駕馭深層神經網路所帶來的威力。
+[libdnn](https://github.com/botonchou/libdnn) 是一個輕量、好讀、人性化的**深層學習**函式庫。由 C++ 和 CUDA 撰寫而成，目的是讓開發人員、研究人員、或任何有興趣的人都可以輕鬆體驗並駕馭深層學習所帶來的威力。
 
-**深層神經網路 (deep neural network)**是一種非常強大的機器學習演算法。近年來，由於硬體技術的逐漸成熟（主要是來自家用顯示卡的所提供的高效能運算，一般民眾或研究單位與實驗室均可用很便宜的價格輕易取得），深層神經網路在諸多領域上皆獲得前所未有的成功，包括了
+## 特色
+- 輕量、好讀、人性化
+- 支援 [LibSVM](http://www.csie.ntu.edu.tw/~cjlin/libsvm/) 的資料格式，讓你無痛上手！
+- 深層神經網路 (deep neural network, DNN)
+- 卷積神經網路 (convolutional neural network, CNN)
+- dropout, sigmoid, tanh, ReLU 及[其他非線性函數](https://github.com/botonchou/libdnn/wiki/XML-model#changing-activation-functions)
+- 以 [XML 格式](https://github.com/botonchou/libdnn/wiki/XML-model)儲存模型
+- 遞迴式神經網路 (recurrent neural network, RNN 開發中 )
+
+**深層神經網路 (deep neural network)** 和 **卷積神經網路 (convolutional neural network)** 是種非常強大的機器學習模型。近年來，由於硬體技術的逐漸成熟（主要是來自家用顯示卡的所提供的高效能運算，一般民眾或研究單位與實驗室均可用很便宜的價格輕易取得），深層神經網路在諸多領域上皆獲得前所未有的成功，包括了
 - 語音辨識
 - 影像辨識
 - 自然語言處理
 
-# 系統配備需求 
+## 系統配備需求 
 
 你需要：
-- g++ (>= 4.6)
-- 一張NVIDIA的顯示卡 (ex: GTX-660)
-- Linux/Unix 作業系統 (我用 Ubuntu 。 Mac OS X 應該也行，但還沒空測試。）
-- 安裝 [NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit)  （CUDA 5.0 以上或更新的版本）  
+- **g++** (>= 4.6)
+- **一張NVIDIA的顯示卡** (ex: GTX-660)
+- **Linux/Unix 作業系統**
+- **安裝 [NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit)**  （CUDA 5.0 以上或更新的版本）  
 (如果你不知道怎麼安裝 CUDA toolkit，請參考[FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions))
 
-我的是 **Ubuntu 14.04** 和 **NVIDIA GTX-660**.
+我的是 **Ubuntu 14.04** 和 **NVIDIA GTX-660**. ( Mac OS X 應該也行，但還沒空測試。）
 
-# 快速上手
+## 快速上手
 
 安裝前，確認一下你可以執行`g++`, `nvcc` ，並且正確地設定環境變數 `PATH`, `LD_LIBRARY_PATH`.
-如果你有一絲絲的懷疑、不太確定我在講什麼，我建議你看過一遍
+如果你有點不太確定我在講什麼，我建議你看過一遍
  [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions) 再回來。
 
 如果上述這些都搞定了，那就可以開始安裝了!!
@@ -185,7 +207,7 @@ libdnn 中文說明
 
 ### 使用範例
 
-在`example/`下有三個使用範例：
+在`example/`下有四個使用範例：
 - `./example1.sh`
 - `./example2.sh`
 - `./example3.sh`
@@ -232,14 +254,18 @@ libdnn 中文說明
 
 ## 如何使用 
 
-主要有三個程式，一個是`nn-init`, `nn-train`, `nn-predict`.
+主要有以下三個程式:
+
+1. nn-init
+2. nn-train
+3. nn-predict
 
 ### nn-init
 ```
 nn-init [options] [training_data] -o model_out
 ```
 透過這個程式，你可以初始化一個全新的神經網路模型（存成 XML 格式），方法有：
-1. random initialization
+1. 隨機初始化
 2. Bernoulli-Bernoulli RBM
 3. Gaussian-Bernoulli RBM
 
@@ -300,6 +326,5 @@ nn-predict test.dat train.dat.model
 更多的教學和細節，請參考[Wiki](https://github.com/botonchou/libdnn/wiki).
 和[常見問題 (FAQ)](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
 
-# License
+## License
 Copyright (c) 20013-2014 Po-Wei Chou Licensed under the Apache License.
-

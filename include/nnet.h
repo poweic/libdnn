@@ -12,6 +12,7 @@ public:
 
   void init(const string &structure, SIZE img_size);
 
+  mat feedForward(const mat& fin) const;
   void feedForward(mat& fout, const mat& fin);
   void backPropagate(mat& error, const mat& fin, const mat& fout,
       float learning_rate);
@@ -37,6 +38,8 @@ public:
   friend ostream& operator << (ostream& os, const NNet& nnet);
 
 private:
+
+  void weight_initialize();
 
   std::vector<FeatureTransform*> _transforms;
   std::vector<mat > _houts;
