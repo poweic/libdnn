@@ -6,6 +6,9 @@
 #include <tools/rapidxml-1.13/rapidxml_utils.hpp>
 using namespace rapidxml;
 
+#define assert_nan(x) { if (hasNAN(x)) \
+  throw std::runtime_error(RED_ERROR + "\33[33m" #x " has NAN inside !!\33[0m");  }
+
 class FeatureTransform {
 public:
   FeatureTransform() { }
@@ -68,6 +71,7 @@ public:
   virtual string toString() const;
 
   virtual void feedForward(mat& fout, const mat& fin);
+  virtual void feedBackward(mat& error, const mat& delta);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
   virtual void status() const;

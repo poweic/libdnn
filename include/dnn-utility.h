@@ -12,7 +12,7 @@
 
   #define NV_DEVICE_WARP_SIZE 32
 
-  #define ALLOCATE_GRIDS_AND_THREADS(rows, cols) \
+  #define ALLOCATE_GRIDS_AND_THREADS(cols, rows) \
     dim3 grids( ceil( (float) cols / NV_DEVICE_WARP_SIZE), ceil( (float) rows / NV_DEVICE_WARP_SIZE)); \
     dim3 threads(NV_DEVICE_WARP_SIZE, NV_DEVICE_WARP_SIZE);
 
@@ -36,7 +36,7 @@ map<int, int> getLabelMapping(const hmat& labels);
 mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure);
 mat posteriorProb2Label(const mat& prob);
 
-size_t zeroOneError(const mat& predict, const mat& label, ERROR_MEASURE errorMeasure);
+size_t zeroOneError(const mat& predict, const mat& label);
 
 class CURAND_STATE {
 public:
@@ -79,18 +79,23 @@ namespace ext {
 };
 
 template <typename T>
-bool hasNAN(const host_matrix<T>& x) {
+void SubstractMaxPerRow(device_matrix<T>& x);
 
-  for (int i=0; i<x.getRows(); ++i)
-    for (int j=0; j<x.getCols(); ++j)
-      if (x(i, j) != x(i, j))
+template <typename T>
+device_matrix<T> MaxPerRow(const device_matrix<T>& A);
+
+template <typename T>
+bool hasNAN(const device_matrix<T>& x) {
+
+  host_matrix<T> h_x(x);
+
+  for (int i=0; i<h_x.getRows(); ++i)
+    for (int j=0; j<h_x.getCols(); ++j)
+      if (h_x(i, j) != h_x(i, j))
 	return true;
 
   return false;
 }
-
-template <typename T> void SubstractMaxPerRow(device_matrix<T>& x);
-template <typename T> device_matrix<T> MaxPerRow(device_matrix<T>& A);
 
 /*! \brief Copy a block memory.
  * Copy a block (of size h by w) of memory from src to dest.
@@ -150,18 +155,47 @@ vector<device_matrix<T> > versplit(const device_matrix<T>& big, size_t n_sub_mat
 }
 
 template <typename T>
-device_matrix<T> add_bias(const device_matrix<T>& A, const T value = 1, bool add_new_column = false);
+device_matrix<T> add_bias(const device_matrix<T>& A, const T value = 1,
+    bool add_new_column = false) {
 
-mat removeBiasAndTranspose(const mat& x);
+  if (add_new_column) {
+    device_matrix<T> B(A.getRows() + 1, A.getCols(), 1.0f);
+    memcpy2D<T>(B, A, 0, 0, A.getRows(), A.getCols(), 0, 0);
+    return B;
+  }
+  else {
+    device_matrix<T> B(A);
+    device_matrix<T> bias(1, B.getCols(), value);
+    memcpy2D<T>(B, bias, 0, 0, 1, B.getCols(), B.getRows() - 1, 0);
+    return B;
+  }
+}
+
+template <typename T>
+device_matrix<T> remove_bias(const device_matrix<T>& x) {
+  device_matrix<T> y(x.getRows() - 1, x.getCols());
+  memcpy2D<T>(y, x, 0, 0, x.getRows() - 1, x.getCols(), 0, 0);
+  return y;
+}
 
 // convert a linear index to a row index
 template <typename T>
-struct linear_index_to_row_index : public thrust::unary_function<T,T> {
-  T cols; // number of columns
+struct linear_index_to_col_index: public thrust::unary_function<T, T> {
+  T rows; // number of rows
 
-  __host__ __device__ linear_index_to_row_index(T cols) : cols(cols) {}
+  __host__ __device__ linear_index_to_col_index(T rows) : rows(rows) {}
 
-  __host__ __device__ T operator()(T i) { return i / cols; }
+  __host__ __device__ T operator() (T i) { return i % rows; }
+};
+
+// convert a linear index to a row index
+template <typename T>
+struct linear_index_to_row_index : public thrust::unary_function<T, T> {
+  T rows; // number of rows
+
+  __host__ __device__ linear_index_to_row_index(T rows) : rows(rows) {}
+
+  __host__ __device__ T operator() (T i) { return i / rows; }
 };
 
 template <typename T>
@@ -179,6 +213,8 @@ template <typename T> device_matrix<T> log1pexp(const device_matrix<T>& x);
 template <typename T> device_matrix<T> sigmoid(const device_matrix<T>& x);
 
 template <typename T> device_matrix<T> softmax(const device_matrix<T>& x);
+
+template <typename T> T sum_all(const device_matrix<T>& x);
 
 template <typename T, typename UnaryFunction>
 device_matrix<T> transform(const device_matrix<T>& x, UnaryFunction op) {
