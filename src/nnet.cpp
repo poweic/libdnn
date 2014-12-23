@@ -151,10 +151,7 @@ void NNet::init(const string &structure, SIZE img_size) {
       size_t fan_in = _transforms.back()->getOutputDimension();
       size_t fan_out = stoi(layers[i]);
 
-      float coeff = 2 * sqrt(6.0f / (fan_in + fan_out + 2) );
-      mat weight = coeff * (rand(fan_in + 1, fan_out + 1) - 0.5);
-      weight = ~weight;
-      _transforms.push_back(new AffineTransform(weight));
+      _transforms.push_back(new AffineTransform(fan_in, fan_out));
 
       if ( i < layers.size() - 1 )
 	_transforms.push_back(new Sigmoid(fan_out, fan_out));
@@ -237,6 +234,37 @@ void NNet::read(const string &fn) {
   }
   else
     clog << RED_ERROR << "while reading XML file." << endl;
+
+  weight_initialize();
+}
+
+void NNet::weight_initialize() {
+
+  const auto& t = _transforms;
+  for (size_t i=0; i<t.size(); ++i) {
+
+    // Test if i-th layer is affine transform ? Yes/No
+    auto p = dynamic_cast<AffineTransform*>(t[i]);
+
+    // No.
+    if (p == nullptr) continue;
+
+    // Already initialized.
+    if (p->get_w().size() != 0) continue;
+
+    // Get fan-in and fan-out
+    size_t in  = p->getInputDimension(),
+	   out = p->getOutputDimension();
+
+    // Use uniform random [0.5, 0.5] to initialize
+    p->get_w() = rand(out + 1, in + 1) - 0.5;
+
+    // If there's an activation next to it, normalize it by multiplying a coeff
+    if ( i + 1 < t.size() and dynamic_cast<Activation*>(t[i+1]) != nullptr ) {
+      p->get_w() *= GetNormalizedInitCoeff(
+	  in, out, FeatureTransform::token2type(p->toString()) );
+    }
+  }
 }
 
 void NNet::save(const string &fn) const {

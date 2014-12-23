@@ -29,7 +29,7 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("General options:")
      .add("--type", "type of Pretraining. Choose one of the following:\n"
-	"0 -- Don't train, initialize with randn(m, n) only.\n"
+	"0 -- Don't train. Create neural network topology only.\n"
 	"1 -- Bernoulli-Bernoulli RBM (not for CNN)\n"
 	"2 -- Gaussian-Bernoulli  RBM (not for CNN)", "0")
      .add("-o", "Output model filename");
@@ -111,7 +111,6 @@ int main (int argc, char* argv[]) {
 
     auto dims = StackedRbm::parseDimensions(input_dim, structure, output_dim);
 
-    // Initialize using RBM with rand()
     StackedRbm srbm(dims);
     srbm.setParams(max_epoch, slope_thres, learning_rate,
 	init_momentum, final_momentum, l2_penalty);
@@ -122,6 +121,7 @@ int main (int argc, char* argv[]) {
       DataSet data(train_fn, input_dim, 0, n_type);
       data.showSummary();
 
+      srbm.init();
       srbm.train(data, (UNIT_TYPE) type);
     }
 

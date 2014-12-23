@@ -161,63 +161,67 @@ void AffineTransform::read(xml_node<> * node) {
   if (!bias)
     throw std::runtime_error("Cannot find bias in affine transform");
 
-  hmat hw(rows + 1, cols + 1);
-  stringstream ss;
-  
-  ss << weight->value();
-  for (size_t i=0; i<rows; ++i)
-    for (size_t j=0; j<cols; ++j)
-      CSE( ss >> hw(i, j) );
+  string weight_value = weight->value();
 
-  ss << bias->value();
+  if (!weight_value.empty()) {
 
-  for (size_t j=0; j<rows; ++j)
-    CSE( ss >> hw(j, cols) );
+    hmat hw(rows + 1, cols + 1);
+    stringstream ss;
 
-  _w = (mat) hw;
+    ss << weight_value;
+    for (size_t i=0; i<rows; ++i)
+      for (size_t j=0; j<cols; ++j)
+	CSE( ss >> hw(i, j) );
+
+    ss << bias->value();
+    for (size_t j=0; j<rows; ++j)
+      CSE( ss >> hw(j, cols) );
+
+    _w = (mat) hw;
+  }
 }
  
 void AffineTransform::write(ostream& os) const {
-
-  hmat data(_w);
-
-  size_t rows = data.getRows(),
-	 cols = data.getCols();
 
   char buffer[512];
 
   sprintf(buffer, "<transform type=\"%s\" input-dim=\"%lu\" output-dim=\"%lu\""
       " momentum=\"%f\" learning-rate=\"%f\" >", this->toString().c_str(),
-      cols - 1, rows - 1, 0.1, 0.1);
+      getInputDimension(), getOutputDimension(), 0.1, 0.1);
   os << buffer << endl;
 
-  sprintf(buffer, "  <weight rows=\"%lu\" cols=\"%lu\">", rows - 1, cols - 1);
-  os << buffer << endl;
+  if (_w.size() > 0) {
+    hmat data(_w);
+    size_t rows = data.getRows(),
+	   cols = data.getCols();
 
-  // Write matrix
-  for (size_t j=0; j<rows-1; ++j) {
+    // Write weight matrix
+    sprintf(buffer, "  <weight rows=\"%lu\" cols=\"%lu\">", rows - 1, cols - 1);
+    os << buffer << endl;
+
+    for (size_t j=0; j<rows-1; ++j) {
+      os << "    ";
+      for (size_t k=0; k<cols-1; ++k)
+	os << data[k * rows + j] << " ";
+      os << endl;
+    }
+
+    os << "  </weight>" << endl;
+
+    // Write Bias vector
+    sprintf(buffer, "  <bias rows=\"%lu\" cols=\"1\">", rows - 1);
+    os << buffer << endl;
+
     os << "    ";
-    for (size_t k=0; k<cols-1; ++k)
-      os << data[k * rows + j] << " ";
-    os << endl;
+    for (size_t j=0; j<rows-1; ++j)
+      os << data[rows * (cols - 1) + j] << " ";
+
+    os << endl << "  </bias>" << endl;
   }
+  else 
+    os << "  <weight></weight>" << endl << "  <bias></bias>" << endl;
 
-  os << "  </weight>" << endl;
-
-  sprintf(buffer, "  <bias rows=\"%lu\" cols=\"1\">", rows - 1);
-  os << buffer << endl;
-
-  os << "    ";
-  for (size_t j=0; j<rows-1; ++j)
-    os << data[rows * (cols - 1) + j] << " ";
-
-  os << endl
-     << "  </bias>" << endl
-     << "</transform>" << endl;
-}
-
-size_t AffineTransform::getNumParams() const {
-  return getInputDimension() * getOutputDimension() + getOutputDimension();
+  os << "</transform>" << endl;
 }
 
 AffineTransform* AffineTransform::clone() const {
@@ -260,6 +264,10 @@ void AffineTransform::backPropagate(mat& error, const mat& fin, const mat& fout,
 
   // FIXME later add_bias(fin) is weird !!
   gemm(delta, add_bias(fin), _w, -learning_rate, 1.0f, false, true);
+}
+
+size_t AffineTransform::getNumParams() const {
+  return getInputDimension() * getOutputDimension() + getOutputDimension();
 }
 
 mat& AffineTransform::get_w() {

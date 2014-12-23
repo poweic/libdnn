@@ -39,6 +39,8 @@ public:
 
 private:
 
+  void weight_initialize();
+
   std::vector<FeatureTransform*> _transforms;
   std::vector<mat > _houts;
 

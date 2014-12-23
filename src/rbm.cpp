@@ -31,12 +31,10 @@ StackedRbm::StackedRbm(const vector<size_t>& dims)
   : _dims(dims), _max_epoch(128), _slope_thres(0.05), _learning_rate(0.1),
   _initial_momentum(0.5), _final_momentum(0.9), _l2_penalty(0.0002) {
 
-    this->init();
+    _weights.resize(_dims.size() - 1);
 }
 
 void StackedRbm::init() {
-  _weights.resize(_dims.size() - 1);
-
   for (size_t i=0; i<_weights.size(); ++i) {
     size_t in = _dims[i] + 1,
 	   out = _dims[i + 1] + 1;
@@ -306,27 +304,26 @@ void StackedRbm::save(const string& fn) {
   FeatureTransform *affine, *activation;
   size_t dim;
 
-  for (size_t i=0; i<_weights.size() - 1; ++i) {
-    affine = new AffineTransform(_weights[i]);
+  for (size_t i=0; i<_weights.size(); ++i) {
+
+    if (_weights[i].size() > 0)
+      affine = new AffineTransform(_weights[i]);
+    else
+      affine = new AffineTransform(_dims[i], _dims[i+1]);
     fout << affine;
 
     dim = affine->getOutputDimension();
-    activation = new Sigmoid(dim, dim);
+
+    if (i < _weights.size() - 1)
+      activation = new Sigmoid(dim, dim);
+    else
+      activation = new Softmax(dim, dim);
+
     fout << activation;
 
     delete affine;
     delete activation;
   }
-
-  affine = new AffineTransform(_weights.back());
-  fout << affine;
-
-  dim = affine->getOutputDimension();
-  activation = new Softmax(dim, dim);
-  fout << activation;
-
-  delete affine;
-  delete activation;
 
   fout.close();
 
