@@ -75,29 +75,6 @@ ostream& operator << (ostream& os, FeatureTransform* ft) {
   return os;
 }
 
-istream& operator >> (istream& is, FeatureTransform* &ft) {
-  string type;
-  if (!(is >> type)) {
-    ft = NULL;
-    return is;
-  }
-
-  std::transform(type.begin(), type.end(), type.begin(), ::toupper);
-
-  if (type == "<AFFINETRANSFORM>")
-    ft = new AffineTransform(is);
-  else if (type == "<SIGMOID>")
-    ft = new Sigmoid(is);
-  else if (type == "<SOFTMAX>")
-    ft = new Softmax(is);
-  else {
-    ft = NULL;
-    while (is >> type);
-  }
-
-  return is;
-}
-
 /*
  * class FeatureTransform
  *
@@ -130,10 +107,6 @@ AffineTransform::AffineTransform(size_t input_dim, size_t output_dim)
 
 AffineTransform::AffineTransform(const mat& w)
   : FeatureTransform(w.getCols() - 1, w.getRows() - 1), _w(w) {
-}
-
-AffineTransform::AffineTransform(istream& is) {
-  this->read(is);
 }
 
 void AffineTransform::read(xml_node<> * node) {
@@ -174,37 +147,6 @@ void AffineTransform::read(xml_node<> * node) {
   _w = (mat) hw;
 }
  
-void AffineTransform::read(istream& is) {
-
-  throw std::runtime_error("deprecated !!");
-  /*
-  string dummy;
-
-  size_t rows, cols;
-  CSE(is >> rows);
-  CSE(is >> cols);
-
-  hmat hw(rows + 1, cols + 1);
-
-  // Read matrix
-  CSE(is >> dummy);
-  for (size_t i=0; i<rows; ++i)
-    for (size_t j=0; j<cols; ++j)
-      CSE( is >> hw(i, j) );
-  CSE(is >> dummy);
-
-  // Read vector (bias)
-  CSE(is >> dummy);
-  for (size_t j=0; j<cols; ++j)
-    CSE( is >> hw(rows, j) );
-  CSE(is >> dummy);
-
-  _w = (mat) hw;
-  _input_dim = rows;
-  _output_dim = cols;
-  */
-}
-
 void AffineTransform::write(ostream& os) const {
 
   hmat data(_w);
@@ -347,18 +289,6 @@ void Activation::read(xml_node<> * node) {
     throw std::runtime_error(RED_ERROR + "Mismatched input/output dimension");
 }
 
-void Activation::read(istream& is) {
-
-  string remaining;
-  CSE(is >> _input_dim);
-  CSE(is >> _output_dim);
-
-  CSE(std::getline(is, remaining));
-  
-  if (_input_dim != _output_dim)
-    throw std::runtime_error(RED_ERROR + "Mismatched input/output dimension");
-}
-
 void Activation::write(ostream& os) const {
 
   os << "<transform type=\"" << this->toString() 
@@ -381,10 +311,6 @@ void Activation::status() const {
 Sigmoid::Sigmoid(size_t input_dim, size_t output_dim)
   : Activation(input_dim, output_dim) {
 
-}
-
-Sigmoid::Sigmoid(istream& is) {
-  Activation::read(is);
 }
 
 Sigmoid* Sigmoid::clone() const {
@@ -413,10 +339,6 @@ Softmax::Softmax(size_t input_dim, size_t output_dim)
 
 }
 
-Softmax::Softmax(istream& is) {
-  Activation::read(is);
-}
-
 Softmax* Softmax::clone() const {
   return new Softmax(*this);
 }
@@ -442,10 +364,6 @@ Dropout::Dropout(): _dropout_ratio(0.0f), _dropout(true) {
 
 Dropout::Dropout(size_t input_dim, size_t output_dim)
   : Activation(input_dim, output_dim), _dropout_ratio(0.0f), _dropout(true) {
-}
-
-Dropout::Dropout(istream& is) {
-  Activation::read(is);
 }
 
 void Dropout::read(xml_node<> *node) {

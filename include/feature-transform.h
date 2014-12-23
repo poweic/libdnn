@@ -16,7 +16,6 @@ public:
   virtual ~FeatureTransform() {}
 
   virtual void read(xml_node<> *node);
-  virtual void read(istream& is) = 0;
   virtual void write(ostream& os) const = 0;
 
   virtual FeatureTransform* clone() const = 0;
@@ -32,7 +31,6 @@ public:
   virtual size_t getNumParams() const { return 0; }
 
   friend ostream& operator << (ostream& os, FeatureTransform* ft);
-  friend istream& operator >> (istream& is, FeatureTransform* &ft);
 
   enum Type {
     Affine,
@@ -61,10 +59,8 @@ public:
   AffineTransform() {}
   AffineTransform(size_t input_dim, size_t output_dim);
   AffineTransform(const mat& w);
-  AffineTransform(istream& is);
 
   virtual void read(xml_node<> *node);
-  virtual void read(istream& is);
   virtual void write(ostream& os) const;
 
   virtual AffineTransform* clone() const;
@@ -93,7 +89,6 @@ public:
   Activation(size_t input_dim, size_t output_dim);
 
   virtual void read(xml_node<> *node);
-  virtual void read(istream& is);
   virtual void write(ostream& os) const;
 
   virtual void status() const;
@@ -105,7 +100,6 @@ class Sigmoid : public Activation {
 public:
   Sigmoid() {}
   Sigmoid(size_t input_dim, size_t output_dim);
-  Sigmoid(istream& is);
 
   virtual Sigmoid* clone() const;
   virtual string toString() const;
@@ -117,7 +111,6 @@ class Softmax : public Activation {
 public:
   Softmax() {}
   Softmax(size_t input_dim, size_t output_dim);
-  Softmax(istream& is);
 
   virtual Softmax* clone() const;
   virtual string toString() const;
@@ -129,7 +122,6 @@ class Dropout : public Activation {
 public:
   Dropout();
   Dropout(size_t input_dim, size_t output_dim);
-  Dropout(istream& is);
 
   virtual void read(xml_node<> *node);
   virtual void write(ostream& os) const;
@@ -160,7 +152,6 @@ public:
   virtual ~MIMOFeatureTransform() {}
 
   virtual void read(xml_node<> *node);
-  virtual void read(istream& is) {}
   virtual void write(ostream& os) const;
 
   virtual MIMOFeatureTransform* clone() const = 0;
