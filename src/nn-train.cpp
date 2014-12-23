@@ -163,8 +163,9 @@ void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
       nnet.backPropagate(error, x, fout, lr / itr->nData);
     }
 
-    Ein = nnet_predict(nnet, train);
+    Ein  = nnet_predict(nnet, train);
     Eout = nnet_predict(nnet, valid);
+
     Eouts.push_back(Eout);
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
@@ -196,14 +197,13 @@ size_t nnet_predict(NNet& nnet, DataSet& data) {
 
   const size_t batchSize = 256;
   size_t nError = 0;
-  mat prob;
 
   nnet.setDropout(false);
   Batches batches(batchSize, data.size());
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+  for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
     auto d = data[itr];
-    mat x = d.x;
-    nnet.feedForward(prob, ~x);
+    mat x = ~mat(d.x);
+    mat prob = nnet.feedForward(x);
     nError += zeroOneError(prob, d.y);
   }
   nnet.setDropout(true);

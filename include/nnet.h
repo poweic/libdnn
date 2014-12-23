@@ -12,6 +12,7 @@ public:
 
   void init(const string &structure, SIZE img_size);
 
+  mat feedForward(const mat& fin) const;
   void feedForward(mat& fout, const mat& fin);
   void backPropagate(mat& error, const mat& fin, const mat& fout,
       float learning_rate);

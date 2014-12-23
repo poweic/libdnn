@@ -31,6 +31,24 @@ NNet::~NNet() {
     delete _transforms[i];
 }
 
+mat NNet::feedForward(const mat& fin) const {
+  mat output = fin;
+
+  if (_transforms[0]->toString() == "convolution")
+    output = remove_bias(output);
+
+  for (size_t i=0; i<_transforms.size(); ++i) {
+    _transforms[i]->feedForward( output, mat(output) );
+
+    // Handle boundary between NNet and DNN, add one more column for DNN.
+    if ( is_cnn_dnn_boundary(i) )
+      output = add_bias(output, 1.0f, true);
+  }
+
+  output = remove_bias(output);
+  return output;
+}
+
 void NNet::feedForward(mat& fout, const mat& fin) {
 
   mat fin2 = fin;
@@ -56,19 +74,12 @@ void NNet::feedForward(mat& fout, const mat& fin) {
   }
   else
     _transforms.back()->feedForward(fout, fin2);
-
-  fout = remove_bias(fout);
 }
 
 void NNet::backPropagate(mat& error, const mat& fin, const mat& fout,
     float learning_rate) {
 
-  // Copy from dnn.cpp -- begin
-  mat output = add_bias(fout, 1.0f, true);
-  error = add_bias(error, 1.0f, true);
-  // Copy from dnn.cpp -- end
-
-  _transforms.back()->backPropagate(error, _houts.back(), output, learning_rate);
+  _transforms.back()->backPropagate(error, _houts.back(), fout, learning_rate);
 
   for (int i=_transforms.size() - 2; i >= 1; --i) {
     _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);

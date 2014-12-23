@@ -96,10 +96,9 @@ int main (int argc, char* argv[]) {
   Batches batches(256, test.size());
   for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
     auto data = test[itr];
-    mat x = data.x;
+    mat x = ~mat(data.x);
 
-    mat prob;
-    nnet.feedForward(prob, ~x);
+    mat prob = nnet.feedForward(x);
 
     if (calcAcc && !silent)
       nError += zeroOneError(prob, data.y);
