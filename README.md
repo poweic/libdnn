@@ -9,9 +9,8 @@ libdnn
 - support data in [LibSVM](http://www.csie.ntu.edu.tw/~cjlin/libsvm/) format
 - deep neural network (DNN)
 - convolutional neural network (CNN)
-- dropout
-- sigmoid and other nonlinearity
-- model in XML format
+- dropout, sigmoid, tanh, ReLU and [other nonlinearities ...](https://github.com/botonchou/libdnn/wiki/XML-model#changing-activation-functions)
+- model in [XML format](https://github.com/botonchou/libdnn/wiki/XML-model)
 - recurrent neural network (RNN, under development)
 
 DNN and CNN are powerful machine learning algorithms, which have shown significant success on numerous difficult supervised ML tasks in
@@ -173,9 +172,8 @@ libdnn 中文說明
 - 支援 [LibSVM](http://www.csie.ntu.edu.tw/~cjlin/libsvm/) 的資料格式，讓你無痛上手！
 - 深層神經網路 (deep neural network, DNN)
 - 卷積神經網路 (convolutional neural network, CNN)
-- dropout
-- sigmoid 及其他非線性函數
-- 以 XML 格式儲存模型
+- dropout, sigmoid, tanh, ReLU 及[其他非線性函數](https://github.com/botonchou/libdnn/wiki/XML-model#changing-activation-functions)
+- 以 [XML 格式](https://github.com/botonchou/libdnn/wiki/XML-model)儲存模型
 - 遞迴式神經網路 (recurrent neural network, RNN 開發中 )
 
 **深層神經網路 (deep neural network)** 和 **卷積神經網路 (convolutional neural network)** 是種非常強大的機器學習模型。近年來，由於硬體技術的逐漸成熟（主要是來自家用顯示卡的所提供的高效能運算，一般民眾或研究單位與實驗室均可用很便宜的價格輕易取得），深層神經網路在諸多領域上皆獲得前所未有的成功，包括了
@@ -267,7 +265,7 @@ libdnn 中文說明
 nn-init [options] [training_data] -o model_out
 ```
 透過這個程式，你可以初始化一個全新的神經網路模型（存成 XML 格式），方法有：
-1. random initialization
+1. 隨機初始化
 2. Bernoulli-Bernoulli RBM
 3. Gaussian-Bernoulli RBM
 
@@ -330,4 +328,3 @@ nn-predict test.dat train.dat.model
 
 ## License
 Copyright (c) 20013-2014 Po-Wei Chou Licensed under the Apache License.
-

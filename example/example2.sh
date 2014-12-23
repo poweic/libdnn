@@ -1,13 +1,13 @@
 #!/bin/bash -e
 
-# Example 2
+# Example 2: random initialization
 TRAIN=data/train.dat
 TEST=data/test.dat
-stacked_rbm=model/train.dat.rbm
-model=model/train.dat.model
+init_model=model/train.dat.xml
+model=model/train.dat.mature.xml
 
 opts="--normalize 1 --input-dim 20"
 
-../bin/nn-init $TRAIN $opts --type 1 --output-dim 2 --struct 64-64 -o $stacked_rbm
-../bin/nn-train $opts $TRAIN $stacked_rbm $TEST $model --min-acc 0.74
+../bin/nn-init $TRAIN $opts --output-dim 2 --struct 64-64 -o $init_model
+../bin/nn-train $opts $TRAIN $init_model $TEST $model --min-acc 0.74
 ../bin/nn-predict $opts $TEST $model

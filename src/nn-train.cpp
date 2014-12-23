@@ -178,8 +178,6 @@ void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
     if (validAcc > nnet.getConfig().minValidAccuracy &&
 	isEoutStopDecrease(Eouts, epoch, nnet.getConfig().nNonIncEpoch))
       break;
-    
-    // nnet.save(model_out + "." + to_string(epoch));
   }
 
   // Show Summary

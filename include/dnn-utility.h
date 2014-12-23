@@ -18,6 +18,9 @@
 
 #endif
 
+#define assert_nan(x) { if (hasNAN(x)) \
+  throw std::runtime_error(RED_ERROR + #x " has NaN"); }
+
 #include <thrust/transform_reduce.h>
 #include <thrust/functional.h>
 #include <thrust/host_vector.h>
@@ -198,6 +201,54 @@ struct linear_index_to_row_index : public thrust::unary_function<T, T> {
   __host__ __device__ T operator() (T i) { return i / rows; }
 };
 
+namespace func {
+  template <typename T>
+  struct max {
+    const T a;
+    max(T _a) : a(_a) {}
+    __host__ __device__ T operator()(const T& x) const { return x > a ? x : a; }
+  };
+
+  template <typename T>
+  struct greater {
+    const T a;
+    greater(T _a) : a(_a) {}
+    __host__ __device__ T operator()(const T& x) const { return x > a ? 1 : 0; }
+  };
+  
+  template <typename T>
+  struct d_sigmoid {
+    d_sigmoid() {}
+    __host__ __device__ T operator()(const T& y) const {
+      return (1 - y) * y;
+    }
+  };
+
+  template <typename T>
+  struct hyperbolic_tangent {
+    hyperbolic_tangent() {}
+    __host__ __device__ T operator()(const T& x) const {
+      if (x > 9) return 1;
+      if (x < -9) return 0;
+
+      T a = expf(2 * x);
+      return (a - 1) / (a + 1);
+    }
+  };
+
+  // Though the derivative of tanh(x) is sech^2(x), it's faster to compute if we
+  // use: 1 - y^2, where y is tanh(x) and already computed before.
+  template <typename T>
+  struct d_hyperbolic_tangent {
+    d_hyperbolic_tangent () {}
+    __host__ __device__ T operator()(const T& y) const {
+      return 1 - y * y;
+    }
+  };
+
+};
+
+
 template <typename T>
 device_matrix<T> operator & (const device_matrix<T>& A, const device_matrix<T>& B);
 
@@ -212,7 +263,17 @@ template <typename T> device_matrix<T> log1pexp(const device_matrix<T>& x);
 
 template <typename T> device_matrix<T> sigmoid(const device_matrix<T>& x);
 
+template <typename T> device_matrix<T> d_sigmoid(const device_matrix<T>& x);
+
+template <typename T> device_matrix<T> tanh(const device_matrix<T>& x);
+
+template <typename T> device_matrix<T> d_tanh(const device_matrix<T>& x);
+
 template <typename T> device_matrix<T> softmax(const device_matrix<T>& x);
+
+template <typename T> device_matrix<T> relu(const device_matrix<T>& x);
+
+template <typename T> device_matrix<T> is_greater(const device_matrix<T>& x, const T value);
 
 template <typename T> T sum_all(const device_matrix<T>& x);
 

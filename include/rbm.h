@@ -17,6 +17,8 @@ public:
   void setParams(size_t max_epoch, float slope_thres, float learning_rate,
     float initial_momentum, float final_momentum, float l2_penalty);
 
+  void init();
+
   void printParams() const;
 
   void save(const string& fn);

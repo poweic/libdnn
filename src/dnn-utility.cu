@@ -365,6 +365,31 @@ device_matrix<T> sigmoid(const device_matrix<T>& x) {
 }
 
 template <typename T>
+device_matrix<T> d_sigmoid(const device_matrix<T>& x) {
+  return transform(x, func::d_sigmoid<T>());
+}
+
+template <typename T>
+device_matrix<T> tanh(const device_matrix<T>& x) {
+  return transform(x, func::hyperbolic_tangent<T>());
+}
+
+template <typename T>
+device_matrix<T> d_tanh(const device_matrix<T>& x) {
+  return transform(x, func::d_hyperbolic_tangent<T>());
+}
+
+template <typename T>
+device_matrix<T> relu(const device_matrix<T>& x) {
+  return transform(x, func::max<T>(0.0f));
+}
+
+template <typename T>
+device_matrix<T> is_greater(const device_matrix<T>& x, const T value) {
+  return transform(x, func::greater<T>(value));
+}
+
+template <typename T>
 device_matrix<T> softmax(const device_matrix<T>& x_t) {
   mat x(~x_t);
   x.resize(x.getRows(), x.getCols() - 1);
@@ -409,7 +434,12 @@ T sum_all(const device_matrix<T>& x) {
   template device_matrix<T> log<T>(const device_matrix<T>& x); \
   template device_matrix<T> log1pexp<T>(const device_matrix<T>& x); \
   template device_matrix<T> sigmoid<T>(const device_matrix<T>& x); \
+  template device_matrix<T> d_sigmoid<T>(const device_matrix<T>& x); \
+  template device_matrix<T> tanh<T>(const device_matrix<T>& x); \
+  template device_matrix<T> d_tanh<T>(const device_matrix<T>& x); \
   template device_matrix<T> softmax<T>(const device_matrix<T>& x); \
+  template device_matrix<T> relu(const device_matrix<T>& x); \
+  template device_matrix<T> is_greater(const device_matrix<T>& x, const T value); \
   template device_matrix<T> MaxPerRow<T>(const device_matrix<T>& A); \
   template T sum_all<T>(const device_matrix<T>& A); \
   template void SubstractMaxPerRow<T>(device_matrix<T>& x);
