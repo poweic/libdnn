@@ -31,15 +31,19 @@ StackedRbm::StackedRbm(const vector<size_t>& dims)
   : _dims(dims), _max_epoch(128), _slope_thres(0.05), _learning_rate(0.1),
   _initial_momentum(0.5), _final_momentum(0.9), _l2_penalty(0.0002) {
 
-    _weights.resize(_dims.size() - 1);
+    this->init();
+}
 
-    for (size_t i=0; i<_weights.size(); ++i) {
-      size_t in = _dims[i] + 1,
-	     out = _dims[i + 1] + 1;
+void StackedRbm::init() {
+  _weights.resize(_dims.size() - 1);
 
-      _weights[i] = randn(in, out) * sqrt(0.1 / out);
-      _weights[i] = ~_weights[i];
-    }
+  for (size_t i=0; i<_weights.size(); ++i) {
+    size_t in = _dims[i] + 1,
+	   out = _dims[i + 1] + 1;
+
+    _weights[i] = randn(in, out) * sqrt(0.1 / out);
+    _weights[i] = ~_weights[i];
+  }
 }
 
 void StackedRbm::setParams(size_t max_epoch, float slope_thres, float learning_rate,

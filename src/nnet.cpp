@@ -34,7 +34,7 @@ NNet::~NNet() {
 mat NNet::feedForward(const mat& fin) const {
   mat output = fin;
 
-  if (_transforms[0]->toString() == "convolution")
+  if (_transforms[0]->toString() == "Convolution")
     output = remove_bias(output);
 
   for (size_t i=0; i<_transforms.size(); ++i) {
@@ -52,7 +52,7 @@ mat NNet::feedForward(const mat& fin) const {
 void NNet::feedForward(mat& fout, const mat& fin) {
 
   mat fin2 = fin;
-  if (_transforms[0]->toString() == "convolution")
+  if (_transforms[0]->toString() == "Convolution")
     fin2 = remove_bias(fin2);
 
   // FIXME SubSamplingLayer does NOT need temporary buffer.
@@ -92,7 +92,7 @@ void NNet::backPropagate(mat& error, const mat& fin, const mat& fout,
   }
 
   mat fin2 = fin;
-  if (_transforms[0]->toString() == "convolution")
+  if (_transforms[0]->toString() == "Convolution")
     fin2 = remove_bias(fin2);
 
   _transforms[0]->backPropagate(error, fin2, _houts[0], learning_rate);
@@ -202,6 +202,15 @@ void NNet::read(const string &fn) {
 	case FeatureTransform::Sigmoid :
 	  f = new Sigmoid;
 	  break;
+	case FeatureTransform::Tanh :
+	  f = new Tanh;
+	  break;
+	case FeatureTransform::ReLU :
+	  f = new ReLU;
+	  break;
+	case FeatureTransform::Softplus :
+	  f = new Softplus;
+	  break;
 	case FeatureTransform::Softmax :
 	  f = new Softmax;
 	  break;
@@ -268,9 +277,7 @@ void NNet::status() const {
     size_t in  = t[i]->getInputDimension(),
 	   out = t[i]->getOutputDimension();
 
-    std::transform(type.begin(), type.end(), type.begin(), ::tolower);
-
-    if (type == "affine")
+    if (type == "Affine")
       ++nHiddens;
 
     // create string for kernel size

@@ -6,9 +6,6 @@
 #include <tools/rapidxml-1.13/rapidxml_utils.hpp>
 using namespace rapidxml;
 
-#define assert_nan(x) { if (hasNAN(x)) \
-  throw std::runtime_error(RED_ERROR + "\33[33m" #x " has NAN inside !!\33[0m");  }
-
 class FeatureTransform {
 public:
   FeatureTransform() { }
@@ -27,7 +24,6 @@ public:
   virtual size_t getInputDimension() const { return _input_dim; }
   virtual size_t getOutputDimension() const { return _output_dim; }
 
-  virtual void status() const = 0;
   virtual size_t getNumParams() const { return 0; }
 
   friend ostream& operator << (ostream& os, FeatureTransform* ft);
@@ -35,6 +31,9 @@ public:
   enum Type {
     Affine,
     Sigmoid,
+    Tanh,
+    ReLU,
+    Softplus,
     Softmax,
     Dropout,
     Convolution,
@@ -50,6 +49,8 @@ protected:
 };
 
 bool isXmlFormat(istream& is);
+float GetNormalizedInitCoeff(size_t fan_in, size_t fan_out,
+    FeatureTransform::Type type);
 
 ostream& operator << (ostream& os, FeatureTransform* ft);
 istream& operator >> (istream& is, FeatureTransform* &ft);
@@ -70,7 +71,6 @@ public:
   virtual void feedBackward(mat& error, const mat& delta);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
-  virtual void status() const;
   virtual size_t getNumParams() const;
 
   mat& get_w();
@@ -91,8 +91,6 @@ public:
   virtual void read(xml_node<> *node);
   virtual void write(ostream& os) const;
 
-  virtual void status() const;
-
   void dropout(mat& fout);
 };
 
@@ -102,6 +100,39 @@ public:
   Sigmoid(size_t input_dim, size_t output_dim);
 
   virtual Sigmoid* clone() const;
+  virtual string toString() const;
+  virtual void feedForward(mat& fout, const mat& fin);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+};
+
+class Tanh : public Activation {
+public:
+  Tanh() {}
+  Tanh(size_t input_dim, size_t output_dim);
+
+  virtual Tanh* clone() const;
+  virtual string toString() const;
+  virtual void feedForward(mat& fout, const mat& fin);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+};
+
+class ReLU : public Activation {
+public:
+  ReLU() {}
+  ReLU(size_t input_dim, size_t output_dim);
+
+  virtual ReLU* clone() const;
+  virtual string toString() const;
+  virtual void feedForward(mat& fout, const mat& fin);
+  virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
+};
+
+class Softplus : public Activation {
+public:
+  Softplus() {}
+  Softplus(size_t input_dim, size_t output_dim);
+
+  virtual Softplus* clone() const;
   virtual string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
@@ -164,8 +195,6 @@ public:
   virtual size_t getInputDimension() const = 0;
   virtual size_t getOutputDimension() const = 0;
 
-  virtual void status() const = 0;
-
   friend ostream& operator << (ostream& os, const MIMOFeatureTransform *ft);
 
   void set_input_img_size(const SIZE& s);
@@ -213,7 +242,6 @@ public:
 
   virtual SIZE get_output_img_size() const;
 
-  virtual void status() const;
   virtual size_t getNumParams() const;
 
   SIZE get_kernel_size() const;
@@ -246,8 +274,6 @@ public:
   virtual size_t getOutputDimension() const;
 
   virtual SIZE get_output_img_size() const;
-
-  virtual void status() const;
 
   size_t getScale() const;
 
