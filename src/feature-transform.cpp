@@ -679,7 +679,7 @@ string ConvolutionalLayer::toString() const {
 
 void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
 
-  auto fins = versplit(fin, getNumInputMaps());
+  auto fins = versplit(fin, getNumInputMaps(), get_input_img_size().area());
 
   size_t nInputs  = getNumInputMaps(),
 	 nOutputs = getNumOutputMaps();
@@ -703,12 +703,15 @@ void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
       fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, VALID_SHM);
   }
 
-  fout = vercat(fouts);
+  // FIXME what if user choose but not sub-sample ???
+  // Secretly reserve one more row for bias, which is needed in DNN.
+  // Also, it'll be ignored by any versplit in CNN::feedForward()
+  fout = vercat(fouts, true);
 }
 
 void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
 
-  vector<mat> deltas = versplit(delta, getNumOutputMaps());
+  vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
 
   // Since nInputs == nOutputs for subsampling layer, I just use N.
   size_t nInputs = getNumInputMaps(),
@@ -726,7 +729,7 @@ void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
     for (size_t j=0; j<nOutputs; ++j)
       errors[i] += convn(deltas[j], rot180(_kernels[i][j]), this->get_output_img_size(), FULL_SHM);
 
-  error = vercat(errors);
+  error = vercat(errors, true);
 }
 
 // NOTE: in MATLAB
@@ -751,13 +754,14 @@ void ConvolutionalLayer::backPropagate(mat& error, const mat& fin,
   // i : # of input  features. i = 0 ~ nInputs - 1 
   // j : # of output features. j = 0 ~ nOutputs - 1
 
-  vector<mat> deltas = versplit(error * learning_rate, nOutputs);
+  vector<mat> deltas = versplit(error * learning_rate, nOutputs,
+      get_output_img_size().area());
 
   this->feedBackward(error, mat(error) );
 
   // iImgs represents the input images.
   vector<vector<mat> > iImgs(nInputs);
-  vector<mat> fins = versplit(fin, nInputs);
+  vector<mat> fins = versplit(fin, nInputs, get_input_img_size().area());
 
   for (size_t i=0; i<nInputs; ++i)
     iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
@@ -862,24 +866,26 @@ SIZE SubSamplingLayer::get_output_img_size() const {
 
 void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
 
-  vector<mat> fins = versplit(fin, getNumInputMaps());
+  vector<mat> fins = versplit(fin, getNumInputMaps(), get_input_img_size().area());
 
   vector<mat> fouts(fins.size());
   for (size_t i=0; i<fouts.size(); ++i)
     fouts[i] = downsample(fins[i], _scale, _input_img_size);
 
-  fout = vercat(fouts);
+  // Secretly reserve one more row for bias, which is needed in DNN.
+  // Also, it'll be ignored by any versplit in CNN::feedForward()
+  fout = vercat(fouts, true);
 }
 
 void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
 
-  vector<mat> deltas = versplit(delta, getNumOutputMaps());
+  vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
 
   vector<mat> errors(deltas.size());
   for (size_t i=0; i<errors.size(); ++i)
     errors[i] = upsample(deltas[i], _input_img_size, get_output_img_size());
 
-  error = vercat(errors);
+  error = vercat(errors, true);
 }
 
 void SubSamplingLayer::backPropagate(mat& error, const mat& fin,

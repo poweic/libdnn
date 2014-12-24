@@ -32,18 +32,10 @@ NNet::~NNet() {
 }
 
 mat NNet::feedForward(const mat& fin) const {
-  mat output = fin;
+  mat output(fin);
 
-  if (_transforms[0]->toString() == "Convolution")
-    output = remove_bias(output);
-
-  for (size_t i=0; i<_transforms.size(); ++i) {
+  for (size_t i=0; i<_transforms.size(); ++i)
     _transforms[i]->feedForward( output, mat(output) );
-
-    // Handle boundary between NNet and DNN, add one more column for DNN.
-    if ( is_cnn_dnn_boundary(i) )
-      output = add_bias(output, 1.0f, true);
-  }
 
   output = remove_bias(output);
   return output;
@@ -51,51 +43,30 @@ mat NNet::feedForward(const mat& fin) const {
 
 void NNet::feedForward(mat& fout, const mat& fin) {
 
-  mat fin2 = fin;
-  if (_transforms[0]->toString() == "Convolution")
-    fin2 = remove_bias(fin2);
-
   // FIXME SubSamplingLayer does NOT need temporary buffer.
   // MAYBE just reserve those for ConvolutionalLayer.
   _houts.resize(_transforms.size() - 1);
 
   if (_houts.size() > 0) {
-    _transforms[0]->feedForward(_houts[0], fin2);
+    _transforms[0]->feedForward(_houts[0], fin);
 
-    for (size_t i=1; i<_transforms.size() - 1; ++i) {
+    for (size_t i=1; i<_transforms.size() - 1; ++i)
       _transforms[i]->feedForward(_houts[i], _houts[i-1]);
-      
-      // Handle boundary between NNet and DNN, add one more column for DNN.
-      if ( is_cnn_dnn_boundary(i) )
-	_houts[i] = add_bias(_houts[i], 1.0f, true);
-    }
 
     _transforms.back()->feedForward(fout, _houts.back());
   }
   else
-    _transforms.back()->feedForward(fout, fin2);
+    _transforms.back()->feedForward(fout, fin);
 }
 
-void NNet::backPropagate(mat& error, const mat& fin, const mat& fout,
-    float learning_rate) {
+void NNet::backPropagate(mat& error, const mat& fin, const mat& fout, float lr) {
 
-  _transforms.back()->backPropagate(error, _houts.back(), fout, learning_rate);
+  _transforms.back()->backPropagate(error, _houts.back(), fout, lr);
 
-  for (int i=_transforms.size() - 2; i >= 1; --i) {
-    _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], learning_rate);
+  for (int i=_transforms.size() - 2; i >= 1; --i)
+    _transforms[i]->backPropagate(error, _houts[i-1], _houts[i], lr);
 
-    // Remove last column, which is bias in DNN.
-    if ( is_cnn_dnn_boundary (i-1) ) {
-      _houts[i-1] = remove_bias(_houts[i-1]);
-      error = remove_bias(error);
-    }
-  }
-
-  mat fin2 = fin;
-  if (_transforms[0]->toString() == "Convolution")
-    fin2 = remove_bias(fin2);
-
-  _transforms[0]->backPropagate(error, fin2, _houts[0], learning_rate);
+  _transforms[0]->backPropagate(error, fin, _houts[0], lr);
 }
 
 void NNet::feedBackward(mat& error, const mat& delta) {
@@ -184,7 +155,6 @@ void NNet::read(const string &fn) {
     rapidxml::xml_document<> doc;
 
     vector<char> buffer((istreambuf_iterator<char>(ss)), istreambuf_iterator<char>());
-    buffer.push_back('\0');
     doc.parse<0>(&buffer[0]);
 
     for (auto node = doc.first_node("transform"); node; node = node->next_sibling()) {

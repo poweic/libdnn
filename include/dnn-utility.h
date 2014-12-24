@@ -127,26 +127,35 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
 }
 
 template <typename T>
-device_matrix<T> vercat(const vector<device_matrix<T> >& matrices) {
+device_matrix<T> vercat(const vector<device_matrix<T> >& matrices, 
+    bool reserve = false) {
+
   size_t rows = matrices[0].getRows(),
 	 cols = matrices[0].getCols();
 
-  mat result(matrices.size() * rows, cols);
+  int R = matrices.size() * rows;
+  int C = cols;
+
+  if (reserve) R += 1;
+
+  mat result(R, C);
   for (size_t i=0; i<matrices.size(); ++i)
     memcpy2D<T>(result, matrices[i], 0, 0, rows, cols, i*rows, 0);
   return result;
 }
 
 /*! \brief vertical split (the inverse function of vercat)
- * 
+ *  versplit will ignore any pre-reserved row in the input matrix (i.e. big)
+ *  Because block_rows is the quotient of two integer, which is always floor.
+ *  (see C++ 6.5.5 Multiplicative operators)
  * \param big		the input matrix
  * \param n_sub_matrix	split into how many sub matrices vertically.
+ * \param block_rows    # of rows in each sub matrices
  *
  * */
 template <typename T>
-vector<device_matrix<T> > versplit(const device_matrix<T>& big, size_t n_sub_matrix) {
-
-  size_t block_rows = big.getRows() / n_sub_matrix;
+vector<device_matrix<T> > versplit(const device_matrix<T>& big,
+    size_t n_sub_matrix, size_t block_rows) {
 
   vector<device_matrix<T> > blocks(n_sub_matrix);
   for (size_t i=0; i<n_sub_matrix; ++i) {
