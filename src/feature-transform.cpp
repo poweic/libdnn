@@ -484,24 +484,21 @@ string Dropout::toString() const {
 }
 
 void Dropout::feedForward(mat& fout, const mat& fin) {
-  if (!_dropout) {
-    fout = fin * (1 - _dropout_ratio);
-    return;
-  }
-
-  if (_dropout_ratio == 0) {
+  if (!_dropout or _dropout_ratio == 0) {
     fout = fin;
     return;
   }
 
-  _dropout_mask = mat(fin.getRows(), fin.getCols(), 1 - _dropout_ratio);
+  float r = 1 - _dropout_ratio;
+  _dropout_mask = mat(fin.getRows(), fin.getCols(), r);
   sample(_dropout_mask, BERNOULLI);
-  fout = _dropout_mask & fin;
+  fout = (_dropout_mask & fin) * (1 / r);
 }
 
 void Dropout::backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) {
+  float r = 1 - _dropout_ratio;
   if (_dropout_ratio != 0)
-    error &= _dropout_mask;
+    error &= _dropout_mask * (1 / r);
 }
 
 /*!

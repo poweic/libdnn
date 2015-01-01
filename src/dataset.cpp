@@ -23,12 +23,12 @@ using namespace std::placeholders;
 DataSet::DataSet(): _normalizer(nullptr) {
 }
 
-DataSet::DataSet(const string &fn, size_t dim, int base, NormType n_type)
+DataSet::DataSet(const string &fn, size_t dim, int base, NormType n_type, string norm_file)
   : _dim(dim), _base(base), _normalizer(nullptr) {
     if (fn.empty())
       throw std::runtime_error(RED_ERROR + "No filename provided.");
     this->_stream = DataStream::create(fn, 0, -1);
-    this->setNormType(n_type);
+    this->setNormType(n_type, norm_file);
 }
 
 void DataSet::init(const string &fn, size_t dim, int base, size_t start, size_t end) {
@@ -64,22 +64,27 @@ void DataSet::loadPrecomputedStatistics(string fn) {
   _normalizer->load(fn);
 }
 
-void DataSet::setNormType(NormType type) {
+void DataSet::setNormType(NormType type, string norm_file) {
 
   _type = type;
+
   switch (_type) {
     case NO_NORMALIZATION: break;
     case LINEAR_SCALING:
-      clog << "\33[34m[Info]\33[0m Rescale to [0, 1] linearly" << endl;
       _normalizer = new ZeroOne();
-      _normalizer->stat(*this);
       break;
     case STANDARD_SCORE:
-      clog << "\33[34m[Info]\33[0m Normalize to standard score" << endl;
       _normalizer = new StandardScore();
-      _normalizer->stat(*this);
       break;
   }
+
+  if (!_normalizer) 
+    return;
+
+  if (norm_file.empty())
+    _normalizer->stat(*this);
+  else
+    _normalizer->load(norm_file);
 }
 
 size_t DataSet::size() const {
@@ -88,11 +93,11 @@ size_t DataSet::size() const {
 
 void DataSet::showSummary() const {
 
-  printf(".______________________________._________.\n");
-  printf("|                              |         |\n");
-  printf("| # of input features (data)   | %7lu |\n", this->size());
-  printf("| Dimension of input features  | %7lu |\n", _dim);
-  printf("|______________________________|_________|\n");
+  fprintf(stderr, ".______________________________._________.\n");
+  fprintf(stderr, "|                              |         |\n");
+  fprintf(stderr, "| # of input features (data)   | %7lu |\n", this->size());
+  fprintf(stderr, "| Dimension of input features  | %7lu |\n", _dim);
+  fprintf(stderr, "|______________________________|_________|\n");
 
 }
 
@@ -119,16 +124,14 @@ BatchData DataSet::operator [] (const Batches::iterator& b) {
 
 void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ratio) {
 
-  size_t nLines = data.size();
-  
-  size_t nValid = nLines / ratio,
-	 nTrain = nLines - nValid;
+  size_t nValid = data.size() / ratio;
+  size_t nTrain = data.size() - nValid;
 
   train = data;
   valid = data;
 
-  train._stream = DataStream::create(data._stream->get_filename(), 0, nTrain);
-  valid._stream = DataStream::create(data._stream->get_filename(), nTrain, -1);
+  train._stream->init(0, nTrain);
+  valid._stream->init(nTrain, -1);
 }
 
 void DataSet::setLabelBase(int base) {
@@ -148,7 +151,9 @@ void DataSet::rewind() {
  * Class StandardScore (inherited from Normalization)
  */
 
-StandardScore::StandardScore() {}
+StandardScore::StandardScore() {
+  clog << "\33[34m[Info]\33[0m Normalize to standard score" << endl;
+}
 
 StandardScore::StandardScore(const StandardScore& src):
   _mean(src._mean), _dev(src._dev) {
@@ -225,23 +230,24 @@ Normalization* StandardScore::clone() const {
 }
 
 void StandardScore::print(FILE* fid) const {
-  // fprintf(fid, "_mean = [ ");
-  for (size_t i=0; i<_mean.size(); ++i)
-    fprintf(fid, "%.14e ", _mean[i]); 
+  fprintf(fid, "%.7e", _mean[0]);
+  for (size_t i=1; i<_mean.size(); ++i)
+    fprintf(fid, " %.7e", _mean[i]); 
   fprintf(fid, "\n");
-  //fprintf(fid, "];\n");
 
-  // fprintf(fid, "_dev = [ ");
-  for (size_t i=0; i<_dev.size(); ++i)
-    fprintf(fid, "%.14e ", _dev[i]); 
-  // fprintf(fid, "];");
+  fprintf(fid, "%.7e", _dev[0]);
+  for (size_t i=1; i<_dev.size(); ++i)
+    fprintf(fid, " %.7e", _dev[i]); 
+  fprintf(fid, "\n");
 }
 
 /*
  * Class ZeroOne (inherited from Normalization)
  */
 
-ZeroOne::ZeroOne() {}
+ZeroOne::ZeroOne() {
+  clog << "\33[34m[Info]\33[0m Rescale to [0, 1] linearly" << endl;
+}
 
 ZeroOne::ZeroOne(const ZeroOne& src): _min(src._min), _max(src._max) {}
 
@@ -311,14 +317,13 @@ Normalization* ZeroOne::clone() const {
 }
 
 void ZeroOne::print(FILE* fid) const {
-  fprintf(fid, "_min = [ ");
-  for (size_t i=0; i<_min.size(); ++i)
-    fprintf(fid, "%.14e ", _min[i]); 
-  fprintf(fid, "];\n");
+  fprintf(fid, "%.7e", _min[0]);
+  for (size_t i=1; i<_min.size(); ++i)
+    fprintf(fid, " %.7e", _min[i]); 
+  fprintf(fid, "\n");
 
-  fprintf(fid, "_max = [ ");
-  for (size_t i=0; i<_max.size(); ++i)
-    fprintf(fid, "%.14e ", _max[i]); 
-  fprintf(fid, "];");
+  fprintf(fid, "%.7e", _max[0]);
+  for (size_t i=1; i<_max.size(); ++i)
+    fprintf(fid, " %.7e", _max[i]); 
+  fprintf(fid, "\n");
 }
-

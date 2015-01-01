@@ -86,12 +86,12 @@ int main (int argc, char* argv[]) {
   DataSet train, valid;
 
   if ((valid_fn.empty() or valid_fn == "-" ) && ratio != 0) {
-    DataSet data(train_fn, input_dim, base, n_type);
+    DataSet data(train_fn, input_dim, base, n_type, n_filename);
     DataSet::split(data, train, valid, ratio);
   }
   else {
-    train = DataSet(train_fn, input_dim, base, n_type);
-    valid = DataSet(valid_fn, input_dim, base, n_type);
+    train = DataSet(train_fn, input_dim, base, n_type, n_filename);
+    valid = DataSet(valid_fn, input_dim, base, n_type, n_filename);
   }
 
   train.showSummary();
@@ -170,6 +170,8 @@ void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
     float validAcc = 1.0f - (float) Eouts[epoch] / nValid;
+
+    // nnet.save(model_out + "." + to_string(epoch));
 
     printf("|%4lu   | %6.2f %% |  %7lu     | %6.2f %% |  %7lu     |  %8.2f |\n",
       epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eouts[epoch],

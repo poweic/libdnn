@@ -81,12 +81,15 @@ int main (int argc, char* argv[]) {
   bool prior = !prior_fn.empty();
 
   // Load data from file
-  DataSet test(test_fn, input_dim, base, n_type);
+  DataSet test(test_fn, input_dim, base, n_type, n_filename);
+  test.showSummary();
 
   // Load model from file
   NNet nnet(model_fn);
   if (!silent)
     nnet.status();
+
+  nnet.setDropout(false);
 
   size_t nError = 0;
 
@@ -118,6 +121,7 @@ int main (int argc, char* argv[]) {
 	if (prior)
 	  prob = exp(log(prob) - log_priors);
 
+	prob = ~prob;
 	prob.print(fid, 7);
 	break;
 
@@ -126,6 +130,7 @@ int main (int argc, char* argv[]) {
 	if (prior)
 	  prob -= log_priors;
 
+	prob = ~prob;
 	prob.print(fid, 7);
 	break;
 
@@ -150,6 +155,9 @@ mat getPriorProbability(const string& fn) {
   clog << util::blue("[INFO] ") << "Load prior prob from: " << util::green(fn) << endl;
 
   mat prior(fn);
+  if (prior.getCols() == 1)
+    prior = ~prior;
+
   double sum = ((hmat) (prior * mat(prior.getCols(), 1, 1)))[0];
   return prior / sum;
 }

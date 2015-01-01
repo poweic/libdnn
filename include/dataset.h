@@ -32,7 +32,7 @@ class Normalization;
 class DataSet {
 public:
   DataSet();
-  DataSet(const string &fn, size_t dim, int base, NormType n_type);
+  DataSet(const string &fn, size_t dim, int base, NormType n_type, string norm_file = "");
 
   void init(const string &fn, size_t dim, int base, size_t start, size_t end);
 
@@ -42,7 +42,7 @@ public:
   DataSet& operator = (DataSet that);
 
   void loadPrecomputedStatistics(string fn);
-  void setNormType(NormType type);
+  void setNormType(NormType type, string norm_file);
 
   void setLabelBase(int base);
   void rewind();

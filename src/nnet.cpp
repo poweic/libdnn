@@ -141,7 +141,7 @@ void NNet::read(const string &fn) {
   if (!fin.is_open())
     throw std::runtime_error(RED_ERROR + "Cannot load file: " + fn);
 
-  printf("\33[34m[Info]\33[0m Reading model from \33[32m%s\33[0m\n", fn.c_str());
+  clog << "\33[34m[Info]\33[0m Reading model from \33[32m" << fn << "\33[0m" << endl;
 
   stringstream ss;
   ss << fin.rdbuf() << '\0';
