@@ -739,7 +739,7 @@ void ConvolutionalLayer::backPropagate(mat& error, const mat& fin,
 
   auto delta = error * learning_rate;
 
-  this->feedBackward(error, mat(error) );
+  this->feedBackward(error, mat(error));
   this->update_kernel(fin, delta);
   this->update_bias(delta);
 }
@@ -826,32 +826,8 @@ SIZE SubSamplingLayer::get_output_img_size() const {
   return _input_img_size / _scale;
 }
 
-void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
-
-  vector<mat> fins = versplit(fin, getNumInputMaps(), get_input_img_size().area());
-
-  vector<mat> fouts(fins.size());
-  for (size_t i=0; i<fouts.size(); ++i)
-    fouts[i] = downsample(fins[i], _scale, _input_img_size);
-
-  // Secretly reserve one more row for bias, which is needed in DNN.
-  // Also, it'll be ignored by any versplit in CNN::feedForward()
-  fout = vercat(fouts, true);
-}
-
-void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
-
-  vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
-
-  vector<mat> errors(deltas.size());
-  for (size_t i=0; i<errors.size(); ++i)
-    errors[i] = upsample(deltas[i], _input_img_size, get_output_img_size());
-
-  error = vercat(errors, true);
-}
-
 void SubSamplingLayer::backPropagate(mat& error, const mat& fin,
     const mat& fout, float learning_rate) {
   // Copy errors element by element to deltas
-  this->feedBackward(error, error);
+  this->feedBackward(error, mat(error));
 }

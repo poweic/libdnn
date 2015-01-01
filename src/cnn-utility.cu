@@ -678,6 +678,48 @@ __global__ void upsample_kernel(float *dst, float *src, int h, int w, int H, int
   dst[y * H + x] = src[sy * h + sx];
 }
 
+void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
+
+  SIZE imgIn = this->get_input_img_size();
+  SIZE imgOut = this->get_output_img_size();
+
+  ALLOCATE_GRIDS_AND_THREADS(imgOut.m, imgOut.n);
+  grids.z = getNumOutputMaps();
+
+  fout.resize(imgOut.area() * getNumOutputMaps() + 1, fin.getCols());
+  
+  for (size_t i=0; i<fin.getCols(); ++i) {
+    downsample_kernel<<<grids, threads>>>(
+	fout.getData() + i * fout.getRows(),
+	fin.getData() + i * fin.getRows(),
+	_scale, imgIn.m, imgIn.n);
+  }
+  CCE(cudaDeviceSynchronize());
+}
+
+void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
+  
+  assert(&delta != &error);
+
+  SIZE imgIn = this->get_input_img_size();
+  SIZE imgOut = this->get_output_img_size();
+
+  ALLOCATE_GRIDS_AND_THREADS(imgIn.m, imgIn.n);
+  grids.z = getNumInputMaps();
+
+  error.resize(imgIn.area() * getNumInputMaps() + 1, delta.getCols());
+
+  for (size_t i=0; i<delta.getCols(); ++i) {
+    // errors[i] = upsample(deltas[i], _input_img_size, get_output_img_size());
+
+    upsample_kernel<<<grids, threads>>>(
+	error.getData() + i * error.getRows(),
+	delta.getData() + i * delta.getRows(),
+	imgOut.m, imgOut.n, imgIn.m, imgIn.n);
+  }
+  CCE(cudaDeviceSynchronize());
+}
+
 mat downsample(const mat& x, size_t scale, SIZE s) {
   int batch_size = x.getCols();
 
