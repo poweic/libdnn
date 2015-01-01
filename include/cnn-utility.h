@@ -1,3 +1,6 @@
+#ifndef _CNN_UTILITY_H_
+#define _CNN_UTILITY_H_
+
 #include <dnn-utility.h>
 #include <iomanip>
 
@@ -58,10 +61,10 @@ __global__ void upsample_kernel(float *dst, float *src, size_t scale, int H, int
 SIZE get_convn_size(SIZE data, SIZE kernel, ConvType type = FULL);
 SIZE get_convn_size(const mat& data, const mat& kernel, ConvType type = FULL);
 
-mat convn_2(const mat& data, const mat& kernel, SIZE k);
+mat convn_2(const mat& data, const mat& kernels, size_t i, size_t batch_idx, size_t N, SIZE imgIn, SIZE imgOut);
 mat convn(const mat& data, const mat& kernel, SIZE s, ConvType type);
 mat convn(const mat& data, const mat& kernel, ConvType type = FULL);
-// mat xcorrn(const mat& data, const mat& kernel, ConvType type = FULL);
+
 mat cross_convn(const mat& dataIn, const mat& dataOut, SIZE imgIn, SIZE imgOut, ConvType type);
 
 vector<mat> de_concat(const mat& concated_features, int n);
@@ -72,3 +75,5 @@ mat downsample(const mat& x, size_t scale, SIZE s);
 mat upsample(const mat& x, SIZE s, SIZE img);
 
 mat rot180(const mat& x);
+
+#endif // _CNN_UTILITY_H_

@@ -12,10 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <feature-transform.h>
 #include <cnn-utility.h>
 #include <cuda_profiler_api.h>
 #define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
 #define MAX_SHARED_MEMORY_SIZE (48 * 1024)
+
+#define VECTOR std::vector
+#define WHERE std
+#include <operators.inl>
+#undef VECTOR
+#undef WHERE
 
 #define __CUDA_CONSTANTS__ \
   const int nThreads = blockDim.x * blockDim.y;\
@@ -165,7 +172,8 @@ __global__ void convn_valid_kernel_with_shm2(float *output, const float *data,
 
     if (xx >= W || yy >= H) continue;
 
-    D[id] = data[ xx * H + yy ];
+    // rotate data 180 degree
+    D[id] = data[ (W - 1 - xx) * H + (H - 1 - yy) ];
   }
   __syncthreads();
 
@@ -175,7 +183,7 @@ __global__ void convn_valid_kernel_with_shm2(float *output, const float *data,
       sum += K[ i * kH + j ] * D[ (tx + i) * HEIGHT_STEP + (ty + j) ]; 
 
   if (x < vW && y < vH)
-    output[ x * vH + y ] = sum;
+    output[ x * vH + y ] += sum;
 } 
 
 __global__ void convn_valid_kernel_with_shm(float *output, const float *data,
@@ -421,35 +429,46 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
   return SHM_SIZE;
 }
 
-// Single data with Multiple kernels
-mat convn_2(const mat& data, const mat& kernels, SIZE k) {
+void ConvolutionalLayer::update_bias(const mat& delta) {
 
-  SIZE d(data.getRows(), data.getCols());
+  vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
+  for (size_t j=0; j<getNumOutputMaps(); ++j) 
+    _bias[j] -= sum_all(deltas[j]);
+}
 
-  SIZE imgOut = get_convn_size(d, k, VALID_SHM);
+void ConvolutionalLayer::update_kernel(const mat& fin, const mat& delta) {
 
-  if ( kernels.getRows() != k.m * k.n )
-    throw std::runtime_error(RED_ERROR + DEBUG_STR(data.getRows()) + DEBUG_STR(k.m) + DEBUG_STR(k.n));
+  size_t batch_size = fin.getCols();
 
-  // i.e. batch_size
-  int N = kernels.getCols();
+  size_t nInputs = getNumInputMaps();
+  size_t nOutputs = getNumOutputMaps();
 
-  mat output(imgOut.m * imgOut.n, N);
+  SIZE kernel = this->get_kernel_size();
+  SIZE imgIn = this->get_input_img_size();
+  SIZE imgOut = this->get_output_img_size();
 
-  ALLOCATE_GRIDS_AND_THREADS(imgOut.n, imgOut.m);
-  grids.z = N;
+  // Update kernels with learning rate
+  vector<mat> Z(nInputs, mat(kernel.area(), nOutputs, 0));
 
-  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, k.m, k.n);
+  ALLOCATE_GRIDS_AND_THREADS(kernel.n, kernel.m);
+  grids.z = nOutputs;
 
-  convn_valid_kernel_with_shm2<<< grids, threads, SHM_SIZE, 0 >>>(
-      output.getData(),
-      data.getData(),
-      kernels.getData(),
-      d.m, d.n, k.m, k.n);
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, imgOut.m, imgOut.n);
 
-  CCE(cudaPeekAtLastError());
+  for (size_t i=0; i<nInputs; ++i)
+    for (size_t b=0; b<batch_size; ++b) {
 
-  return output;
+      convn_valid_kernel_with_shm2<<< grids, threads, SHM_SIZE, 0 >>>(
+	  Z[i].getData(),
+	  fin.getData() + i * imgIn.area() + b * fin.getRows(),
+	  delta.getData() + b * delta.getRows(),
+	  imgIn.m, imgIn.n, imgOut.m, imgOut.n);
+
+      CCE(cudaPeekAtLastError());
+    }
+
+  for (size_t i=0; i<nInputs; ++i)
+    _kernels[i] -= reshapeVectors2Images(Z[i], this->get_kernel_size());
 }
 
 /* \brief compute convolution of a batch of data with a kernel.

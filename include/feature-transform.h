@@ -238,6 +238,9 @@ public:
   virtual void feedBackward(mat& errors, const mat& deltas);
   virtual void backPropagate(mat& errors, const mat& fins, const mat& fouts, float learning_rate);
 
+  void update_kernel(const mat& fin, const mat& delta);
+  void update_bias(const mat& delta);
+
   virtual size_t getInputDimension() const;
   virtual size_t getOutputDimension() const;
 

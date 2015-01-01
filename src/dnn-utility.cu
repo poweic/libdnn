@@ -416,11 +416,14 @@ device_matrix<T> softmax(const device_matrix<T>& x_t) {
  */
 template <typename T>
 T sum_all(const device_matrix<T>& x) {
-  int r = x.getRows(),
+  /*int r = x.getRows(),
       c = x.getCols();
 
   mat d_s = mat(1, r, 1) * x * mat(c, 1, 1);
-  return hmat(d_s)[0];
+  return hmat(d_s)[0];*/
+
+  thrust::device_ptr<T> ptr(x.getData());
+  return thrust::reduce(ptr, ptr + x.size());
 }
 
 /* \brief Explicit instantiation definition of template functions

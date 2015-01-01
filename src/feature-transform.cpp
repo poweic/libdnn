@@ -18,12 +18,6 @@
 #define CSE(x) { if (!(x)) \
   throw std::runtime_error(RED_ERROR + "Failed when executing \33[33m"#x"\33[0m"); }
 
-#define VECTOR std::vector
-#define WHERE std
-#include <operators.inl>
-#undef VECTOR
-#undef WHERE
-
 std::map<FeatureTransform::Type, string> FeatureTransform::type2token = {
   {FeatureTransform::Affine, "Affine"},
   {FeatureTransform::Sigmoid, "Sigmoid"},
@@ -743,40 +737,11 @@ void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
 void ConvolutionalLayer::backPropagate(mat& error, const mat& fin,
     const mat& fout, float learning_rate) {
 
-  size_t batch_size = fin.getCols();
-  size_t nInputs = getNumInputMaps();
-  size_t nOutputs = getNumOutputMaps();
-
-  // In the following codes, the iteration index i and j stands for
-  // i : # of input  features. i = 0 ~ nInputs - 1 
-  // j : # of output features. j = 0 ~ nOutputs - 1
-
-  vector<mat> deltas = versplit(error * learning_rate, nOutputs,
-      get_output_img_size().area());
+  auto delta = error * learning_rate;
 
   this->feedBackward(error, mat(error) );
-
-  // iImgs represents the input images.
-  vector<vector<mat> > iImgs(nInputs);
-  vector<mat> fins = versplit(fin, nInputs, get_input_img_size().area());
-
-  for (size_t i=0; i<nInputs; ++i)
-    iImgs[i] = reshapeVectors2Images(fins[i], _input_img_size);
-
-  auto Y = reshapeVectors2Images(vercat(deltas), SIZE(deltas[0].getRows(), nOutputs));
-
-  // Update kernels with learning rate
-  vector<mat> Z(nInputs, mat(this->get_kernel_size().area(), nOutputs, 0));
-
-  for (size_t i=0; i<nInputs; ++i)
-    for (size_t k=0; k<batch_size; ++k)
-      Z[i] += convn_2(rot180(iImgs[i][k]), Y[k], this->get_output_img_size());
-
-  for (size_t i=0; i<nInputs; ++i)
-    _kernels[i] -= reshapeVectors2Images(Z[i], this->get_kernel_size());
-
-  for (size_t j=0; j<nOutputs; ++j)
-    _bias[j] -= sum_all(deltas[j]);
+  this->update_kernel(fin, delta);
+  this->update_bias(delta);
 }
 
 size_t ConvolutionalLayer::getInputDimension() const {
