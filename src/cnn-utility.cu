@@ -99,22 +99,13 @@ void showImage(const mat& x) {
 }
 
 SIZE parseImageDimension(const string &m_by_n) {
-  size_t pos = m_by_n.find("x");
+  vector<size_t> dims = splitAsInt(m_by_n, 'x');
 
-  if (pos == string::npos)
+  if (dims.size() < 2)
     throw std::runtime_error(RED_ERROR + "For convolutional neural network, "
 	"please use --input-dim like this: 32x32");
 
-  return SIZE(str2int(m_by_n.substr(0, pos)), str2int(m_by_n.substr(pos+1)));
-}
-
-size_t parseInputDimension(const string &input_dim) {
-  if (input_dim.find("x") == string::npos)
-    return str2int(input_dim);
-  else {
-    SIZE imgSize = parseImageDimension(input_dim);
-    return imgSize.m * imgSize.n;
-  }
+  return SIZE(dims[0], dims[1]);
 }
 
 __device__ void load_kernel_into_shm(float* const K, const float* const kernel,
@@ -699,7 +690,9 @@ void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
 	delta.getData() + i * delta.getRows(),
 	imgOut.m, imgOut.n, imgIn.m, imgIn.n);
 
-  error *= 1 / (_scale * _scale);
+  // FIXME With this, CNN will need much more epochs to converge.
+  // I have no idea why.
+  // error *= 1 / (_scale * _scale);
 
   CCE(cudaDeviceSynchronize());
 }

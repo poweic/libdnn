@@ -81,4 +81,6 @@ void linearRegression(const std::vector<float> &x, const std::vector<float>& y, 
 
 void showAccuracy(size_t nError, size_t nTotal);
 
+size_t parseInputDimension(const string &input_dim);
+
 #endif

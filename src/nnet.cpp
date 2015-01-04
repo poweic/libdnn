@@ -73,14 +73,17 @@ void NNet::feedBackward(mat& error, const mat& delta) {
   // TODO
 }
 
-void NNet::init(const string &structure, SIZE img_size) {
+void NNet::init(const string &structure) {
 
   // Parse structure
   vector<string> layers = split(structure, '-');
 
-  size_t nInputMaps = 1;
+  // First token in layers is [# of input images]x[height]x[width], like 3x64x64
+  auto input_dims = splitAsInt(layers[0], 'x');
+  size_t nInputMaps = input_dims[0];
+  SIZE img_size(input_dims[1], input_dims[2]);
 
-  for (size_t i=0; i<layers.size(); ++i) {
+  for (size_t i=1; i<layers.size(); ++i) {
 
     if (layers[i].find("s") != string::npos) { // "s" means sub-sampling
       size_t scale = str2int(layers[i].substr(0, layers[i].size() - 1));

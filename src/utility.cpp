@@ -92,3 +92,10 @@ void showAccuracy(size_t nError, size_t nTotal) {
   size_t nCorr = nTotal - nError;
   printf("Accuracy = %.2f%% ( %lu / %lu ) \n", (float) nCorr / nTotal * 100, nCorr, nTotal);
 }
+
+size_t parseInputDimension(const string &input_dim) {
+  size_t dim = 1;
+  for (auto d : splitAsInt(input_dim, 'x'))
+    dim *= d;
+  return dim;
+}

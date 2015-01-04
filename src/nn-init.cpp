@@ -92,11 +92,14 @@ int main (int argc, char* argv[]) {
   // If it's convolutional neural network, there's a "x" in string structure
   if (structure.find("x") != string::npos) {
 
-    SIZE imgSize = parseImageDimension((string) cmd["--input-dim"]);
+    string input_dim = cmd["--input-dim"];
 
-    structure += "-" + to_string(output_dim);
+    // If there's only one 'x' in --input-dim like 64x64, change it to 1x64x64
+    if (std::count(input_dim.begin(), input_dim.end(), 'x') == 1)
+      input_dim = "1x" + input_dim;
+
     NNet nnet;
-    nnet.init(structure, imgSize);
+    nnet.init(input_dim + "-" + structure + "-" + to_string(output_dim));
     nnet.save(model_fn);
 
   }
