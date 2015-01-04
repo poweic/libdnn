@@ -38,6 +38,8 @@ enum ERROR_MEASURE {
   CROSS_ENTROPY
 };
 
+void SetGpuCardId(size_t card_id);
+
 /*#include <sys/stat.h>
 long getFileSize(std::string filename) {
   struct stat stat_buf;

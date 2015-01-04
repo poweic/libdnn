@@ -65,9 +65,10 @@ int main (int argc, char* argv[]) {
      .add("--l2-penalty", "L2 penalty", "0.0002");
 
   cmd.addGroup("Hardward options:")
+     .add("--card-id", "Specify which GPU card to use", "0")
      .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
 
-  cmd.addGroup("Example usage: dnn-init data/train3.dat --struct=16-8");
+  cmd.addGroup("Example usage: nn-init train.dat --input-dim 123 -o init.xml --struct=16-8");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
@@ -80,8 +81,10 @@ int main (int argc, char* argv[]) {
   string structure  = cmd["--struct"];
   size_t output_dim = cmd["--output-dim"];
 
+  size_t card_id    = cmd["--card-id"];
   size_t cache_size = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
+  SetGpuCardId(card_id);
 
   if (output_dim == 0)
     output_dim = AskUserForOutputDimension();

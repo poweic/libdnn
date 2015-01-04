@@ -42,17 +42,18 @@ int main (int argc, char* argv[]) {
 
   cmd.addGroup("Options:")
     .add("--acc", "calculate prediction accuracy", "true")
-    .add("--prior", "prior probability for each classes.", "")
-    .add("--output", "output posterior probabilities if true\n"
-	"0 -- Do not output posterior probabilities. Output class-id.\n"
+    .add("--prior", "Load prior probability for each classes from file.", "")
+    .add("--output", "Output type\n"
+	"0 -- Do not output posterior probabilities. Output class-id only.\n"
 	"1 -- Output posterior probabilities. (range in [0, 1]) \n"
-	"2 -- Output natural log of posterior probabilities. (range in [-inf, 0])", "0")
+	"2 -- Output natural log of posterior probabilities. (range in (-inf, 0])", "0")
     .add("--silent", "Suppress all log messages", "false");
 
   cmd.addGroup("Hardward options:")
+     .add("--card-id", "Specify which GPU card to use", "0")
      .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
 
-  cmd.addGroup("Example usage: dnn-predict test3.dat train3.dat.model");
+  cmd.addGroup("Example usage: nn-predict test.dat train.dat.xml --input-dim 123");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
@@ -68,10 +69,12 @@ int main (int argc, char* argv[]) {
 
   int output_type   = cmd["--output"];
   bool silent	    = cmd["--silent"];
-  bool calcAcc	    = cmd["--acc"];
+  bool calc_acc	    = cmd["--acc"];
 
-  size_t cache_size   = cmd["--cache"];
+  size_t card_id    = cmd["--card-id"];
+  size_t cache_size = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
+  SetGpuCardId(card_id);
 
   // Parse Input dimension.
   size_t input_dim  = parseInputDimension((string) cmd["--input-dim"]);
@@ -103,10 +106,10 @@ int main (int argc, char* argv[]) {
 
     mat prob = nnet.feedForward(x);
 
-    if (calcAcc && !silent)
+    if (calc_acc && !silent)
       nError += zeroOneError(prob, data.y);
 
-    if (calcAcc && output_fn.empty() && output_type == 0)
+    if (calc_acc && output_fn.empty() && output_type == 0)
       continue;
 
     if (prior && log_priors.getRows() != prob.getRows())
@@ -142,7 +145,7 @@ int main (int argc, char* argv[]) {
   if (fid != stdout)
     fclose(fid);
 
-  if (calcAcc && !silent)
+  if (calc_acc && !silent)
     showAccuracy(nError, test.size());
 
   return 0;
