@@ -1,10 +1,12 @@
 #!/bin/bash -e
 
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
 # Example 1: random initialization
-TRAIN=data/a1a.train.dat
-TEST=data/a1a.test.dat
-init_model=model/a1a.xml
-model=model/a1a.mature.xml
+TRAIN=$DIR/data/a1a.train.dat
+TEST=$DIR/data/a1a.test.dat
+init_model=$DIR/model/a1a.xml
+model=$DIR/model/a1a.mature.xml
 
 opts="--input-dim 123"
 

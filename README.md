@@ -1,171 +1,11 @@
-libdnn
-======
-（下面有中文說明）
-
-[libdnn](https://github.com/botonchou/libdnn) is a lightweight, user-friendly, and readable C++ library for deep learning, which allows researchers, developers, or anyone interested in it to harness and experience the power of deep learning.
-
-## Features
-- lightweight, user-friendly, and readable
-- support data in [LibSVM](http://www.csie.ntu.edu.tw/~cjlin/libsvm/) format
-- deep neural network (DNN)
-- convolutional neural network (CNN)
-- dropout, sigmoid, tanh, ReLU and [other nonlinearities ...](https://github.com/botonchou/libdnn/wiki/XML-model#changing-activation-functions)
-- model in [XML format](https://github.com/botonchou/libdnn/wiki/XML-model)
-- recurrent neural network (RNN, under development)
-
-DNN and CNN are powerful machine learning algorithms, which have shown significant success on numerous difficult supervised ML tasks in
-- Speech Recognition
-- Pattern Recognition and Computer Vision (CV)
-- Natural Language Processing (NLP)
-
-## Prerequisite
-You need
-- **g++** (>= 4.6)
-- **an NVIDIA GPU**
-- **Linux/Unix** 
-- **[NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit)** (>= CUDA 5.0) with CUDA Samples  
-(If you don't know how to install CUDA, please go check [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions))
-
-I use **Ubuntu 14.04** and **NVIDIA GTX-660**. (Mac OS X should be fine, but not tested yet.)
-
-## Quick Start
-
-Before you install, you should be able to run `g++`, `nvcc` and have your
- environment variable `PATH` and `LD_LIBRARY_PATH` set.
-If you feel that you have little doubt about what I'm talking about, I refer you to go through
- [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
-
-### Install
-1. `git clone https://github.com/botonchou/libdnn.git`
-2. `cd libdnn/`
-3. `./install-sh`
-
-### Examples
-
-There're 4 example scripts in `example/`, you should give it a try:
-- `./example1.sh`
-- `./example2.sh`
-- `./example3.sh`
-- `./example4.sh`
-
-Alternatively, you can run all of them by `./go_all.sh`
-
-### Prepare your data
-
-#### Training data and testing data
-
-In general, you'll need two data, training data (with labels) and test data (optionally labelled).
-Of course, you can always split your data into two, using a ratio about 5:1 or something like that (5 for training, 1 for testing). If you just want to play around but without your own data, you can simply run through the **example** provided above or download some from the [LibSVM website](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/). 
-
-#### Data Format
-The data can be provided either in sparse (like those in LibSVM) or in dense format.
-
-##### Sparse Format (like LibSVM):
-```
--1 5:1 6:1 15:1 22:1 36:1 42:1
-+1 3:1 6:1 17:1 19:1 39:1 42:1
--1 5:1 7:1 14:1 22:1 36:1 40:1
--1 1:1 6:1 17:1 22:1 36:1 42:1
-+1 4:1 6:1 14:1 29:1 39:1 42:1
--1 3:1 6:1 15:1 22:1 36:1 42:1
-+1 5:1 6:1 15:1 22:1 36:1 40:1
-```
-
-Each row is one data (**label** + **feature vector**). In this case, 7 rows means 7 feature vector (e.g. 7 patients)
-The first column of each row are the labels (e.g., 1 for cancer, -1 for no cancer) , and the rest are feature vectors (e.g., the height and the weight of a patient) in the sparse format. Take the first row for example: `-1 5:1 6:1 15:1 22:1 36:1 42:1`, **-1** is the label. The **n**:**x** format means the value of **n**-th dimension of this vector is **x**. In this example, it's a vector consists most of 0 with only few exceptions at 5, 6, 15, 22, 36, 42.
-
-##### Dense Format:
-
-```
--1 0 0 0 0 1 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
-+1 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1
--1 0 0 0 0 1 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0
--1 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
-+1 0 0 0 1 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 1
--1 0 0 1 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
-+1 0 0 0 0 1 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0
-```
-You can also store the data in a dense format, this is the same data as the above (but in dense format).
-
-## How to Use ?
-There're mainly 3 programs:
-
-1. nn-init
-2. nn-train
-3. nn-predict
-
-### nn-init
-```
-nn-init [options] [training_data] -o model_out
-```
-This program will initialize a new neural network model (in XML format) in three ways:
-
-0. random initialization
-1. Bernoulli-Bernoulli RBM
-2. Gaussian-Bernoulli RBM
-
-(see command line option `--type` for more detail)
-
-For example:
-```
-nn-init --input-dim 600 --struct 1024-1024 --output-dim 12 train.dat -o train.init.xml
-```
-where `--input-dim` stands for the dimensional of input feature vector, `--output-dim` is the number of target classes to predict.
-In this example, `nn-init` will built you a new neural network model of the structure `600-1024-1024-12`, and save the model as `train.init.xml`.
-
-You can also initialize a Convolutional Nerual Network like this:
-```
-nn-init --input-dim 32x24 --struct 20x5x5-2s-10x3x3-2s-512-512 --output-dim 10
-```
-Here, `32x24` (in `hxw` format) means an input image of `32` pixels in height by `24` pixels wide, and `20x5x5-2s-10x3x3-2s-512-512` means:
-
-|  Token  | Explanation |
-|:-------:|:-----------|
-| 20x5x5  | 20 kernels. The first 5 is height, the second 5 is width. Just like the above |
-| 2s      | down-sampling factor 2 |
-| 10x3x3  | 20x10 kernels instead of only 10 kernels (because the previous conv layer has 20 kernels) |
-| 2s      | down-sampling factor 2 |
-| 512-512 | 2 hidden layers, each with 512 hidden nodes. |
-
-Because **BLAS** use **column-major**, you have to provide data in **column-major** (i.e. in ↓ order, not → order).  
-For example, if you have an `5x6` image letter **E** like this (5 pixels in height by 6 pixels wide):
-```
-111111
-1     
-111111
-1     
-111111
-```
-You should provide this image in sparse format like this:
-```
-1:1 2:1 3:1 4:1 5:1 6:1 8:1 10:1 11:1 13:1 15:1 16:1 18:1 20:1 21:1 23:1 25:1 26:1 28:1 30:1
-```
-
-### nn-train
-```
-nn-train [options] training_data model_in [validation_data] [model_out]
-```
-This program will use mini-batch stochastic gradient descent (mini-batch SGD) to train the model initialized by `nn-init`.
-```
-nn-train train.dat train.dat.model
-```
-
-### nn-predict
-```
-nn-predict testing_data model_in [prediction_out]
-```
-For example:
-```
-nn-predict test.dat train.dat.model
-```
-
-For more detail, please check [Wiki](https://github.com/botonchou/libdnn/wiki)
-and [Frequently Asked Questions (FAQ)](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
-
 libdnn 中文說明
 ======
+(See English version below)
 
 [libdnn](https://github.com/botonchou/libdnn) 是一個輕量、好讀、人性化的**深層學習**函式庫。由 C++ 和 CUDA 撰寫而成，目的是讓開發人員、研究人員、或任何有興趣的人都可以輕鬆體驗並駕馭深層學習所帶來的威力。
+
+詳細的教學和使用說明，請參考[Wiki](https://github.com/botonchou/libdnn/wiki)
+和[常見問題 (FAQ)](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
 
 ## 特色
 - 輕量、好讀、人性化
@@ -323,8 +163,168 @@ nn-predict testing_data model_in [prediction_out]
 nn-predict test.dat train.dat.model
 ```
 
-更多的教學和細節，請參考[Wiki](https://github.com/botonchou/libdnn/wiki).
-和[常見問題 (FAQ)](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
+libdnn
+======
+
+[libdnn](https://github.com/botonchou/libdnn) is a lightweight, user-friendly, and readable C++ library for deep learning, which allows researchers, developers, or anyone interested in it to harness and experience the power of deep learning.
+
+For more detail, please check [Wiki](https://github.com/botonchou/libdnn/wiki)
+and [Frequently Asked Questions (FAQ)](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
+
+## Features
+- lightweight, user-friendly, and readable
+- support data in [LibSVM](http://www.csie.ntu.edu.tw/~cjlin/libsvm/) format
+- deep neural network (DNN)
+- convolutional neural network (CNN)
+- dropout, sigmoid, tanh, ReLU and [other nonlinearities ...](https://github.com/botonchou/libdnn/wiki/XML-model#changing-activation-functions)
+- model in [XML format](https://github.com/botonchou/libdnn/wiki/XML-model)
+- recurrent neural network (RNN, under development)
+
+DNN and CNN are powerful machine learning algorithms, which have shown significant success on numerous difficult supervised ML tasks in
+- Speech Recognition
+- Pattern Recognition and Computer Vision (CV)
+- Natural Language Processing (NLP)
+
+## Prerequisite
+You need
+- **g++** (>= 4.6)
+- **an NVIDIA GPU**
+- **Linux/Unix** 
+- **[NVIDIA CUDA toolkit](https://developer.nvidia.com/cuda-toolkit)** (>= CUDA 5.0) with CUDA Samples  
+(If you don't know how to install CUDA, please go check [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions))
+
+I use **Ubuntu 14.04** and **NVIDIA GTX-660**. (Mac OS X should be fine, but not tested yet.)
+
+## Quick Start
+
+Before you install, you should be able to run `g++`, `nvcc` and have your
+ environment variable `PATH` and `LD_LIBRARY_PATH` set.
+If you feel that you have little doubt about what I'm talking about, I refer you to go through
+ [FAQ](https://github.com/botonchou/libdnn/wiki/Frequently-Asked-Questions)
+
+### Install
+1. `git clone https://github.com/botonchou/libdnn.git`
+2. `cd libdnn/`
+3. `./install-sh`
+
+### Examples
+
+There're 4 example scripts in `example/`, you should give it a try:
+- `./example1.sh`
+- `./example2.sh`
+- `./example3.sh`
+- `./example4.sh`
+
+Alternatively, you can run all of them by `./go_all.sh`
+
+### Prepare your data
+
+#### Training data and testing data
+
+In general, you'll need two data, training data (with labels) and test data (optionally labelled).
+Of course, you can always split your data into two, using a ratio about 5:1 or something like that (5 for training, 1 for testing). If you just want to play around but without your own data, you can simply run through the **example** provided above or download some from the [LibSVM website](http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/). 
+
+#### Data Format
+The data can be provided either in sparse (like those in LibSVM) or in dense format.
+
+##### Sparse Format (like LibSVM):
+```
+-1 5:1 6:1 15:1 22:1 36:1 42:1
++1 3:1 6:1 17:1 19:1 39:1 42:1
+-1 5:1 7:1 14:1 22:1 36:1 40:1
+-1 1:1 6:1 17:1 22:1 36:1 42:1
++1 4:1 6:1 14:1 29:1 39:1 42:1
+-1 3:1 6:1 15:1 22:1 36:1 42:1
++1 5:1 6:1 15:1 22:1 36:1 40:1
+```
+
+Each row is one data (**label** + **feature vector**). In this case, 7 rows means 7 feature vector (e.g. 7 patients)
+The first column of each row are the labels (e.g., 1 for cancer, -1 for no cancer) , and the rest are feature vectors (e.g., the height and the weight of a patient) in the sparse format. Take the first row for example: `-1 5:1 6:1 15:1 22:1 36:1 42:1`, **-1** is the label. The **n**:**x** format means the value of **n**-th dimension of this vector is **x**. In this example, it's a vector consists most of 0 with only few exceptions at 5, 6, 15, 22, 36, 42.
+
+##### Dense Format:
+
+```
+-1 0 0 0 0 1 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
++1 0 0 1 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1
+-1 0 0 0 0 1 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0
+-1 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
++1 0 0 0 1 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 1
+-1 0 0 1 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1
++1 0 0 0 0 1 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0
+```
+You can also store the data in a dense format, this is the same data as the above (but in dense format).
+
+## How to Use ?
+There're mainly 3 programs:
+
+1. nn-init
+2. nn-train
+3. nn-predict
+
+### nn-init
+```
+nn-init [options] [training_data] -o model_out
+```
+This program will initialize a new neural network model (in XML format) in three ways:
+
+0. random initialization
+1. Bernoulli-Bernoulli RBM
+2. Gaussian-Bernoulli RBM
+
+(see command line option `--type` for more detail)
+
+For example:
+```
+nn-init --input-dim 600 --struct 1024-1024 --output-dim 12 train.dat -o train.init.xml
+```
+where `--input-dim` stands for the dimensional of input feature vector, `--output-dim` is the number of target classes to predict.
+In this example, `nn-init` will built you a new neural network model of the structure `600-1024-1024-12`, and save the model as `train.init.xml`.
+
+You can also initialize a Convolutional Nerual Network like this:
+```
+nn-init --input-dim 32x24 --struct 20x5x5-2s-10x3x3-2s-512-512 --output-dim 10
+```
+Here, `32x24` (in `hxw` format) means an input image of `32` pixels in height by `24` pixels wide, and `20x5x5-2s-10x3x3-2s-512-512` means:
+
+|  Token  | Explanation |
+|:-------:|:-----------|
+| 20x5x5  | 20 kernels. The first 5 is height, the second 5 is width. Just like the above |
+| 2s      | down-sampling factor 2 |
+| 10x3x3  | 20x10 kernels instead of only 10 kernels (because the previous conv layer has 20 kernels) |
+| 2s      | down-sampling factor 2 |
+| 512-512 | 2 hidden layers, each with 512 hidden nodes. |
+
+Because **BLAS** use **column-major**, you have to provide data in **column-major** (i.e. in ↓ order, not → order).  
+For example, if you have an `5x6` image letter **E** like this (5 pixels in height by 6 pixels wide):
+```
+111111
+1     
+111111
+1     
+111111
+```
+You should provide this image in sparse format like this:
+```
+1:1 2:1 3:1 4:1 5:1 6:1 8:1 10:1 11:1 13:1 15:1 16:1 18:1 20:1 21:1 23:1 25:1 26:1 28:1 30:1
+```
+
+### nn-train
+```
+nn-train [options] training_data model_in [validation_data] [model_out]
+```
+This program will use mini-batch stochastic gradient descent (mini-batch SGD) to train the model initialized by `nn-init`.
+```
+nn-train train.dat train.dat.model
+```
+
+### nn-predict
+```
+nn-predict testing_data model_in [prediction_out]
+```
+For example:
+```
+nn-predict test.dat train.dat.model
+```
 
 ## License
 Copyright (c) 20013-2014 Po-Wei Chou Licensed under the Apache License.
