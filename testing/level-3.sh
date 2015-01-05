@@ -31,6 +31,7 @@ dim="--input-dim 32x32"
 ../bin/nn-predict $dim $TRAIN $model_mature --base 1 2>&1 |\
   grep "%" >> $temp_log
 
+printf "\33[33m[Warning]\33[0m Since CUDA is parallel computing, the result may differ from devices to devices.\n"
 diff $gold_log $temp_log
 
 rm -r $temp_dir
