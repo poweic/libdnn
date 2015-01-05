@@ -65,9 +65,10 @@ int main (int argc, char* argv[]) {
      .add("--l2-penalty", "L2 penalty", "0.0002");
 
   cmd.addGroup("Hardward options:")
+     .add("--card-id", "Specify which GPU card to use", "0")
      .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
 
-  cmd.addGroup("Example usage: dnn-init data/train3.dat --struct=16-8");
+  cmd.addGroup("Example usage: nn-init train.dat --input-dim 123 -o init.xml --struct=16-8");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
@@ -80,8 +81,10 @@ int main (int argc, char* argv[]) {
   string structure  = cmd["--struct"];
   size_t output_dim = cmd["--output-dim"];
 
+  size_t card_id    = cmd["--card-id"];
   size_t cache_size = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
+  SetGpuCardId(card_id);
 
   if (output_dim == 0)
     output_dim = AskUserForOutputDimension();
@@ -89,11 +92,14 @@ int main (int argc, char* argv[]) {
   // If it's convolutional neural network, there's a "x" in string structure
   if (structure.find("x") != string::npos) {
 
-    SIZE imgSize = parseImageDimension((string) cmd["--input-dim"]);
+    string input_dim = cmd["--input-dim"];
 
-    structure += "-" + to_string(output_dim);
+    // If there's only one 'x' in --input-dim like 64x64, change it to 1x64x64
+    if (std::count(input_dim.begin(), input_dim.end(), 'x') == 1)
+      input_dim = "1x" + input_dim;
+
     NNet nnet;
-    nnet.init(structure, imgSize);
+    nnet.init(input_dim + "-" + structure + "-" + to_string(output_dim));
     nnet.save(model_fn);
 
   }

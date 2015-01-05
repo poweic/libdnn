@@ -34,7 +34,7 @@
 
 typedef host_matrix<float> hmat;
 
-map<int, int> getLabelMapping(const hmat& labels);
+std::map<int, int> getLabelMapping(const hmat& labels);
 
 mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure);
 mat posteriorProb2Label(const mat& prob);
@@ -68,7 +68,7 @@ mat rand(int m, int n);
 inline mat zeros(int m, int n) { return mat(m, n, 0); }
 inline mat ones(int m, int n) { return mat(m, n, 1); }
 
-vector<float> copyToHost(const mat& m);
+std::vector<float> copyToHost(const mat& m);
 size_t countDifference(const mat& m1, const mat& m2);
 
 namespace ext {
@@ -127,28 +127,37 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
 }
 
 template <typename T>
-device_matrix<T> vercat(const vector<device_matrix<T> >& matrices) {
+device_matrix<T> vercat(const std::vector<device_matrix<T> >& matrices, 
+    bool reserve = false) {
+
   size_t rows = matrices[0].getRows(),
 	 cols = matrices[0].getCols();
 
-  mat result(matrices.size() * rows, cols);
+  int R = matrices.size() * rows;
+  int C = cols;
+
+  if (reserve) R += 1;
+
+  mat result(R, C);
   for (size_t i=0; i<matrices.size(); ++i)
     memcpy2D<T>(result, matrices[i], 0, 0, rows, cols, i*rows, 0);
   return result;
 }
 
 /*! \brief vertical split (the inverse function of vercat)
- * 
+ *  versplit will ignore any pre-reserved row in the input matrix (i.e. big)
+ *  Because block_rows is the quotient of two integer, which is always floor.
+ *  (see C++ 6.5.5 Multiplicative operators)
  * \param big		the input matrix
  * \param n_sub_matrix	split into how many sub matrices vertically.
+ * \param block_rows    # of rows in each sub matrices
  *
  * */
 template <typename T>
-vector<device_matrix<T> > versplit(const device_matrix<T>& big, size_t n_sub_matrix) {
+std::vector<device_matrix<T> > versplit(const device_matrix<T>& big,
+    size_t n_sub_matrix, size_t block_rows) {
 
-  size_t block_rows = big.getRows() / n_sub_matrix;
-
-  vector<device_matrix<T> > blocks(n_sub_matrix);
+  std::vector<device_matrix<T> > blocks(n_sub_matrix);
   for (size_t i=0; i<n_sub_matrix; ++i) {
     blocks[i].resize(block_rows, big.getCols());
     memcpy2D(blocks[i], big, i * block_rows, 0, block_rows, big.getCols(), 0, 0);

@@ -20,6 +20,7 @@
 #include <batch.h>
 using namespace std;
 
+bool save_model_per_epoch = false;
 size_t nnet_predict(NNet& nnet, DataSet& data);
 void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out);
 bool isEoutStopDecrease(const std::vector<size_t> Eouts, size_t epoch, size_t nNonIncEpoch);
@@ -34,7 +35,7 @@ int main (int argc, char* argv[]) {
      .add("model_out", false);
 
   cmd.addGroup("Feature options:")
-     .add("--input-dim", "specify the input dimension (dimension of feature).")
+     .add("--input-dim", "Specify the input dimension (dimension of feature).")
      .add("--normalize", "Feature normalization: \n"
 	"0 -- Do not normalize.\n"
 	"1 -- Rescale each dimension to [0, 1] respectively.\n"
@@ -45,14 +46,17 @@ int main (int argc, char* argv[]) {
   cmd.addGroup("Training options:")
      .add("-v", "ratio of training set to validation set (split automatically)", "5")
      .add("--max-epoch", "number of maximum epochs", "200")
-     .add("--min-acc", "Specify the minimum cross-validation accuracy", "0.5")
+     .add("--min-acc", "Specify the minimum accuracy to achieve in validation "
+	 "set before the training process stopped.", "0.5")
      .add("--learning-rate", "learning rate in back-propagation", "0.1")
-     .add("--batch-size", "number of data per mini-batch", "32");
+     .add("--batch-size", "number of data per mini-batch", "32")
+     .add("--save-model-per-epoch", "Save model after each epoch of training.", "false");
 
   cmd.addGroup("Hardward options:")
-     .add("--cache", "specify cache size (in MB) in GPU used by cuda matrix.", "16");
+     .add("--card-id", "Specify which GPU card to use", "0")
+     .add("--cache", "Specify cache size (in MB) in GPU used by cuda matrix.", "16");
 
-  cmd.addGroup("Example usage: dnn-train data/train3.dat --nodes=16-8");
+  cmd.addGroup("Example usage: nn-train train.dat init.xml --input-dim 123");
 
   if (!cmd.isOptionLegal())
     cmd.showUsageAndExit();
@@ -71,9 +75,12 @@ int main (int argc, char* argv[]) {
   float learningRate  = cmd["--learning-rate"];
   float minValidAcc   = cmd["--min-acc"];
   size_t maxEpoch     = cmd["--max-epoch"];
+  save_model_per_epoch= (bool) cmd["--save-model-per-epoch"];
 
+  size_t card_id      = cmd["--card-id"];
   size_t cache_size   = cmd["--cache"];
   CudaMemManager<float>::setCacheSize(cache_size);
+  SetGpuCardId(card_id);
 
   // Parse input dimension
   size_t input_dim = parseInputDimension((string) cmd["--input-dim"]);
@@ -86,12 +93,12 @@ int main (int argc, char* argv[]) {
   DataSet train, valid;
 
   if ((valid_fn.empty() or valid_fn == "-" ) && ratio != 0) {
-    DataSet data(train_fn, input_dim, base, n_type);
+    DataSet data(train_fn, input_dim, base, n_type, n_filename);
     DataSet::split(data, train, valid, ratio);
   }
   else {
-    train = DataSet(train_fn, input_dim, base, n_type);
-    valid = DataSet(valid_fn, input_dim, base, n_type);
+    train = DataSet(train_fn, input_dim, base, n_type, n_filename);
+    valid = DataSet(valid_fn, input_dim, base, n_type, n_filename);
   }
 
   train.showSummary();
@@ -170,6 +177,9 @@ void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
 
     float trainAcc = 1.0f - (float) Ein / nTrain;
     float validAcc = 1.0f - (float) Eouts[epoch] / nValid;
+
+    if (save_model_per_epoch)
+      nnet.save(model_out + "." + to_string(epoch));
 
     printf("|%4lu   | %6.2f %% |  %7lu     | %6.2f %% |  %7lu     |  %8.2f |\n",
       epoch, trainAcc * 100, nTrain - Ein, validAcc * 100, nValid - Eouts[epoch],

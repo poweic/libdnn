@@ -1,13 +1,25 @@
 #!/bin/bash
 mkdir -p tools bin/ obj/
 
-git clone https://github.com/botonchou/utility.git tools/utility
-cd tools/utility && make o3 && cd -
-
-git clone https://github.com/botonchou/libcumatrix.git tools/libcumatrix
-cd tools/libcumatrix && make o3 && cd -
 
 wget http://nchc.dl.sourceforge.net/project/rapidxml/rapidxml/rapidxml%201.13/rapidxml-1.13.zip -P tools/
 cd tools/ && unzip rapidxml-1.13.zip && cd -
 
+if [ "$1" == "--zip-only" ]; then
+  wget https://codeload.github.com/botonchou/utility/zip/master -O tools/utility.zip
+  unzip tools/utility.zip -d tools/ && mv tools/utility-master tools/utility
+
+  wget https://codeload.github.com/botonchou/libcumatrix/zip/master -O tools/libcumatrix.zip
+  unzip tools/libcumatrix.zip -d tools/ && mv tools/libcumatrix-master tools/libcumatrix 
+else
+  printf "\33[34m[Info]\33[0m You can specify \33[33m--zip-only\33[0m if git clone is too slow\n"
+  git clone https://github.com/botonchou/utility.git tools/utility
+  git clone https://github.com/botonchou/libcumatrix.git tools/libcumatrix
+fi
+
+# Make dependencies first
+cd tools/utility && make o3 && cd -
+cd tools/libcumatrix && make o3 && cd -
+
+# Make !!
 make o3

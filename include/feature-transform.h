@@ -13,10 +13,10 @@ public:
   virtual ~FeatureTransform() {}
 
   virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const = 0;
+  virtual void write(std::ostream& os) const = 0;
 
   virtual FeatureTransform* clone() const = 0;
-  virtual string toString() const = 0;
+  virtual std::string toString() const = 0;
 
   virtual void feedForward(mat& fout, const mat& fin) = 0;
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate) = 0;
@@ -26,7 +26,7 @@ public:
 
   virtual size_t getNumParams() const { return 0; }
 
-  friend ostream& operator << (ostream& os, FeatureTransform* ft);
+  friend std::ostream& operator << (std::ostream& os, FeatureTransform* ft);
 
   enum Type {
     Affine,
@@ -40,20 +40,20 @@ public:
     SubSample
   };
 
-  static Type token2type(string token);
-  static std::map<Type, string> type2token;
+  static Type token2type(std::string token);
+  static std::map<Type, std::string> type2token;
 
 protected:
   size_t _input_dim;
   size_t _output_dim;
 };
 
-bool isXmlFormat(istream& is);
+bool isXmlFormat(std::istream& is);
 float GetNormalizedInitCoeff(size_t fan_in, size_t fan_out,
     FeatureTransform::Type type);
 
-ostream& operator << (ostream& os, FeatureTransform* ft);
-istream& operator >> (istream& is, FeatureTransform* &ft);
+std::ostream& operator << (std::ostream& os, FeatureTransform* ft);
+std::istream& operator >> (std::istream& is, FeatureTransform* &ft);
 
 class AffineTransform : public FeatureTransform {
 public:
@@ -62,10 +62,10 @@ public:
   AffineTransform(const mat& w);
 
   virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const;
+  virtual void write(std::ostream& os) const;
 
   virtual AffineTransform* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
 
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void feedBackward(mat& error, const mat& delta);
@@ -90,7 +90,7 @@ public:
   Activation(size_t input_dim, size_t output_dim);
 
   virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const;
+  virtual void write(std::ostream& os) const;
 
   void dropout(mat& fout);
 };
@@ -101,7 +101,7 @@ public:
   Sigmoid(size_t input_dim, size_t output_dim);
 
   virtual Sigmoid* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 };
@@ -112,7 +112,7 @@ public:
   Tanh(size_t input_dim, size_t output_dim);
 
   virtual Tanh* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 };
@@ -123,7 +123,7 @@ public:
   ReLU(size_t input_dim, size_t output_dim);
 
   virtual ReLU* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 };
@@ -134,7 +134,7 @@ public:
   Softplus(size_t input_dim, size_t output_dim);
 
   virtual Softplus* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 };
@@ -145,7 +145,7 @@ public:
   Softmax(size_t input_dim, size_t output_dim);
 
   virtual Softmax* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 };
@@ -156,10 +156,10 @@ public:
   Dropout(size_t input_dim, size_t output_dim);
 
   virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const;
+  virtual void write(std::ostream& os) const;
 
   virtual Dropout* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
   virtual void feedForward(mat& fout, const mat& fin);
   virtual void backPropagate(mat& error, const mat& fin, const mat& fout, float learning_rate);
 
@@ -184,10 +184,10 @@ public:
   virtual ~MIMOFeatureTransform() {}
 
   virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const;
+  virtual void write(std::ostream& os) const;
 
   virtual MIMOFeatureTransform* clone() const = 0;
-  virtual string toString() const = 0;
+  virtual std::string toString() const = 0;
 
   virtual void feedForward(mat& fouts, const mat& fins) = 0;
   virtual void feedBackward(mat& errors, const mat& deltas) = 0;
@@ -196,7 +196,7 @@ public:
   virtual size_t getInputDimension() const = 0;
   virtual size_t getOutputDimension() const = 0;
 
-  friend ostream& operator << (ostream& os, const MIMOFeatureTransform *ft);
+  friend std::ostream& operator << (std::ostream& os, const MIMOFeatureTransform *ft);
 
   void set_input_img_size(const SIZE& s);
   virtual SIZE get_input_img_size() const;
@@ -211,7 +211,7 @@ protected:
   size_t _n_output_maps;
 };
 
-ostream& operator << (ostream& os, const MIMOFeatureTransform *ft);
+std::ostream& operator << (std::ostream& os, const MIMOFeatureTransform *ft);
 
 class ConvolutionalLayer : public MIMOFeatureTransform {
 
@@ -229,14 +229,17 @@ public:
   ConvolutionalLayer(size_t n, size_t m, int h, int w = -1);
 
   virtual ConvolutionalLayer* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
 
   virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const;
+  virtual void write(std::ostream& os) const;
 
   virtual void feedForward(mat& fouts, const mat& fins);
   virtual void feedBackward(mat& errors, const mat& deltas);
   virtual void backPropagate(mat& errors, const mat& fins, const mat& fouts, float learning_rate);
+
+  void update_kernel(const mat& fin, const mat& delta);
+  void update_bias(const mat& delta);
 
   virtual size_t getInputDimension() const;
   virtual size_t getOutputDimension() const;
@@ -250,8 +253,8 @@ public:
   size_t getKernelHeight() const;
 
 private:
-  vector<vector<mat> > _kernels;
-  vector<float> _bias;
+  std::vector<std::vector<mat> > _kernels;
+  std::vector<float> _bias;
 };
 
 class SubSamplingLayer : public MIMOFeatureTransform {
@@ -262,10 +265,10 @@ public:
   SubSamplingLayer(size_t n, size_t m, size_t scale);
 
   virtual SubSamplingLayer* clone() const;
-  virtual string toString() const;
+  virtual std::string toString() const;
 
   virtual void read(xml_node<> *node);
-  virtual void write(ostream& os) const;
+  virtual void write(std::ostream& os) const;
 
   virtual void feedForward(mat& fouts, const mat& fins);
   virtual void feedBackward(mat& errors, const mat& deltas);
@@ -279,7 +282,7 @@ public:
   size_t getScale() const;
 
 private:
-  size_t _scale;
+  size_t  _scale;
 };
 
 #endif // _FEATURE_TRANSFORM_H_

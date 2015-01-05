@@ -10,7 +10,7 @@ public:
   NNet(const string& model_fn);
   ~NNet();
 
-  void init(const string &structure, SIZE img_size);
+  void init(const string &structure);
 
   mat feedForward(const mat& fin) const;
   void feedForward(mat& fout, const mat& fin);
