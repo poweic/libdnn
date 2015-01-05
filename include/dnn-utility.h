@@ -34,7 +34,7 @@
 
 typedef host_matrix<float> hmat;
 
-map<int, int> getLabelMapping(const hmat& labels);
+std::map<int, int> getLabelMapping(const hmat& labels);
 
 mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure);
 mat posteriorProb2Label(const mat& prob);
@@ -68,7 +68,7 @@ mat rand(int m, int n);
 inline mat zeros(int m, int n) { return mat(m, n, 0); }
 inline mat ones(int m, int n) { return mat(m, n, 1); }
 
-vector<float> copyToHost(const mat& m);
+std::vector<float> copyToHost(const mat& m);
 size_t countDifference(const mat& m1, const mat& m2);
 
 namespace ext {
@@ -127,7 +127,7 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
 }
 
 template <typename T>
-device_matrix<T> vercat(const vector<device_matrix<T> >& matrices, 
+device_matrix<T> vercat(const std::vector<device_matrix<T> >& matrices, 
     bool reserve = false) {
 
   size_t rows = matrices[0].getRows(),
@@ -154,10 +154,10 @@ device_matrix<T> vercat(const vector<device_matrix<T> >& matrices,
  *
  * */
 template <typename T>
-vector<device_matrix<T> > versplit(const device_matrix<T>& big,
+std::vector<device_matrix<T> > versplit(const device_matrix<T>& big,
     size_t n_sub_matrix, size_t block_rows) {
 
-  vector<device_matrix<T> > blocks(n_sub_matrix);
+  std::vector<device_matrix<T> > blocks(n_sub_matrix);
   for (size_t i=0; i<n_sub_matrix; ++i) {
     blocks[i].resize(block_rows, big.getCols());
     memcpy2D(blocks[i], big, i * block_rows, 0, block_rows, big.getCols(), 0, 0);

@@ -15,6 +15,8 @@
 #include <feature-transform.h>
 #include <cnn-utility.h>
 #include <cuda_profiler_api.h>
+using namespace std;
+
 #define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
 #define MAX_SHARED_MEMORY_SIZE (48 * 1024)
 
@@ -75,14 +77,6 @@ string getColorCode(float n) {
   return "\33[38;5;" + to_string(x) + "m";
 }
 
-mat gaussian_kernel(int h, int w) {
-  static mat gk("gk.mat");
-  if (h != 5 || w != 5)
-    throw std::runtime_error("NO SUCH Gaussian Kernel");
-
-  return gk / 273.f;
-}
-
 void showImage(const mat& x) {
 
   int rows = x.getRows(),
@@ -96,16 +90,6 @@ void showImage(const mat& x) {
     cout << endl;
   }
   cout << "\33[0m" << endl;
-}
-
-SIZE parseImageDimension(const string &m_by_n) {
-  vector<size_t> dims = splitAsInt(m_by_n, 'x');
-
-  if (dims.size() < 2)
-    throw std::runtime_error(RED_ERROR + "For convolutional neural network, "
-	"please use --input-dim like this: 32x32");
-
-  return SIZE(dims[0], dims[1]);
 }
 
 __device__ void load_kernel_into_shm(float* const K, const float* const kernel,
@@ -360,7 +344,7 @@ SIZE get_convn_size(SIZE data, SIZE kernel, ConvType type) {
     case FULL_SHM:
       return data + kernel - 1;
     default:
-      throw std::runtime_error(RED_ERROR + "Unknown type of convolution.");
+      throw runtime_error(RED_ERROR + "Unknown type of convolution.");
   };
 }
 
@@ -395,79 +379,37 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
 	"kernel = (%d, %d), grids = (%u, %u, %u), threads = (%u, %u, %u) "
 	" => %lu bytes of shared memory needed.", MAX_SHARED_MEMORY_SIZE, kH, kW,
 	grids.x, grids.y, grids.z, threads.x, threads.y, threads.z, SHM_SIZE);
-    throw std::runtime_error(RED_ERROR + to_string(buf));
+    throw runtime_error(RED_ERROR + to_string(buf));
   }
 
   return SHM_SIZE;
 }
 
-void ConvolutionalLayer::update_bias(const mat& delta) {
-
-  vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
-  for (size_t j=0; j<getNumOutputMaps(); ++j) 
-    _bias[j] -= sum_all(deltas[j]);
-}
-
-void ConvolutionalLayer::update_kernel(const mat& fin, const mat& delta) {
-
-  size_t batch_size = fin.getCols();
-
-  size_t nInputs = getNumInputMaps();
-  size_t nOutputs = getNumOutputMaps();
-
-  SIZE kernel = this->get_kernel_size();
-  SIZE imgIn = this->get_input_img_size();
-  SIZE imgOut = this->get_output_img_size();
-
-  // Update kernels with learning rate
-  vector<mat> Z(nInputs, mat(kernel.area(), nOutputs, 0));
-
-  ALLOCATE_GRIDS_AND_THREADS(kernel.n, kernel.m);
-  grids.z = nOutputs;
-
-  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, imgOut.m, imgOut.n);
-  // printf("grids = (%lu, %lu, %lu), threads = (%lu, %lu, %lu) \n", grids.x, grids.y, grids.z, threads.x, threads.y, threads.z);
-
-  for (size_t i=0; i<nInputs; ++i)
-    for (size_t b=0; b<batch_size; ++b) {
-
-      convn_valid_kernel_with_shm2<<< grids, threads, SHM_SIZE, 0 >>>(
-	  Z[i].getData(),
-	  fin.getData() + i * imgIn.area() + b * fin.getRows(),
-	  delta.getData() + b * delta.getRows(),
-	  imgIn.m, imgIn.n, imgOut.m, imgOut.n);
-
-      CCE(cudaPeekAtLastError());
-    }
-
-  for (size_t i=0; i<nInputs; ++i)
-    _kernels[i] -= reshapeVectors2Images(Z[i], this->get_kernel_size());
-}
 
 /* \brief compute convolution of a batch of data with a kernel.
  * \param data a batch of data, where the batch-size equals to data.getCols()
  * \param kernel the convolutional kernel (i.e. system's impulse response)
- * \param imgIn size of a datum. That is, imgIn.m * imgIn.n = data.getRows()
+ * \param img_in size of a datum. That is, img_in.m * img_in.n = data.getRows()
  * \param type type of convolution. Either "full", "same", or "valid"
  * */
-mat convn(const mat& data, const mat& kernel, SIZE imgIn, ConvType type) {
+mat convn(const mat& data, const mat& kernel, SIZE img_in, ConvType type) {
 
-  int H = imgIn.m,
-      W = imgIn.n,
+  int H = img_in.m,
+      W = img_in.n,
       kH = kernel.getRows(),
       kW = kernel.getCols();
 
-  SIZE imgOut = get_convn_size(imgIn, SIZE(kH, kW), type);
+  SIZE img_out = get_convn_size(img_in, SIZE(kH, kW), type);
 
   if ( data.getRows() != H * W )
-    throw std::runtime_error(RED_ERROR + DEBUG_STR(data.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
+    throw runtime_error(RED_ERROR + DEBUG_STR(data.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
 
   // i.e. batch_size
   int N = data.getCols();
 
-  mat output(imgOut.m * imgOut.n, N);
+  mat output(img_out.m * img_out.n, N);
 
-  ALLOCATE_GRIDS_AND_THREADS(imgOut.n, imgOut.m);
+  ALLOCATE_GRIDS_AND_THREADS(img_out.n, img_out.m);
   grids.z = N;
 
   size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kH, kW);
@@ -566,7 +508,7 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
 	H, W, kH, kW);
     } break;
     default:
-      throw std::runtime_error(RED_ERROR + "Unknown convolution type");
+      throw runtime_error(RED_ERROR + "Unknown convolution type");
   }
 
   CCE(cudaPeekAtLastError());
@@ -600,7 +542,8 @@ vector<mat> de_concat(const mat& big, int N) {
   return smalls;
 }
 
-__global__ void downsample_kernel(float *dst, float *src, const uint8_t scale, const uint8_t H, const uint8_t W) { 
+__global__ void downsample_kernel(float *dst, float *src, const uint8_t scale,
+    const uint8_t H, const uint8_t W) { 
   // Matrix index
   uint16_t x = blockIdx.x*blockDim.x + threadIdx.x;
   uint16_t y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -630,7 +573,8 @@ __global__ void downsample_kernel(float *dst, float *src, const uint8_t scale, c
   *dst = sum / (scale * scale);
 }
 
-__global__ void upsample_kernel(float *dst, float *src, const uint8_t h, const uint8_t w, const uint8_t H, const uint8_t W) { 
+__global__ void upsample_kernel(float *dst, float *src, const uint8_t h,
+    const uint8_t w, const uint8_t H, const uint8_t W) { 
 
   // Matrix index
   const uint16_t x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -653,70 +597,23 @@ __global__ void upsample_kernel(float *dst, float *src, const uint8_t h, const u
   dst[y * H + x] = src[sy * h + sx];
 }
 
-void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
-
-  SIZE imgIn = this->get_input_img_size();
-  SIZE imgOut = this->get_output_img_size();
-
-  ALLOCATE_GRIDS_AND_THREADS(imgOut.m, imgOut.n);
-  grids.z = getNumOutputMaps();
-
-  fout.resize(imgOut.area() * getNumOutputMaps() + 1, fin.getCols());
-  
-  for (size_t i=0; i<fin.getCols(); ++i) {
-    downsample_kernel<<<grids, threads>>>(
-	fout.getData() + i * fout.getRows(),
-	fin.getData() + i * fin.getRows(),
-	(uint8_t) _scale, (uint8_t) imgIn.m, (uint8_t) imgIn.n);
-  }
-  CCE(cudaDeviceSynchronize());
-}
-
-void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
-  
-  assert(&delta != &error);
-
-  SIZE imgIn = this->get_input_img_size();
-  SIZE imgOut = this->get_output_img_size();
-
-  ALLOCATE_GRIDS_AND_THREADS(imgIn.m, imgIn.n);
-  grids.z = getNumInputMaps();
-
-  error.resize(imgIn.area() * getNumInputMaps() + 1, delta.getCols());
-
-  for (size_t i=0; i<delta.getCols(); ++i)
-    upsample_kernel<<<grids, threads>>>(
-	error.getData() + i * error.getRows(),
-	delta.getData() + i * delta.getRows(),
-	imgOut.m, imgOut.n, imgIn.m, imgIn.n);
-
-  // FIXME With this, CNN will need much more epochs to converge.
-  // I have no idea why.
-  // error *= 1 / (_scale * _scale);
-
-  CCE(cudaDeviceSynchronize());
-}
-
-mat downsample(const mat& x, size_t scale, SIZE s) {
+mat downsample(const mat& x, size_t scale, SIZE size) {
   int batch_size = x.getCols();
 
-  int H = s.m,
-      W = s.n,
-      h = H / scale,
-      w = W / scale;
+  SIZE output_size = size / scale;
 
-  if ( x.getRows() != H * W )
-    throw std::runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(H) + DEBUG_STR(W));
+  if ( x.getRows() != size.m * size.n )
+    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(size.m) + DEBUG_STR(size.n));
 
-  mat output(h * w, batch_size);
+  mat output(output_size.area(), batch_size);
 
-  ALLOCATE_GRIDS_AND_THREADS(h, w);
+  ALLOCATE_GRIDS_AND_THREADS(output_size.m, output_size.n);
   grids.z = batch_size;
 
   downsample_kernel<<<grids, threads>>>(
       output.getData(),
       x.getData(),
-      (uint8_t) scale, (uint8_t) H, (uint8_t) W);
+      scale, output_size.m, output_size.n);
 
   CCE(cudaDeviceSynchronize());
 
@@ -732,7 +629,7 @@ mat upsample(const mat& x, SIZE s, SIZE img) {
       w = img.n;
 
   if ( x.getRows() != img.m * img.n )
-    throw std::runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
+    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
 
   mat output(H * W, batch_size);
   ALLOCATE_GRIDS_AND_THREADS(H, W);
@@ -769,3 +666,98 @@ mat rot180(const mat& x) {
 
   return y;
 }
+
+/*!
+ * Implementation of ConvolutionalLayer goes here. (GPU part only)
+ *
+ * */
+void ConvolutionalLayer::update_bias(const mat& delta) {
+
+  vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
+  for (size_t j=0; j<getNumOutputMaps(); ++j) 
+    _bias[j] -= sum_all(deltas[j]);
+}
+
+void ConvolutionalLayer::update_kernel(const mat& fin, const mat& delta) {
+
+  size_t batch_size = fin.getCols();
+
+  size_t nInputs = getNumInputMaps();
+  size_t nOutputs = getNumOutputMaps();
+
+  SIZE kernel = this->get_kernel_size();
+  SIZE img_in = this->get_input_img_size();
+  SIZE img_out = this->get_output_img_size();
+
+  // Update kernels with learning rate
+  vector<mat> Z(nInputs, mat(kernel.area(), nOutputs, 0));
+
+  ALLOCATE_GRIDS_AND_THREADS(kernel.n, kernel.m);
+  grids.z = nOutputs;
+
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, img_out.m, img_out.n);
+  // printf("grids = (%lu, %lu, %lu), threads = (%lu, %lu, %lu) \n", grids.x, grids.y, grids.z, threads.x, threads.y, threads.z);
+
+  for (size_t i=0; i<nInputs; ++i)
+    for (size_t b=0; b<batch_size; ++b) {
+
+      convn_valid_kernel_with_shm2<<< grids, threads, SHM_SIZE, 0 >>>(
+	  Z[i].getData(),
+	  fin.getData() + i * img_in.area() + b * fin.getRows(),
+	  delta.getData() + b * delta.getRows(),
+	  img_in.m, img_in.n, img_out.m, img_out.n);
+
+      CCE(cudaPeekAtLastError());
+    }
+
+  for (size_t i=0; i<nInputs; ++i)
+    _kernels[i] -= reshapeVectors2Images(Z[i], this->get_kernel_size());
+}
+
+/*!
+ * Implementation of SubSamplingLayer goes here. (GPU part only)
+ *
+ * */
+void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
+
+  SIZE img_in = this->get_input_img_size();
+  SIZE img_out = this->get_output_img_size();
+
+  ALLOCATE_GRIDS_AND_THREADS(img_out.m, img_out.n);
+  grids.z = getNumOutputMaps();
+
+  fout.resize(img_out.area() * getNumOutputMaps() + 1, fin.getCols());
+  
+  for (size_t i=0; i<fin.getCols(); ++i) {
+    downsample_kernel<<<grids, threads>>>(
+	fout.getData() + i * fout.getRows(),
+	fin.getData() + i * fin.getRows(),
+	_scale, img_in.m, img_in.n);
+  }
+  CCE(cudaDeviceSynchronize());
+}
+
+void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
+  
+  assert(&delta != &error);
+
+  SIZE img_in = this->get_input_img_size();
+  SIZE img_out = this->get_output_img_size();
+
+  ALLOCATE_GRIDS_AND_THREADS(img_in.m, img_in.n);
+  grids.z = getNumInputMaps();
+
+  error.resize(img_in.area() * getNumInputMaps() + 1, delta.getCols());
+
+  for (size_t i=0; i<delta.getCols(); ++i) {
+    upsample_kernel<<<grids, threads>>>(
+	error.getData() + i * error.getRows(),
+	delta.getData() + i * delta.getRows(),
+	img_out.m, img_out.n, img_in.m, img_in.n);
+  }
+
+  error *= 1.0f / (_scale * _scale);
+
+  CCE(cudaDeviceSynchronize());
+}
+

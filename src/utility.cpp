@@ -99,3 +99,13 @@ size_t parseInputDimension(const string &input_dim) {
     dim *= d;
   return dim;
 }
+
+SIZE parseImageDimension(const string &m_by_n) {
+  vector<size_t> dims = splitAsInt(m_by_n, 'x');
+
+  if (dims.size() < 2)
+    throw runtime_error(RED_ERROR + "For convolutional neural network, "
+	"please use --input-dim like this: 32x32");
+
+  return SIZE(dims[0], dims[1]);
+}

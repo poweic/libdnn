@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <feature-transform.h>
+using namespace std;
 
 // CSE stands for Check Stream Error
 #define CSE(x) { if (!(x)) \
@@ -694,9 +695,6 @@ void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
       fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, VALID_SHM);
   }
 
-  // FIXME what if user choose but not sub-sample ???
-  // Secretly reserve one more row for bias, which is needed in DNN.
-  // Also, it'll be ignored by any versplit in CNN::feedForward()
   fout = vercat(fouts, true);
 }
 

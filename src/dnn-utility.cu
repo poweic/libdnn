@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <dnn-utility.h>
+using namespace std;
 
 CURAND_STATE::CURAND_STATE(unsigned seed, int N): _states(NULL) {
   cudaMalloc ( &_states, N * N * sizeof( curandState ) );
