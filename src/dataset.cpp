@@ -23,21 +23,38 @@ using namespace std::placeholders;
 DataSet::DataSet(): _normalizer(nullptr) {
 }
 
-DataSet::DataSet(const string &fn, size_t dim, int base, NormType n_type, string norm_file)
-  : _dim(dim), _base(base), _normalizer(nullptr) {
-    if (fn.empty())
-      throw std::runtime_error(RED_ERROR + "No filename provided.");
-    this->_stream = DataStream::create(fn, 0, -1);
-    this->setNormType(n_type, norm_file);
+DataSet::DataSet(const string &fn, size_t dim, size_t output_dim, int base) :
+  _dim(dim), _base(base), _output_dim(output_dim), _size(0), _feat(nullptr), _label(nullptr),
+  _normalizer(nullptr) {
+
+  if (fn.empty())
+    throw std::runtime_error(RED_ERROR + "No filename provided.");
+
+  auto tokens = ::split(fn, ',');
+  assert(tokens.size() <= 2);
+
+  string data_fn = tokens[0];
+  string label_fn = tokens.size() > 1 ? tokens[1] : "";
+
+  auto data_format = IFileParser::GetFormat(data_fn);
+  auto label_format = IFileParser::GetFormat(label_fn);
+
+  this->SetSize(data_fn, data_format, label_fn, label_format);
+
+  _feat = IFileParser::create(data_fn, data_format, _size);
+  _label = IFileParser::create(label_fn, label_format, _size);
 }
 
-void DataSet::init(const string &fn, size_t dim, int base, size_t start, size_t end) {
-  // TODO
-}
+DataSet::DataSet(const DataSet& src) : _dim(src._dim), _base(src._base),
+  _output_dim(src._output_dim), _size(src._size), _feat(nullptr), _label(nullptr),
+  _normalizer(nullptr) {
 
-DataSet::DataSet(const DataSet& src)
-  : _dim(src._dim), _stream(src._stream->clone()), _type(src._type),
-  _base(src._base), _normalizer(nullptr) {
+    if (src._feat)
+      _feat = src._feat->clone();
+
+    if (src._label)
+      _label = src._label->clone();
+
     if (src._normalizer)
       _normalizer = src._normalizer->clone();
 }
@@ -52,43 +69,59 @@ DataSet& DataSet::operator = (DataSet that) {
   return *this;
 }
 
+void DataSet::SetSize(const string& data_fn, IFileParser::Format data_format, 
+    const string& label_fn, IFileParser::Format label_format) {
+
+  if (data_format == IFileParser::KaldiArchive) {
+    if (label_fn.empty())
+      _size = KaldiArchiveParser::CountLines(data_fn.substr(4));
+    else
+      _size = KaldiLabelParser::CountLines(label_fn.substr(4));
+  }
+  else {
+    size_t s1 = FileStream::CountLines(data_fn);
+
+    if (!label_fn.empty()) {
+      size_t s2 = FileStream::CountLines(label_fn);
+
+      if (s1 != s2)
+	throw runtime_error(RED_ERROR + "# of data (" + to_string(s1) +
+	    ") != # of label (" + to_string(s2) + " ).");
+    }
+
+    _size = s1;
+  }
+}
+
 Normalization* DataSet::getNormalizer() const {
   return _normalizer;
 }
 
+void DataSet::normalize(NormType type, string norm_file) {
 
-void DataSet::loadPrecomputedStatistics(string fn) {
-  if (fn.empty())
-    return;
+  Normalization* normalizer = nullptr;
 
-  _normalizer->load(fn);
-}
-
-void DataSet::setNormType(NormType type, string norm_file) {
-
-  _type = type;
-
-  switch (_type) {
-    case NO_NORMALIZATION: break;
+  switch (type) {
+    case NO_NORMALIZATION:
+      return;
     case LINEAR_SCALING:
-      _normalizer = new ZeroOne();
+      normalizer = new ZeroOne();
       break;
     case STANDARD_SCORE:
-      _normalizer = new StandardScore();
+      normalizer = new StandardScore();
       break;
   }
 
-  if (!_normalizer) 
-    return;
-
   if (norm_file.empty())
-    _normalizer->stat(*this);
+    normalizer->stat(*this);
   else
-    _normalizer->load(norm_file);
+    normalizer->load(norm_file);
+
+  _normalizer = normalizer;
 }
 
 size_t DataSet::size() const {
-  return _stream->size();
+  return _size;
 }
 
 void DataSet::showSummary() const {
@@ -101,12 +134,30 @@ void DataSet::showSummary() const {
 
 }
 
+BatchData DataSet::ReadDataAndLabels(size_t N) {
+  BatchData data;
+
+  if (_label) {
+    data.multi_label = true;
+    _feat->read(&data.x, N, _dim);
+    _label->read(&data.y, N, _output_dim);
+  }
+  else {
+    data.multi_label = false;
+    _feat->read(&data.x, N, _dim, &data.y, _base);
+  }
+
+  return data;
+}
+
 BatchData DataSet::operator [] (const Batches::iterator& b) {
 
-  auto f = std::bind(&DataStream::read, _stream, _1, _2, _3);
+  // return ReadDataAndLabels(b->nData);
+
+  auto f = std::bind(&DataSet::ReadDataAndLabels, this, _1);
 
   if (!f_data.valid())
-    f_data = std::async(std::launch::async, f, b->nData, _dim, _base);
+    f_data = std::async(std::launch::async, f, b->nData);
 
   f_data.wait();
 
@@ -114,7 +165,9 @@ BatchData DataSet::operator [] (const Batches::iterator& b) {
 
   auto b_next = b+1;
   if ( !b_next.isEnd() )
-    f_data = std::async(std::launch::async, f, b_next->nData, _dim, _base);
+    f_data = std::async(std::launch::async, f, b_next->nData);
+  else
+    this->rewind();
 
   if (_normalizer)
     _normalizer->normalize(data);
@@ -130,21 +183,28 @@ void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ra
   train = data;
   valid = data;
 
-  train._stream->init(0, nTrain);
-  valid._stream->init(nTrain, -1);
-}
+  train._feat->setRange(0, nTrain);
+  train._size = nTrain;
 
-void DataSet::setLabelBase(int base) {
-  _base = base;
+  valid._feat->setRange(nTrain, -1);
+  valid._size = data._size - nTrain;
 }
 
 void DataSet::rewind() {
+
+  // In src/rbm.cpp, getFreeEnergyGap() need only the first two batches.
+  // So it must rewind the data pointer to the head after using it. But
+  // before doing that, call f_data.wait() to prevent "read after file 
+  // close" hazard.
   if (f_data.valid()) {
     f_data.wait();
     auto throwaway = f_data.get();
   }
   
-  _stream->rewind();
+  _feat->rewind();
+
+  if (_label)
+    _label->rewind();
 }
 
 /* 
@@ -206,8 +266,8 @@ void StandardScore::stat(DataSet& dataset) {
     _mean[j] = _dev[j] = 0;
 
   Batches batches(1024, N);
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    auto data = dataset._stream->read(itr->nData, dim, base);
+  for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
+    auto data = dataset[itr];
 
     for (size_t i=0; i<data.x.getRows(); ++i) {
       for (size_t j=0; j<dim; ++j) {
@@ -221,8 +281,6 @@ void StandardScore::stat(DataSet& dataset) {
     _mean[j] /= N;
     _dev[j] = sqrt((_dev[j] / N) - pow(_mean[j], 2));
   }
-
-  dataset.rewind();
 }
 
 Normalization* StandardScore::clone() const {
@@ -298,8 +356,8 @@ void ZeroOne::stat(DataSet& dataset) {
   }
 
   Batches batches(1024, N);
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
-    auto data = dataset._stream->read(itr->nData, dim, base);
+  for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
+    auto data = dataset[itr];
 
     for (size_t i=0; i<data.x.getRows(); ++i) {
       for (size_t j=0; j<dim; ++j) {
@@ -308,8 +366,6 @@ void ZeroOne::stat(DataSet& dataset) {
       }
     }
   }
-
-  dataset.rewind();
 }
 
 Normalization* ZeroOne::clone() const {

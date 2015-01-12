@@ -19,37 +19,18 @@
 #include <cassert>
 
 #define CFRE(x) { if (x == 0) throw std::runtime_error(RED_ERROR + "Failed when read features. "); }
-#define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
 
-/* \brief Factory method for class DataStream
+/* \brief Factory method for class InputStream
  *
  * */
 
-DataStream::DataStream() : _size(0) {
+InputStream::InputStream() {
 }
 
-DataStream::DataStream(const string& filename) : _filename(filename), _size(0) {
+InputStream::InputStream(const string& filename) : _fn(filename) {
 }
 
-DataStream::DataStream(const DataStream& src) : _filename(src._filename), _size(src._size) {
-}
-
-DataStream* DataStream::create(const string& filename, size_t start, size_t end) {
-  // Find if filename contains "ark:" as prefix. if yes, we'll read it from pipe.
-  bool is_kaldi = (filename.size() > 4 && filename.substr(0, 4) == "ark:");
-
-  if (is_kaldi)
-    return new KaldiStream(filename);
-  else
-    return new BasicStream(filename, start, end);
-}
-
-size_t DataStream::size() const {
-  return _size;
-}
-
-string DataStream::get_filename() const {
-  return _filename;
+InputStream::InputStream(const InputStream& src) : _fn(src._fn) {
 }
 
 /* Other Utility Functions 
@@ -63,138 +44,63 @@ bool isFileSparse(string fn) {
   return line.find(':') != string::npos;
 }
 
-/* \brief constructor of class BasicStream
+/* \brief constructor of class FileStream
  *
  * */
-BasicStream::BasicStream(): _sparse(true), _line_number(0), _start(0), _end(-1) {
+FileStream::FileStream(): _sparse(true), _line_number(0), _start(0), _end(-1) {
 }
 
-BasicStream::BasicStream(const string& filename, size_t start, size_t end):
-  DataStream(filename), _sparse(isFileSparse(filename)), _line_number(0), _start(start), _end(end) {
-  this->init(start, end);
+FileStream::FileStream(const string& filename, size_t start, size_t end):
+  InputStream(filename), _sparse(isFileSparse(filename)), _line_number(0), _start(start), _end(end) {
+  this->init();
+  this->setRange(start, end);
 }
 
-BasicStream::BasicStream(const BasicStream& src) : DataStream(src),
+FileStream::FileStream(const FileStream& src) : InputStream(src),
   _sparse(src._sparse), _line_number(src._line_number), _start(src._start), _end(src._end) {
-  this->init(_start, _end);
+  this->init();
+  this->setRange(_start, _end);
 }
 
-BasicStream::~BasicStream() {
+FileStream::~FileStream() {
   _fs.close();
 }
 
-BasicStream& BasicStream::operator = (BasicStream that) {
-  swap(*this, that);
-  return *this;
-}
-
-void BasicStream::init(size_t start, size_t end) {
-
-  _start = start;
-  _end = end;
-  _line_number = _start;
-
-  // Read from normal file
+void FileStream::init() {
   if (_fs.is_open())
     _fs.close();
 
-  _fs.open(DataStream::_filename.c_str());
+  // Read from normal file
+  _fs.open(_fn.c_str());
 
   if (!_fs.is_open())
-    throw std::runtime_error(RED_ERROR + "Cannot load file: " + DataStream::_filename);
-
-  if (DataStream::_size == 0)
-    DataStream::_size = count_lines(DataStream::_filename);
-
-  go_to_line(_fs, _start);
-
-  _end = min(DataStream::_size, _end);
-  DataStream::_size = min(DataStream::_size, _end - _start);
+    throw std::runtime_error(RED_ERROR + "Cannot load file: " + _fn);
 }
 
-DataStream* BasicStream::clone() const {
-  return new BasicStream(*this);
+istream& FileStream::GoToLine(istream& file, unsigned long num) {
+  file.seekg(std::ios::beg);
+  
+  if (num == 0)
+    return file;
+
+  for(size_t i=0; i < num; ++i)
+    file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
+
+  return file;
 }
 
-BatchData BasicStream::read(int N, size_t dim, size_t base) {
+void FileStream::setRange(size_t start, size_t end) {
+  _start = start;
 
-  if (_sparse)
-    return this->readSparseFeature(N, dim, base);
-  else
-    return this->readDenseFeature(N, dim, base);
+  GoToLine(_fs, _start);
+  _line_number = _start;
 }
 
-BatchData BasicStream::readSparseFeature(int N, size_t dim, size_t base) {
-
-  BatchData data;
-  data.x.resize(N, dim + 1, 0);
-  data.y.resize(N, 1, 0);
-
-  string token;
-
-  for (int i=0; i<N; ++i) {
-    stringstream ss(this->getline());
-  
-    ss >> token;
-    data.y[i] = stof(token);
-
-    while (ss >> token) {
-      size_t pos = token.find(':');
-      if (pos == string::npos)
-	continue;
-
-      size_t j = stof(token.substr(0, pos));
-
-      if (j == 0)
-	throw std::runtime_error(RED_ERROR + "Index in sparse format should"
-	    " be started from 1 instead of 0. ( like 1:... not 0:... )");
-
-      float value = stof(token.substr(pos + 1));
-
-      data.x(i, j - 1) = value;
-    }
-  
-    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
-    // not by CNN or other classifier.
-    data.x(i, dim) = 1;
-  }
-
-  for (int i=0; i<N; ++i)
-    data.y[i] -= base;
-
-  return data;
+InputStream* FileStream::clone() const {
+  return new FileStream(*this);
 }
 
-BatchData BasicStream::readDenseFeature(int N, size_t dim, size_t base) {
-
-  BatchData data;
-  data.x.resize(N, dim + 1, 0);
-  data.y.resize(N, 1, 0);
-  
-  string token;
-
-  for (int i=0; i<N; ++i) {
-    stringstream ss(this->getline());
-  
-    ss >> token;
-    data.y[i] = stof(token);
-
-    size_t j = 0;
-    while (ss >> token)
-      data.x(i, j++) = stof(token);
-
-    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
-    // not by CNN or other classifier.
-    data.x(i, dim) = 1;
-  }
-
-  for (int i=0; i<N; ++i)
-    data.y[i] -= base;
-  
-  return data;
-}
-
-string BasicStream::getline() {
+string FileStream::getline() {
   string line;
 
   if ( _line_number >= _end )
@@ -210,196 +116,13 @@ string BasicStream::getline() {
   return line;
 }
 
-void BasicStream::rewind() {
+void FileStream::rewind() {
   _fs.clear();
-  go_to_line(_fs, _start);
+  GoToLine(_fs, _start);
   _line_number = _start;
 }
 
-void swap(BasicStream& a, BasicStream& b) { 
-  std::swap(a._sparse, b._sparse);
-  std::swap(a._line_number, b._line_number);
-  std::swap(a._start, b._start);
-  std::swap(a._end, b._end);
-}
-
-/*
- * implementation of Kaldi DataStream
- *
- * */
-string read_uid(FILE* fid) {
-  char buffer[512];
-  int result = fscanf(fid, "%s ", buffer);
-
-  return (result != 1) ? "" : string(buffer);
-}
-
-KaldiStream::KaldiStream(): _remained(0), _ffid(nullptr), _lfid(nullptr) {
-}
-
-KaldiStream::KaldiStream(const string& filename): DataStream(filename),
-  _remained(0), _ffid(nullptr), _lfid(nullptr) {
-  this->init();
-}
-
-KaldiStream::KaldiStream(const KaldiStream& src): _remained(src._remained),
-  _ffid(src._ffid), _lfid(src._lfid) {
-}
-
-KaldiStream::~KaldiStream() {
-  if (_ffid) pclose(_ffid);
-  if (_lfid) pclose(_lfid);
-}
-
-KaldiStream& KaldiStream::operator = (KaldiStream that) {
-  swap(*this, that);
-  return *this;
-}
-
-void KaldiStream::init(size_t start, size_t end) {
-
-  clog << "Reading feature from \33[33m\"" << this->get_feature_command() << "\"\33[0m" << endl;
-  clog << "Reading label from \33[33m\"" << this->get_label_command() << "\"\33[0m" << endl;
-
-  // Use wc to count # of features
-  // "| feat-to-len --print-args=false ark:- ark,t:- | cut -f 2 -d ' '";
-  string wc_count_words = this->get_label_command() + "| cut -f 2- -d ' ' | wc -w";
-
-  FILE* fid = popen(wc_count_words.c_str(), "r");
-  if (fscanf(fid, "%lu", &(DataStream::_size)) != 1)
-    throw std::runtime_error(RED_ERROR + "Failed to count number of labels");
-  pclose(fid);
-
-  clog << util::info() << " Found " << util::green(to_string(DataStream::_size))
-       << " labels in \"" << this->get_label_command() << "\"" << endl;
-
-  _ffid = popen(this->get_feature_command().c_str(), "r");
-
-  if (! (this->get_label_command().empty()) )
-    _lfid = popen(this->get_label_command().c_str(), "r");
-}
-
-DataStream* KaldiStream::clone() const {
-  return new KaldiStream(*this);
-}
-
-BatchData KaldiStream::read(int N, size_t dim, size_t base) {
-  BatchData data;
-  data.x.resize(N, dim + 1, 0);
-  data.y.resize(N, 1, 0);
-
-  // Read kaldi feature
-  FILE* &fis = this->_ffid;
-  FILE* &lis = this->_lfid;
-
-  int counter = 0;
-  int& r = this->_remained;
-
-  while (true) {
-
-    if (r == 0) {
-      string uid1, uid2;
-      uid1 = read_uid(fis);
-
-      if (lis != nullptr) {
-	uid2 = read_uid(lis);
-
-	if (uid1.empty() or uid2.empty()) {
-	  this->rewind();
-	  uid1 = read_uid(fis);
-	  uid2 = read_uid(lis);
-	}
-
-	if (uid1 != uid2)
-	  throw std::runtime_error(RED_ERROR + "uid1 != uid2 (\"" + uid1 + "\" != \"" + uid2 + "\")");
-      }
-
-      char s[6]; 
-      int frame;
-      int dimension;
-
-      CFRE(fread((void*) s, 6, 1, fis));
-      CFRE(fread((void*) &frame, 4, 1, fis));
-      CFRE(fread((void*) s, 1, 1, fis));
-      CFRE(fread((void*) &dimension, 4, 1, fis));
-
-      if (dimension != (int) dim)
-	throw std::runtime_error(RED_ERROR + "feature dimension in kaldi archive (=" +
-	    to_string(dimension) + ") does not match --input-dim (=" +
-	    to_string(dim) + ").");
-
-      r = frame;
-    }
-
-    for(int i = 0; i < r; i++) {
-      for(int j = 0; j < (int) dim; j++)
-	CFRE(fread((void*) &data.x(counter, j), sizeof(float), 1, fis));
-      data.x(counter, dim) = 1;
-
-      if (lis != nullptr) {
-	size_t y;
-	CFRE(fscanf(lis, "%lu", &y));
-	data.y[counter] = y;
-      }
-
-      if (++counter == N) {
-	r -= i + 1;
-	return data;
-      }
-    }
-
-    r = 0;
-  }
-
-  return data;
-}
-
-void KaldiStream::rewind() {
-  pclose(_ffid);
-  _ffid = popen(this->get_feature_command().c_str(), "r");
-
-  if (_lfid != nullptr)
-    pclose(_lfid);
-
-  if (! (this->get_label_command().empty()) )
-    _lfid = popen(this->get_label_command().c_str(), "r");
-  
-  this->_remained = 0;
-}
-
-string KaldiStream::get_feature_command() const {
-  size_t pos = DataStream::_filename.find_first_of(",");
-
-  /*if (pos == string::npos)
-    throw runtime_error(RED_ERROR + "Please specify feature and label like ark:feat.ark,label.ark");*/
-
-  return DataStream::_filename.substr(4, pos - 4);
-}
-
-string KaldiStream::get_label_command() const {
-  size_t pos = DataStream::_filename.find_first_of(",");
-
-  /*if (pos == string::npos)
-    throw runtime_error(RED_ERROR + "Please specify feature and label like ark:feat.ark,label.ark");*/
-
-  if (pos == string::npos)
-    return "";
-  else
-    return DataStream::_filename.substr(pos + 1);
-}
-
-void swap(KaldiStream& a, KaldiStream& b) {
-  std::swap(a._remained, b._remained);
-  std::swap(a._ffid, b._ffid);
-  std::swap(a._lfid, b._lfid);
-}
-
-/* 
- * Other utilities
- *
- * */
-size_t count_lines(const string& fn) {
-
+size_t FileStream::CountLines(const string& fn) {
   clog << "Loading file: \33[32m" << fn << "\33[0m (try to find out how many data) ...";
   clog.flush();
   
@@ -412,14 +135,376 @@ size_t count_lines(const string& fn) {
   return N;
 }
 
-std::istream& go_to_line(std::istream& file, unsigned long num){
-  file.seekg(std::ios::beg);
+void swap(FileStream& a, FileStream& b) { 
+  std::swap(a._sparse, b._sparse);
+  std::swap(a._line_number, b._line_number);
+  std::swap(a._start, b._start);
+  std::swap(a._end, b._end);
+}
+
+/*
+ * implementation of PipeStream goes here.
+ *
+ * */
+string read_uid(FILE* fid) {
+  char buffer[512];
+  int result = fscanf(fid, "%s ", buffer);
+
+  return (result != 1) ? "" : string(buffer);
+}
+
+PipeStream::PipeStream(): _fp(nullptr) {
+}
+
+PipeStream::PipeStream(const string& filename): InputStream(filename), _fp(nullptr) {
+  this->init();
+}
+
+PipeStream::PipeStream(const PipeStream& src): _fp(src._fp) {
+}
+
+PipeStream::~PipeStream() {
+  if (_fp)
+    pclose(_fp);
+}
+
+void PipeStream::init() {
+
+  if (_fp) {
+    pclose(_fp);
+    _fp = nullptr;
+  }
+
+  _fp = popen(this->get_fn().c_str(), "r");
+
+  if (!_fp)
+    throw runtime_error(RED_ERROR + "Failed to open pipe: \"" + this->get_fn() + "\"");
+}
+
+InputStream* PipeStream::clone() const {
+  return new PipeStream(*this);
+}
+
+void PipeStream::rewind() {
+  this->init();
+}
+
+string PipeStream::getline() {
+  char* line = nullptr;
+  size_t len = 0;
+  ssize_t read = ::getline(&line, &len, _fp);
+
+  return (read != -1) ? line : "";
+}
+
+void swap(PipeStream& a, PipeStream& b) {
+  std::swap(a._fp, b._fp);
+}
+
+/*
+ * Implementation of SparseParser goes here.
+ *
+ * */
+
+IFileParser::IFileParser(): _is(nullptr) {
+
+}
+
+IFileParser::IFileParser(const IFileParser& src): _is(nullptr) {
+  if (src._is)
+    _is = src._is->clone();
+}
+
+void IFileParser::setRange(size_t start, size_t end) {
+  auto ptr = dynamic_cast<FileStream*>(_is);
+
+  if (ptr != nullptr)
+    ptr->setRange(start, end);
+}
+
+IFileParser::Format IFileParser::GetFormat(const string& filename) {
+  if (filename.empty())
+    return Unknown;
+
+  if (filename.size() > 4 && filename.substr(0, 4) == "ark:")
+    return KaldiArchive;
+  else if (filename.size() > 4 && filename.substr(0, 4) == "scp:")
+    return KaldiLabel;
+  else if (isFileSparse(filename))
+    return Sparse;
+  else
+    return Dense;
+}
+
+IFileParser* IFileParser::create(const string& filename, IFileParser::Format format, size_t size) {
+  switch (format) {
+    case Sparse:
+      return new SparseParser(filename, 0, size);
+    case Dense:
+      return new DenseParser(filename, 0, size);
+    case KaldiArchive:
+      return new KaldiArchiveParser(filename.substr(4));
+    case KaldiLabel:
+      return new KaldiLabelParser(filename.substr(4));
+    case Unknown:
+      return nullptr;
+  }
+}
+
+/*
+ * Implementation of SparseParser goes here.
+ *
+ * */
+SparseParser::SparseParser() {
+}
+
+SparseParser::SparseParser(const string& filename, size_t start, size_t end) {
+  IFileParser::_is = new FileStream(filename, start, end);
+}
+
+IFileParser* SparseParser::clone() const {
+  return new SparseParser(*this);
+}
+
+void SparseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
+
+  // BatchData data(N, dim + 1, output_dim);
+  x->resize(N, dim + 1, 0);
+  if (y)
+    y->resize(N, 1, 0);
+
+  string token;
+
+  for (int i=0; i<N; ++i) {
+    stringstream ss(IFileParser::_is->getline());
+
+    while (ss >> token) {
+      size_t pos = token.find(':');
+
+      if (pos == string::npos) {
+	assert(y != nullptr);
+	y->get(i) = stof(token);
+	continue;
+      }
+
+      size_t j = stof(token.substr(0, pos));
+
+      if (j == 0)
+	throw std::runtime_error(RED_ERROR + "Index in sparse format should"
+	    " be started from 1 instead of 0. ( like 1:... not 0:... )");
+
+      float value = stof(token.substr(pos + 1));
+
+      x->get(i, j - 1) = value;
+    }
   
-  if (num == 0)
-    return file;
+    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
+    // not by CNN or other classifier.
+    x->get(i, dim) = 1;
+  }
 
-  for(size_t i=0; i < num; ++i)
-    file.ignore(std::numeric_limits<std::streamsize>::max(),'\n');
+  if (y) {
+    for (int i=0; i<N; ++i)
+      y->get(i) -= base;
+  }
+}
 
-  return file;
+/*
+ * Implementation of DenseParser goes here.
+ *
+ * */
+DenseParser::DenseParser() {
+}
+
+DenseParser::DenseParser(const string& filename, size_t start, size_t end) {
+  IFileParser::_is = new FileStream(filename, start, end);
+}
+
+IFileParser* DenseParser::clone() const {
+  return new DenseParser(*this);
+}
+
+void DenseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
+
+  x->resize(N, dim + 1, 0);
+
+  if (y)
+    y->resize(N, 1, 0);
+  
+  string token;
+
+  for (int i=0; i<N; ++i) {
+    size_t j = 0;
+    stringstream ss(IFileParser::_is->getline());
+
+    ss >> token;
+    if (y)
+      y->get(i) = stof(token);
+    else
+      x->get(i, j++) = stof(token);
+
+    while (ss >> token)
+      x->get(i, j++) = stof(token);
+
+    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
+    // not by CNN or other classifier.
+    x->get(i, dim) = 1;
+  }
+
+  if (y) {
+    for (int i=0; i<N; ++i)
+      y->get(i) -= base;
+  }
+}
+
+
+/*!
+ * Implementation of KaldiArchiveParser goes here.
+ *
+ * */
+
+KaldiArchiveParser::KaldiArchiveParser(): _remained(0) {
+}
+
+KaldiArchiveParser::KaldiArchiveParser(const string& filename): _remained(0) {
+  IFileParser::_is = new PipeStream(filename);
+  clog << "Reading feature from \33[33m\"" << IFileParser::_is->get_fn() << "\"\33[0m" << endl;
+}
+
+IFileParser* KaldiArchiveParser::clone() const {
+  return new KaldiArchiveParser(*this);
+}
+
+void KaldiArchiveParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
+
+  x->resize(N, dim + 1);
+
+  // Read kaldi feature
+  FILE* fp = dynamic_cast<PipeStream*>(IFileParser::_is)->get_fp();
+  int counter = 0;
+
+  while (true) {
+
+    if (_remained == 0) {
+      string uid = read_uid(fp);
+
+      char s[6]; 
+      int frame;
+      int dimension;
+
+      CFRE(fread((void*) s, 6, 1, fp));
+      CFRE(fread((void*) &frame, 4, 1, fp));
+      CFRE(fread((void*) s, 1, 1, fp));
+      CFRE(fread((void*) &dimension, 4, 1, fp));
+
+      if (dimension != (int) dim)
+	throw std::runtime_error(RED_ERROR + "feature dimension in kaldi archive (=" +
+	    to_string(dimension) + ") does not match --input-dim (=" +
+	    to_string(dim) + ").");
+
+      _remained = frame;
+    }
+
+    for(int i = 0; i < _remained; i++) {
+      for(int j = 0; j < (int) dim; j++)
+	CFRE(fread((void*) &(x->get(counter, j)), sizeof(float), 1, fp));
+      x->get(counter, dim) = 1;
+
+      if (++counter == N) {
+	_remained -= i + 1;
+	return;
+      }
+    }
+
+    _remained = 0;
+  }
+}
+
+void KaldiArchiveParser::rewind() {
+  IFileParser::rewind();
+  this->_remained = 0;
+}
+
+size_t KaldiArchiveParser::CountLines(const string& filename) {
+
+  // Use wc to count # of features
+  string wc_count_lines = filename + "| feat-to-len --print-args=false ark:- ark,t:- | cut -f 2 -d ' '";
+
+  size_t totalLength = 0, length = 0;
+
+  FILE* fid = popen(wc_count_lines.c_str(), "r");
+  if (!fid)
+    throw runtime_error(RED_ERROR + "Failed to open " + filename);
+
+  while (fscanf(fid, "%lu", &length) == 1)
+    totalLength += length;
+  pclose(fid);
+
+  return totalLength;
+}
+
+
+/*!
+ * Implementation of KaldiLabelParser goes here.
+ *
+ * */
+
+KaldiLabelParser::KaldiLabelParser() {
+}
+
+KaldiLabelParser::KaldiLabelParser(const string& filename) {
+  IFileParser::_is = new PipeStream(filename);
+  clog << "Reading label from \33[33m\"" << IFileParser::_is->get_fn() << "\"\33[0m" << endl;
+}
+
+IFileParser* KaldiLabelParser::clone() const {
+  return new KaldiLabelParser(*this);
+}
+
+void KaldiLabelParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
+
+  x->resize(N, 1);
+
+  int counter = 0;
+
+  while (counter < N) {
+    if (_remained.empty()) {
+      string line = IFileParser::_is->getline();
+      size_t pos = line.find_first_of(' ') + 1;
+      _remained = splitAsInt(rtrim(line.substr(pos)), ' ');
+    }
+
+    // Read kaldi Label
+    while (!_remained.empty()) {
+
+      x->get(counter) = _remained[0];
+      _remained.erase(_remained.begin());
+
+      if (++counter == N)
+	return;
+    }
+  }
+}
+
+void KaldiLabelParser::rewind() {
+  IFileParser::rewind();
+  this->_remained.clear();
+}
+
+size_t KaldiLabelParser::CountLines(const string& filename) {
+
+  // Use wc to count # of features
+  string wc_count_lines = filename + "| cut -f 2- -d ' ' | wc -w";
+
+  size_t totalLength;
+
+  FILE* fid = popen(wc_count_lines.c_str(), "r");
+  if (!fid)
+    throw runtime_error(RED_ERROR + "Failed to open " + filename);
+
+  if (fscanf(fid, "%lu", &totalLength) != 1)
+    throw std::runtime_error(RED_ERROR + "Failed to count number of labels");
+  pclose(fid);
+
+  return totalLength;
 }

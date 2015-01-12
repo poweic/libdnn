@@ -15,78 +15,51 @@ typedef host_matrix<float> hmat;
 using namespace std;
 
 struct BatchData {
-    hmat x, y;
+  BatchData(): multi_label(false) {}
+  hmat x, y;
+  bool multi_label;
 };
 
-class DataStream {
+class InputStream {
 public: 
-  DataStream();
-  DataStream(const string& filename);
-  DataStream(const DataStream& src);
+  InputStream();
+  InputStream(const string& filename);
+  InputStream(const InputStream& src);
 
-  size_t size() const;
-  string get_filename() const;
-
-  virtual DataStream* clone() const = 0;
+  virtual InputStream* clone() const = 0;
   virtual void rewind() = 0;
-  virtual void init(size_t start = 0, size_t end = -1) = 0;
-  virtual BatchData read(int N, size_t dim, size_t base) = 0;
+  virtual string getline() = 0;
 
-  static DataStream* create(const string& filename, size_t start = 0, size_t end = -1);
+  string get_fn() const { return _fn; }
+
+  bool empty() const { return _fn.empty(); }
 
   enum {BEGIN = 0, END = -1};
 
 protected:
-  string _filename;
-  size_t _size;
+  string _fn;    // Filename
 };
 
-class KaldiStream : public DataStream {
+class FileStream : public InputStream {
 public:
-  KaldiStream();
-  KaldiStream(const string& filename);
-  KaldiStream(const KaldiStream& src);
-  ~KaldiStream();
+  FileStream();
+  FileStream(const string& filename, size_t start, size_t end);
+  FileStream(const FileStream& src);
+  ~FileStream();
 
-  KaldiStream& operator = (KaldiStream that);
+  void init();
+  istream& GoToLine(istream& file, unsigned long num);
+  void setRange(size_t start, size_t end);
+  FileStream& operator = (const FileStream& that) = delete;
 
-  virtual DataStream* clone() const;
-  virtual void init(size_t start = 0, size_t end = -1);
+  virtual InputStream* clone() const;
   virtual void rewind();
-  virtual BatchData read(int N, size_t dim, size_t base);
 
-  string get_feature_command() const;
-  string get_label_command() const;
+  static size_t CountLines(const string& filename);
 
-  friend void swap(KaldiStream& a, KaldiStream& b);
+  friend void swap(FileStream& a, FileStream& b);
 
-private:
-  int _remained;
-
-  FILE* _ffid;
-  FILE* _lfid;
-};
-
-class BasicStream : public DataStream {
-public:
-  BasicStream();
-  BasicStream(const string& filename, size_t start = 0, size_t end = -1);
-  BasicStream(const BasicStream& src);
-  ~BasicStream();
-
-  BasicStream& operator = (BasicStream that);
-
-  virtual DataStream* clone() const;
-  virtual void init(size_t start = 0, size_t end = -1);
-  virtual void rewind();
-  virtual BatchData read(int N, size_t dim, size_t base);
-
-  BatchData readSparseFeature(int N, size_t dim, size_t base);
-  BatchData readDenseFeature(int N, size_t dim, size_t base);
-
-  friend void swap(BasicStream& a, BasicStream& b);
-
-  string getline();
+  virtual string getline();
 
 public:
   bool _sparse;
@@ -94,10 +67,109 @@ public:
   size_t _start;
   size_t _end;
 
-  ifstream _fs;
+  ifstream _fs;  // fs for feature file's ifstream
 };
 
-size_t count_lines(const string& fn);
-std::istream& go_to_line(std::istream& file, unsigned long num);
+class PipeStream : public InputStream {
+public:
+  PipeStream();
+  PipeStream(const string& filename);
+  PipeStream(const PipeStream& src);
+  ~PipeStream();
+
+  void init();
+  PipeStream& operator = (const PipeStream& that) = delete;
+
+  virtual InputStream* clone() const;
+  virtual void rewind();
+  virtual string getline();
+
+  FILE* get_fp() { return _fp; };
+
+  friend void swap(PipeStream& a, PipeStream& b);
+
+protected:
+  FILE* _fp;
+};
+
+/*
+ * File Parser: Sparse Format, Dense Format, KaldiArchive, KaldiLabel
+ *
+ * */
+
+class IFileParser {
+public:
+  IFileParser();
+  IFileParser(const IFileParser& src);
+
+  virtual IFileParser* clone() const = 0;
+
+  virtual void read(hmat* x, int N, size_t dim, hmat* y = nullptr, size_t base = 0) = 0;
+  virtual void setRange(size_t start, size_t end);
+
+  virtual void rewind() { _is->rewind(); }
+
+  enum Format {
+    Sparse,
+    Dense,
+    KaldiArchive,
+    KaldiLabel,
+    Unknown   /* if filename is empty */
+  };
+
+  static Format GetFormat(const string& filename);
+  static IFileParser* create(const string& filename, IFileParser::Format format, size_t size);
+
+protected:
+  InputStream* _is;
+};
+
+class SparseParser : public IFileParser {
+public:
+  SparseParser();
+  SparseParser(const string& filename, size_t start, size_t end);
+
+  virtual IFileParser* clone() const;
+
+  virtual void read(hmat* x, int N, size_t dim, hmat* y = nullptr, size_t base = 0);
+};
+
+class DenseParser : public IFileParser {
+public:
+  DenseParser();
+  DenseParser(const string& filename, size_t start, size_t end);
+
+  virtual IFileParser* clone() const;
+
+  virtual void read(hmat* x, int N, size_t dim, hmat* y = nullptr, size_t base = 0);
+};
+
+class KaldiArchiveParser : public IFileParser {
+public:
+  KaldiArchiveParser();
+  KaldiArchiveParser(const string& filename);
+
+  virtual IFileParser* clone() const;
+  virtual void read(hmat* x, int N, size_t dim, hmat* y = nullptr, size_t base = 0);
+  virtual void rewind();
+
+  static size_t CountLines(const string& filename);
+private:
+  int _remained;
+};
+
+class KaldiLabelParser : public IFileParser {
+public:
+  KaldiLabelParser();
+  KaldiLabelParser(const string& filename);
+
+  virtual IFileParser* clone() const;
+  virtual void read(hmat* x, int N, size_t dim, hmat* y = nullptr, size_t base = 0);
+  virtual void rewind();
+
+  static size_t CountLines(const string& filename);
+private:
+  vector<size_t> _remained;
+};
 
 #endif // __DATA_IO_H_

@@ -125,7 +125,7 @@ float StackedRbm::getReconstructionError(DataSet& data, const mat& W,
   size_t nData = data.size();
 
   Batches batches(batch_size, nData);
-  for (Batches::iterator itr = batches.begin(); itr != batches.end(); ++itr) {
+  for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
 
     // v1 is input data, v2 is reconstructed data
     mat v1, v2, h1;
@@ -175,10 +175,10 @@ float StackedRbm::getFreeEnergyGap(DataSet& data, size_t batch_size, const mat& 
 
   size_t nData = data.size();
   Batches batches(batch_size, nData);
-  Batches::iterator ii = batches.begin();
+  auto itr = batches.begin();
 
-  float fe1 = getFreeEnergy(getBatchData(data, ii, layer), W),
-	fe2 = getFreeEnergy(getBatchData(data, ii+1, layer), W);
+  float fe1 = getFreeEnergy(getBatchData(data, itr, layer), W),
+	fe2 = getFreeEnergy(getBatchData(data, itr+1, layer), W);
 
   data.rewind();
 
@@ -232,7 +232,7 @@ void StackedRbm::rbm_train(DataSet& data, int layer, UNIT_TYPE vis_type, UNIT_TY
     float momentum = (epoch <= 5) ? _initial_momentum : _final_momentum;
 
     Batches batches(batch_size, nData);
-    for (Batches::iterator itr = batches.begin() + 1; itr != batches.end(); ++itr) {
+    for (auto itr = batches.begin() + 1; itr != batches.end(); ++itr) {
       // The first batch is kept as held-out set for validation. Therefore
       // itr starts from begin() + 1 rather than begin().
 

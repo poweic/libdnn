@@ -32,31 +32,26 @@ class Normalization;
 class DataSet {
 public:
   DataSet();
-  DataSet(const string &fn, size_t dim, int base, NormType n_type, string norm_file = "");
-
-  void init(const string &fn, size_t dim, int base, size_t start, size_t end);
+  DataSet(const string &fn, size_t dim, size_t output_dim = 0, int base = 0);
 
   DataSet(const DataSet& data);
   ~DataSet();
 
   DataSet& operator = (DataSet that);
 
-  void loadPrecomputedStatistics(string fn);
-  void setNormType(NormType type, string norm_file);
+  void normalize(NormType type, string norm_file = "");
 
-  void setLabelBase(int base);
   void rewind();
-
-  size_t getFeatureDimension() const;
 
   Normalization* getNormalizer() const;
 
   size_t size() const;
 
-  bool isLabeled() const;
   void showSummary() const;
 
   BatchData operator [] (const Batches::iterator& b);
+
+  BatchData ReadDataAndLabels(size_t N);
 
   static void 
     split(const DataSet& data, DataSet& train, DataSet& valid, int ratio);
@@ -66,21 +61,29 @@ public:
 
   friend void swap(DataSet& a, DataSet& b) {
     swap(a._dim, b._dim);
-    swap(a._stream, b._stream);
-    swap(a._sparse, b._sparse);
-    swap(a._type, b._type);
     swap(a._base, b._base);
+    swap(a._output_dim, b._output_dim);
+    swap(a._size, b._size);
+    swap(a._feat, b._feat);
+    swap(a._label, b._label);
     swap(a._normalizer, b._normalizer);
   }
 
 private:
+
+  void SetSize(const string& data_fn, IFileParser::Format data_format, 
+      const string& label_fn, IFileParser::Format label_format);
+
   std::future<BatchData> f_data;
 
   size_t _dim;
-  DataStream* _stream;
-  bool _sparse;
-  NormType _type;
   int _base;
+  size_t _output_dim;
+
+  size_t _size;
+
+  IFileParser* _feat;
+  IFileParser* _label;
 
   Normalization* _normalizer;
 };

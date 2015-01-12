@@ -104,7 +104,6 @@ int main (int argc, char* argv[]) {
 
   }
   else {  // Codes for RBM pre-training
-
     size_t input_dim  = cmd["--input-dim"];
     NormType n_type   = (NormType) (int) cmd["--normalize"];
 
@@ -124,7 +123,8 @@ int main (int argc, char* argv[]) {
     // Run RBM pre-training,
     // otherwise just save randomly initialized result to file.
     if (type != 0) {
-      DataSet data(train_fn, input_dim, 0, n_type);
+      DataSet data(train_fn, input_dim, output_dim);
+      data.normalize(n_type);
       data.showSummary();
 
       srbm.init();

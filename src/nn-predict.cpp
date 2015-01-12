@@ -76,23 +76,25 @@ int main (int argc, char* argv[]) {
   CudaMemManager<float>::setCacheSize(cache_size);
   SetGpuCardId(card_id);
 
-  // Parse Input dimension.
-  size_t input_dim  = parseInputDimension((string) cmd["--input-dim"]);
-  
-  // Use Log(prior) because log(x) would check whether x has zero in it.
-  mat log_prior = log(getPriorProbability(prior_fn));
-  bool prior = !prior_fn.empty();
-
-  // Load data from file
-  DataSet test(test_fn, input_dim, base, n_type, n_filename);
-  test.showSummary();
-
   // Load model from file
   NNet nnet(model_fn);
   if (!silent)
     nnet.status();
 
   nnet.setDropout(false);
+
+  // Parse Input dimension.
+  size_t input_dim  = parseInputDimension((string) cmd["--input-dim"]);
+  size_t output_dim = nnet.getOutputDimension();
+  
+  // Use Log(prior) because log(x) would check whether x has zero in it.
+  mat log_prior = log(getPriorProbability(prior_fn));
+  bool prior = !prior_fn.empty();
+
+  // Load data from file
+  DataSet test(test_fn, input_dim, output_dim, base);
+  test.normalize(n_type, n_filename);
+  test.showSummary();
 
   size_t nError = 0;
 

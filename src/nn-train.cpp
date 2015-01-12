@@ -82,27 +82,9 @@ int main (int argc, char* argv[]) {
   CudaMemManager<float>::setCacheSize(cache_size);
   SetGpuCardId(card_id);
 
-  // Parse input dimension
-  size_t input_dim = parseInputDimension((string) cmd["--input-dim"]);
-  
   // Filename for output model
   if (model_out.empty())
     model_out = train_fn.substr(train_fn.find_last_of('/') + 1) + ".model";
-
-  // Load data
-  DataSet train, valid;
-
-  if ((valid_fn.empty() or valid_fn == "-" ) && ratio != 0) {
-    DataSet data(train_fn, input_dim, base, n_type, n_filename);
-    DataSet::split(data, train, valid, ratio);
-  }
-  else {
-    train = DataSet(train_fn, input_dim, base, n_type, n_filename);
-    valid = DataSet(valid_fn, input_dim, base, n_type, n_filename);
-  }
-
-  train.showSummary();
-  valid.showSummary();
 
   // Set configurations
   Config config;
@@ -117,6 +99,28 @@ int main (int argc, char* argv[]) {
   NNet nnet(model_in);
   nnet.status();
   nnet.setConfig(config);
+
+  // Load data
+  DataSet train, valid;
+
+  // Parse input dimension
+  size_t input_dim = parseInputDimension((string) cmd["--input-dim"]);
+  size_t output_dim = nnet.getOutputDimension();
+  
+  if ((valid_fn.empty() or valid_fn == "-" ) && ratio != 0) {
+    DataSet data(train_fn, input_dim, output_dim, base);
+    DataSet::split(data, train, valid, ratio);
+  }
+  else {
+    train = DataSet(train_fn, input_dim, output_dim, base);
+    valid = DataSet(valid_fn, input_dim, output_dim, base);
+  }
+
+  train.normalize(n_type, n_filename);
+  valid.normalize(n_type, n_filename);
+
+  train.showSummary();
+  valid.showSummary();
 
   // Start Training
   nnet_train(nnet, train, valid, model_out);
@@ -158,7 +162,6 @@ void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
 
     Batches batches(nnet.getConfig().batchSize, nTrain);
     for (auto itr = batches.begin(); itr != batches.end(); ++itr) {
-
       // Copy a batch of data from host to device
       auto data = train[itr];
       mat x = ~mat(data.x);

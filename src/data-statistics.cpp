@@ -44,7 +44,8 @@ int main (int argc, char* argv[]) {
   size_t input_dim    = cmd["--input-dim"];
   NormType n_type     = (NormType) (int) cmd["--normalize"];
 
-  DataSet data(data_fn, input_dim, 0, n_type);
+  DataSet data(data_fn, input_dim);
+  data.normalize(n_type);
   data.showSummary();
 
   FILE* fid = stat_fn.empty() ? stdout : fopen(stat_fn.c_str(), "w");

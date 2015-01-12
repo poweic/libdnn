@@ -83,7 +83,24 @@ public:
   T& operator() (size_t i, size_t j) {
     return _data[j * _rows + i];
   }
+
   const T& operator() (size_t i, size_t j) const {
+    return _data[j * _rows + i];
+  }
+
+  T& get(size_t idx) {
+    return _data[idx];
+  }
+
+  const T& get(size_t idx) const {
+    return _data[idx];
+  }
+
+  T& get(size_t i, size_t j) {
+    return _data[j * _rows + i];
+  }
+
+  const T& get(size_t i, size_t j) const {
     return _data[j * _rows + i];
   }
 
