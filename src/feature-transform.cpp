@@ -669,35 +669,6 @@ string ConvolutionalLayer::toString() const {
  *	, there're multiple input feature maps comes from multiple training data.
  * */
 
-void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
-
-  auto fins = versplit(fin, getNumInputMaps(), get_input_img_size().area());
-
-  size_t nInputs  = getNumInputMaps(),
-	 nOutputs = getNumOutputMaps();
-
-  if (fins.size() != nInputs)
-    throw std::runtime_error(RED_ERROR + "Number of inputs maps ( = "
-	+ to_string(fins.size()) + ") does not match number of kernels ( = "
-	+ to_string(nInputs) + ").");
-
-  size_t batch_size = fins[0].getCols();
-
-  SIZE s = get_output_img_size();
-
-  vector<mat> fouts(nOutputs);
-
-  for (size_t j=0; j<nOutputs; ++j)
-    fouts[j].resize(s.m * s.n, batch_size, _bias[j]);
-
-  for (size_t j=0; j<nOutputs; ++j) {
-    for (size_t i=0; i<nInputs; ++i)
-      fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, VALID_SHM);
-  }
-
-  fout = vercat(fouts, true);
-}
-
 void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
 
   vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
