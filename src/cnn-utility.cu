@@ -17,7 +17,6 @@
 #include <cuda_profiler_api.h>
 using namespace std;
 
-#define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
 #define MAX_SHARED_MEMORY_SIZE (48 * 1024)
 
 #define VECTOR std::vector

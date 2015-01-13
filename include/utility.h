@@ -24,6 +24,8 @@ typedef device_matrix<float> mat;
 #define RED_ERROR (util::red("[Error] ") + __WHERE__ )
 #define YELLOW_WARNING (util::yellow("[WARNING] ") + __WHERE__ )
 
+#define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
+
 #ifdef DEBUG
 
 #define PAUSE {\

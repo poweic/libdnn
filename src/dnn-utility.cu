@@ -173,7 +173,7 @@ namespace ext {
   }
 };
 
-__global__ void compute_error_kernel(float* error, float* const target,
+__global__ void compute_error_kernel_sparse(float* error, float* const target,
     float* const output, unsigned int rows, unsigned int cols) {
 
   int tx = threadIdx.x;
@@ -194,30 +194,53 @@ __global__ void compute_error_kernel(float* error, float* const target,
   __syncthreads();
 }
 
-mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure) {
+__global__ void compute_error_kernel_dense(float* error, float* const target,
+    float* const output, unsigned int rows, unsigned int cols) {
 
-  mat error(output.getRows(), output.getCols());
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
 
-  switch (errorMeasure) {
+  // Matrix index
+  int x = blockIdx.x*blockDim.x + tx;
+  int y = blockIdx.y*blockDim.y + ty;
 
-    case L2ERROR: 
-      // FIXME
-      // error = ~output - target;
-      // error = ~error;
-      break;
+  if (x >= rows - 1 || y >= cols)
+    return;
 
-    case CROSS_ENTROPY:
+  int i = y * rows + x;
 
-      ALLOCATE_GRIDS_AND_THREADS(error.getRows(), error.getCols());
+  error[i] = output[i] - target[y * (rows - 1) + x];
 
-      compute_error_kernel<<< grids, threads >>>(
-	  error.getData(), target.getData(), output.getData(),
-	  error.getRows(), error.getCols());
+  __syncthreads();
+}
 
-      CCE(cudaDeviceSynchronize());
+mat ComputeErrorSignal(const mat& target, const mat& output) {
 
-      break;
+  size_t rows = output.getRows();
+  size_t cols = output.getCols();
+
+  mat error(rows, cols);
+
+  ALLOCATE_GRIDS_AND_THREADS(rows, cols);
+  mat T(target);
+
+  if (T.getRows() != 1)
+    T = posteriorProb2Label(T);
+
+  // If single label
+  if (T.getRows() == 1) {
+    compute_error_kernel_sparse<<< grids, threads >>>(
+	error.getData(), T.getData(), output.getData(),
+	rows, cols);
   }
+  else {
+    assert(false);
+    compute_error_kernel_dense<<< grids, threads >>>(
+	error.getData(), T.getData(), output.getData(),
+	rows, cols);
+  }
+
+  CCE(cudaDeviceSynchronize());
 
   return error;
 }
@@ -250,6 +273,24 @@ mat posteriorProb2Label(const mat& prob) {
   return h_labels;
 }
 
+size_t zeroOneError(const mat& prob, const mat& label) {
+
+  mat P = posteriorProb2Label(prob);
+  mat L(~label);
+
+  // # of columns = batch-size
+  // # of rows    = feature dimension
+  assert(prob.getCols() == L.getCols());
+
+  // if Multi-label
+  if (L.getRows() == prob.getRows())
+    L = posteriorProb2Label(L);
+  else if (L.getRows() != 1)
+    throw runtime_error(RED_ERROR + "Not single label or mult-label.");
+
+  return countDifference(P, L);
+}
+
 vector<float> copyToHost(const mat& m) {
   vector<float> hm(m.size());
   thrust::device_ptr<float> dPtr(m.getData());
@@ -266,16 +307,6 @@ size_t countDifference(const mat& m1, const mat& m2) {
 
   size_t nDiff = thrust::inner_product(ptr1, ptr1 + L, ptr2, 0.0, thrust::plus<float>(), thrust::not_equal_to<float>());
   return nDiff;
-}
-
-
-size_t zeroOneError(const mat& prob, const mat& label) {
-  assert(prob.getCols() == label.getRows());
-  assert(label.getCols() == 1);
-
-  mat L = posteriorProb2Label(prob);
-
-  return countDifference(L, label);
 }
 
 template <typename T>

@@ -165,10 +165,11 @@ void nnet_train(NNet& nnet, DataSet& train, DataSet& valid, string model_out) {
       // Copy a batch of data from host to device
       auto data = train[itr];
       mat x = ~mat(data.x);
+      mat y = ~mat(data.y);
 
       nnet.feedForward(fout, x);
 
-      mat error = getError( data.y, fout, nnet.getConfig().errorMeasure );
+      mat error = ComputeErrorSignal( y, fout );
 
       nnet.backPropagate(error, x, fout, lr / itr->nData);
     }

@@ -36,9 +36,8 @@ typedef host_matrix<float> hmat;
 
 std::map<int, int> getLabelMapping(const hmat& labels);
 
-mat getError(const mat& target, const mat& output, ERROR_MEASURE errorMeasure);
+mat ComputeErrorSignal(const mat& target, const mat& output);
 mat posteriorProb2Label(const mat& prob);
-
 size_t zeroOneError(const mat& predict, const mat& label);
 
 class CURAND_STATE {

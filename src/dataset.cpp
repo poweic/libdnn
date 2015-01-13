@@ -43,6 +43,8 @@ DataSet::DataSet(const string &fn, size_t dim, size_t output_dim, int base) :
 
   _feat = IFileParser::create(data_fn, data_format, _size);
   _label = IFileParser::create(label_fn, label_format, _size);
+
+  _output_dim = this->isMultiLabel() ? _output_dim : 1;
 }
 
 DataSet::DataSet(const DataSet& src) : _dim(src._dim), _base(src._base),
@@ -134,16 +136,26 @@ void DataSet::showSummary() const {
 
 }
 
+bool DataSet::isMultiLabel() const {
+  if (!_label)
+    return false;
+
+  return dynamic_cast<KaldiLabelParser*>(_label) == nullptr;
+}
+
 BatchData DataSet::ReadDataAndLabels(size_t N) {
   BatchData data;
 
+  // Allocate memory
+  data.x.resize(N, _dim + 1);
+  data.y.resize(N, _output_dim);
+
+  // Parse data and labels
   if (_label) {
-    data.multi_label = true;
     _feat->read(&data.x, N, _dim);
     _label->read(&data.y, N, _output_dim);
   }
   else {
-    data.multi_label = false;
     _feat->read(&data.x, N, _dim, &data.y, _base);
   }
 
@@ -152,9 +164,15 @@ BatchData DataSet::ReadDataAndLabels(size_t N) {
 
 BatchData DataSet::operator [] (const Batches::iterator& b) {
 
-  // return ReadDataAndLabels(b->nData);
+  auto data = ReadDataAndLabels(b->nData);
+  if ( (b+1).isEnd() )
+    this->rewind();
 
-  auto f = std::bind(&DataSet::ReadDataAndLabels, this, _1);
+  if (_normalizer)
+    _normalizer->normalize(data);
+  return data;
+
+  /*auto f = std::bind(&DataSet::ReadDataAndLabels, this, _1);
 
   if (!f_data.valid())
     f_data = std::async(std::launch::async, f, b->nData);
@@ -172,7 +190,7 @@ BatchData DataSet::operator [] (const Batches::iterator& b) {
   if (_normalizer)
     _normalizer->normalize(data);
 
-  return data;
+  return data;*/
 }
 
 void DataSet::split( const DataSet& data, DataSet& train, DataSet& valid, int ratio) {

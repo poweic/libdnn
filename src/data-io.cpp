@@ -269,14 +269,13 @@ IFileParser* SparseParser::clone() const {
 void SparseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
 
   // BatchData data(N, dim + 1, output_dim);
-  x->resize(N, dim + 1, 0);
-  if (y)
-    y->resize(N, 1, 0);
-
   string token;
 
   for (int i=0; i<N; ++i) {
-    stringstream ss(IFileParser::_is->getline());
+    string line = IFileParser::_is->getline();
+    // cout << "line = \"" << line << "\"" << endl;
+    // FIXME
+    stringstream ss(line);
 
     while (ss >> token) {
       size_t pos = token.find(':');
@@ -300,7 +299,7 @@ void SparseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
   
     // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
     // not by CNN or other classifier.
-    x->get(i, dim) = 1;
+    // x->get(i, dim) = 1;
   }
 
   if (y) {
@@ -326,11 +325,6 @@ IFileParser* DenseParser::clone() const {
 
 void DenseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
 
-  x->resize(N, dim + 1, 0);
-
-  if (y)
-    y->resize(N, 1, 0);
-  
   string token;
 
   for (int i=0; i<N; ++i) {
@@ -348,7 +342,7 @@ void DenseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
 
     // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
     // not by CNN or other classifier.
-    x->get(i, dim) = 1;
+    // x->get(i, dim) = 1;
   }
 
   if (y) {
@@ -376,8 +370,6 @@ IFileParser* KaldiArchiveParser::clone() const {
 }
 
 void KaldiArchiveParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
-
-  x->resize(N, dim + 1);
 
   // Read kaldi feature
   FILE* fp = dynamic_cast<PipeStream*>(IFileParser::_is)->get_fp();
@@ -408,7 +400,7 @@ void KaldiArchiveParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) 
     for(int i = 0; i < _remained; i++) {
       for(int j = 0; j < (int) dim; j++)
 	CFRE(fread((void*) &(x->get(counter, j)), sizeof(float), 1, fp));
-      x->get(counter, dim) = 1;
+      // x->get(counter, dim) = 1;
 
       if (++counter == N) {
 	_remained -= i + 1;
@@ -462,8 +454,6 @@ IFileParser* KaldiLabelParser::clone() const {
 }
 
 void KaldiLabelParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
-
-  x->resize(N, 1);
 
   int counter = 0;
 

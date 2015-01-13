@@ -51,6 +51,7 @@ public:
 
   BatchData operator [] (const Batches::iterator& b);
 
+  bool isMultiLabel() const;
   BatchData ReadDataAndLabels(size_t N);
 
   static void 
