@@ -654,55 +654,6 @@ string ConvolutionalLayer::toString() const {
   return type2token[FeatureTransform::Convolution];
 }
 
-/* FIXME If every element in fins is a single feature map, then only a data can
- *      be fed forward through this function.
- *      NOTE that fins.size()  == # of input feature maps
- *                             != # of data in a batch
- *
- *	To feed forward a whole batch in a single function:
- *                fins.size()  == # of input feature maps
- *		  fins[i].rows == map.rows x map.cols
- *		  fins[i].cols == # of data
- *
- *	That is fins.size() is still the # of input feature maps (, which is
- *      always inevitable). However, in the i-th element of fins (i.e. fins[i])
- *	, there're multiple input feature maps comes from multiple training data.
- * */
-
-void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
-
-  vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
-
-  // Since nInputs == nOutputs for subsampling layer, I just use N.
-  size_t nInputs = getNumInputMaps(),
-	 nOutputs = getNumOutputMaps();
-
-  SIZE s = this->get_input_img_size();
-  size_t batch_size = deltas[0].getCols();
-
-  vector<mat> errors(nInputs);
-
-  for (size_t i=0; i<nInputs; ++i)
-    errors[i].resize(s.m * s.n, batch_size, 0);
-
-  for (size_t i=0; i<nInputs; ++i)
-    for (size_t j=0; j<nOutputs; ++j)
-      errors[i] += convn(deltas[j], rot180(_kernels[i][j]), this->get_output_img_size(), FULL_SHM);
-
-  error = vercat(errors, true);
-}
-
-// NOTE: in MATLAB
-// xcorr2 stands for 2D cross-correlation
-// (I don't know why MATLAB does not have "xcorrn" for n-dimensional xcorr)
-// The following operation are theoretically equivalent:
-// (with only some trivial numerical error)
-// (1)  convn(x, rot180(h)) == xcorr2(x, h)
-//     xcorr2(x, rot180(h)) ==  convn(x, h)
-// (2) convn(rot180(x), h) == rot180(convn(x, rot180(h)))
-//     ^
-//     |_____ which is obviously faster
-
 void ConvolutionalLayer::backPropagate(mat& error, const mat& fin,
     const mat& fout, float learning_rate) {
 
