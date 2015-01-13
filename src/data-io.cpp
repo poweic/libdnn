@@ -268,43 +268,32 @@ IFileParser* SparseParser::clone() const {
 
 void SparseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
 
-  // BatchData data(N, dim + 1, output_dim);
   string token;
 
   for (int i=0; i<N; ++i) {
-    string line = IFileParser::_is->getline();
-    // cout << "line = \"" << line << "\"" << endl;
-    // FIXME
-    stringstream ss(line);
+    stringstream ss(IFileParser::_is->getline());
 
+    // string token can be either "idx:value" (with ':') or "label" (without ':')
     while (ss >> token) {
-      size_t pos = token.find(':');
+      auto tokens = splitAsInt(token, ':');
 
-      if (pos == string::npos) {
-	assert(y != nullptr);
-	y->get(i) = stof(token);
-	continue;
+      // if it's label, there's no ':' in string token => tokens.size() == 1
+      if (tokens.size() == 1) {
+	if (y)
+	  y->get(i) = tokens[0] - base;
+      }
+      else {
+	size_t idx = tokens[0];
+	size_t value = tokens[1];
+
+	if (idx == 0)
+	  throw std::runtime_error(RED_ERROR + "Index in sparse format should"
+	      " be started from 1 instead of 0. ( like 1:... not 0:... )");
+
+	x->get(i, idx - 1) = value;
       }
 
-      size_t j = stof(token.substr(0, pos));
-
-      if (j == 0)
-	throw std::runtime_error(RED_ERROR + "Index in sparse format should"
-	    " be started from 1 instead of 0. ( like 1:... not 0:... )");
-
-      float value = stof(token.substr(pos + 1));
-
-      x->get(i, j - 1) = value;
     }
-  
-    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
-    // not by CNN or other classifier.
-    // x->get(i, dim) = 1;
-  }
-
-  if (y) {
-    for (int i=0; i<N; ++i)
-      y->get(i) -= base;
   }
 }
 
@@ -324,7 +313,6 @@ IFileParser* DenseParser::clone() const {
 }
 
 void DenseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
-
   string token;
 
   for (int i=0; i<N; ++i) {
@@ -333,24 +321,14 @@ void DenseParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) {
 
     ss >> token;
     if (y)
-      y->get(i) = stof(token);
+      y->get(i) = stof(token) - base;
     else
       x->get(i, j++) = stof(token);
 
     while (ss >> token)
       x->get(i, j++) = stof(token);
-
-    // FIXME I'll remove it and move this into DNN. Since bias is only need by DNN,
-    // not by CNN or other classifier.
-    // x->get(i, dim) = 1;
-  }
-
-  if (y) {
-    for (int i=0; i<N; ++i)
-      y->get(i) -= base;
   }
 }
-
 
 /*!
  * Implementation of KaldiArchiveParser goes here.
@@ -400,7 +378,6 @@ void KaldiArchiveParser::read(hmat* x, int N, size_t dim, hmat* y, size_t base) 
     for(int i = 0; i < _remained; i++) {
       for(int j = 0; j < (int) dim; j++)
 	CFRE(fread((void*) &(x->get(counter, j)), sizeof(float), 1, fp));
-      // x->get(counter, dim) = 1;
 
       if (++counter == N) {
 	_remained -= i + 1;

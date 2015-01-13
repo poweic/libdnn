@@ -39,6 +39,11 @@ DataSet::DataSet(const string &fn, size_t dim, size_t output_dim, int base) :
   auto data_format = IFileParser::GetFormat(data_fn);
   auto label_format = IFileParser::GetFormat(label_fn);
 
+  if (data_format == IFileParser::Dense && label_format != IFileParser::Unknown)
+    throw runtime_error(RED_ERROR + "You provide data in the dense format and "
+	"a seperate file for label. Don't know whether the first column in " +
+	data_fn + " is label or not.");
+
   this->SetSize(data_fn, data_format, label_fn, label_format);
 
   _feat = IFileParser::create(data_fn, data_format, _size);
