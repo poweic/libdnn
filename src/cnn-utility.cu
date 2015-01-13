@@ -106,16 +106,18 @@ __device__ void load_kernel_into_shm(float* const K, const float* const kernel,
   }
 }
 
-__global__ void convn_valid_kernel_with_shm2(float *output, const float *data,
-  float *kernel, const int H, const int W, const int kH, const int kW) { 
+__global__ void convn_valid_kernel_with_shm2(
+    float *output, const float *data, float *kernel,
+    const int vH, const int vW,
+    const int H, const int W,
+    const int kH, const int kW,
+    const int output_step, const int data_step, const int kernel_step) { 
 
   __CUDA_CONSTANTS__;
 
-  // vH, vW stands for valid H and valid W
-  const int vH = H - kH + 1, vW = W - kW + 1;
-
-  kernel += blockIdx.z * kH * kW;
-  output += blockIdx.z * vH * vW;
+  output += blockIdx.z * output_step;
+  data   += blockIdx.z * data_step;
+  kernel += blockIdx.z * kernel_step;
 
   extern __shared__ float K[];
 
@@ -705,7 +707,10 @@ void ConvolutionalLayer::update_kernel(const mat& fin, const mat& delta) {
 	  Z[i].getData(),
 	  fin.getData() + i * img_in.area() + b * fin.getRows(),
 	  delta.getData() + b * delta.getRows(),
-	  img_in.m, img_in.n, img_out.m, img_out.n);
+	  kernel.m, kernel.n, 
+	  img_in.m, img_in.n,
+	  img_out.m, img_out.n,
+	  kernel.area(), 0, img_out.area());
 
       CCE(cudaPeekAtLastError());
     }

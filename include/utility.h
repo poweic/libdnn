@@ -62,6 +62,7 @@ enum ConvType {
 
 struct SIZE {
   size_t m, n;
+
   SIZE(): m(0), n(0) {}
   SIZE(size_t m, size_t n): m(m), n(n) {}
 
