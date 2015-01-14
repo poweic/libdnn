@@ -126,7 +126,7 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
       dest.getData() + c1 * dest.getRows() + r1, dest.getRows());
 }
 
-template <typename T>
+/*template <typename T>
 device_matrix<T> vercat(const std::vector<device_matrix<T> >& matrices, 
     bool reserve = false) {
 
@@ -142,7 +142,7 @@ device_matrix<T> vercat(const std::vector<device_matrix<T> >& matrices,
   for (size_t i=0; i<matrices.size(); ++i)
     memcpy2D<T>(result, matrices[i], 0, 0, rows, cols, i*rows, 0);
   return result;
-}
+}*/
 
 /*! \brief vertical split (the inverse function of vercat)
  *  versplit will ignore any pre-reserved row in the input matrix (i.e. big)

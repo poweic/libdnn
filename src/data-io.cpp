@@ -270,7 +270,7 @@ void KaldiStream::init(size_t start, size_t end) {
     throw std::runtime_error(RED_ERROR + "Failed to count number of labels");
   pclose(fid);
 
-  clog << util::info() << " Found " << util::green(to_string(DataStream::_size))
+  clog << util::blue("[Info]") << " Found " << util::green(to_string(DataStream::_size))
        << " labels in \"" << this->get_label_command() << "\"" << endl;
 
   _ffid = popen(this->get_feature_command().c_str(), "r");
