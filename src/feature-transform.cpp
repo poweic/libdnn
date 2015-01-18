@@ -528,7 +528,7 @@ void MIMOFeatureTransform::read(xml_node<> *node) {
 void MIMOFeatureTransform::write(ostream& os) const {
   char buffer[256];
   sprintf(buffer, "input-dim=\"%lux%lu\" input-maps=\"%lu\" output-maps=\"%lu\"",
-      _input_img_size.m, _input_img_size.n, _n_input_maps, _n_output_maps);
+      _input_img_size.height, _input_img_size.width, _n_input_maps, _n_output_maps);
   os << buffer;
 }
 
@@ -606,9 +606,9 @@ void ConvolutionalLayer::read(xml_node<> *node) {
     for (auto w = kernels->first_node("weight"); w; w = w->next_sibling(), i++) {
       stringstream ss(w->value());
 
-      hmat hw(k.m, k.n);
-      for (size_t x=0; x<k.m; ++x)
-	for (size_t y=0; y<k.n; ++y)
+      hmat hw(k.height, k.width);
+      for (size_t x=0; x<k.height; ++x)
+	for (size_t y=0; y<k.width; ++y)
 	  CSE( ss >> hw(x, y) );
 
       _kernels[i][j] = (mat) hw;
