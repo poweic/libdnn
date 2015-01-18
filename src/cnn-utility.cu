@@ -18,7 +18,6 @@
 using namespace std;
 
 #define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
-#define MAX_SHARED_MEMORY_SIZE (48 * 1024)
 
 #define VECTOR std::vector
 #define WHERE std
@@ -39,7 +38,7 @@ using namespace std;
 /*! Convert each row to a 2D image
  * \param data Each col in data is a feature vector. # of cols = # of data
 						     # of rows = image size
- * \param s Size of the image. # of rows in data = s.m x s.n
+ * \param s Size of the image. # of rows in data = s.height x s.width
  */
 vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
 
@@ -47,10 +46,10 @@ vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
   vector<mat> images(nData);
 
   for (size_t i=0; i<nData; ++i) {
-    images[i].resize(s.m, s.n);
+    images[i].resize(s.height, s.width);
 
     CCE(cudaMemcpy(images[i].getData(), data.getData() + i * data.getRows(),
-	  sizeof(float) * s.m * s.n, cudaMemcpyDeviceToDevice));
+	  sizeof(float) * s.height * s.width, cudaMemcpyDeviceToDevice));
   }
   CCE(cudaDeviceSynchronize());
 
@@ -63,15 +62,15 @@ __device__ void load_kernel_into_shm(float* const K, const float* const kernel,
 
   // Copy kernel in global memory to shared memory
   for (; tid<kW * kH; tid += nThreads) {
-    int xx = tid / kH,
-	yy = tid % kH;
+    int xx = tid % kH;
+    int yy = tid / kH;
 
-    if (xx >= kW || yy >= kH) continue;
+    if ( xx >= kH || yy >= kW ) continue;
 
     if (rot180kernel)
-      K[xx * kH + yy] = kernel[xx * kH + yy];
+      K[yy * kH + xx] = kernel[yy * kH + xx];
     else
-      K[(kW - 1 - xx) * kH + (kH - 1 - yy)] = kernel[xx * kH + yy];
+      K[(kW - 1 - yy) * kH + (kH - 1 - xx)] = kernel[yy * kH + xx];
   }
 }
 
@@ -95,35 +94,35 @@ __global__ void convn_valid_kernel_with_shm(
 
   // Copy data in global memory to shared memory
   float* D = K + kW * kH;
-  int WIDTH_STEP = blockDim.x + kW - 1,
-      HEIGHT_STEP = blockDim.y + kH - 1;
+  int HEIGHT_STEP = blockDim.x + kH - 1;
+  int WIDTH_STEP = blockDim.y + kW - 1;
 
   int nTotal = WIDTH_STEP * HEIGHT_STEP;
 
   for (; tid<nTotal; tid += nThreads) {
-    int xx = tid / HEIGHT_STEP + x0,
-	yy = tid % HEIGHT_STEP + y0;
+    int xx = tid % HEIGHT_STEP + x0;
+    int yy = tid / HEIGHT_STEP + y0;
 
-    if (xx >= W || yy >= H) continue;
+    if (xx >= H || yy >= W) continue;
 
     // rotate data 180 degree
     if (rot180data)
-      D[tid] = data[ (W - 1 - xx) * H + (H - 1 - yy) ];
+      D[tid] = data[ (W - 1 - yy) * H + (H - 1 - xx) ];
     else
-      D[tid] = data[ xx * H + yy ];
+      D[tid] = data[ yy * H + xx ];
   }
   __syncthreads();
 
-  if (x >= vW || y >= vH)
+  if (x >= vH || y >= vW)
     return;
 
   float sum = 0;
-  D += tx * HEIGHT_STEP + ty;
+  D += ty * HEIGHT_STEP + tx;
   for (int i = 0; i < kW; ++i)
     for(int j = 0; j < kH; ++j)
       sum += K[ i * kH + j ] * D[ i * HEIGHT_STEP + j ]; 
 
-  output[ x * vH + y ] += sum;
+  output[ y * vH + x ] += sum;
 } 
 
 __global__ void convn_valid_kernel(float *output, float *data, float *kernel,
@@ -134,24 +133,24 @@ __global__ void convn_valid_kernel(float *output, float *data, float *kernel,
   int y = blockIdx.y*blockDim.y + threadIdx.y;
 
   // vH, vW stands for valid H and valid W
-  const int vH = H - kH + 1,
-	    vW = W - kW + 1;
+  const int vH = H - kH + 1;
+  const int vW = W - kW + 1;
 
-  if (x >= vW || y >= vH)
+  if (x >= vH || y >= vW)
     return;
 
-  x += kW - 1;
-  y += kH - 1;
+  x += kH - 1;
+  y += kW - 1;
 
   float sum = 0; 
   for (int i = 0; i < kW; ++i)
     for(int j = 0; j < kH; ++j)
-      sum += kernel[ i * kH + j ] * data[ (x - i) * H + (y - j) ]; 
+      sum += kernel[ i * kH + j ] * data[ (y - i) * H + (x - j) ]; 
 
-  x -= kW - 1;
-  y -= kH - 1;
+  x -= kH - 1;
+  y -= kW - 1;
 
-  output[ x * vH + y ] = sum;
+  output[ y * vH + x ] = sum;
 } 
 
 __global__ void convn_same_kernel(float *output, float *data, float *kernel,
@@ -161,7 +160,7 @@ __global__ void convn_same_kernel(float *output, float *data, float *kernel,
   const int x = blockIdx.x*blockDim.x + threadIdx.x;
   const int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-  if (x >= W || y >= H)
+  if (x >= H || y >= W)
     return;
 
   const int i0 = kW / 2, j0 = kH / 2;
@@ -169,7 +168,8 @@ __global__ void convn_same_kernel(float *output, float *data, float *kernel,
   float sum = 0; 
   for (int i = 0; i < kW; ++i) {
     for(int j = 0; j < kH; ++j) {
-      int ii = x - i + i0, jj = y - j + j0;
+      int ii = y - i + i0;
+      int jj = x - j + j0;
 
       if ( ii < 0 || ii >= W || jj < 0 || jj >= H )
 	continue;
@@ -178,7 +178,7 @@ __global__ void convn_same_kernel(float *output, float *data, float *kernel,
     }
   }
 
-  output[x * H + y] = sum;
+  output[y * H + x] = sum;
 } 
 
 template <bool rot180data, bool rot180kernel>
@@ -201,61 +201,59 @@ __global__ void convn_full_kernel_with_shm(
 
   // Copy data in global memory to shared memory
   float* D = K + kW * kH;
-  const int WIDTH_STEP = blockDim.x + kW - 1;
-  const int HEIGHT_STEP = blockDim.y + kH - 1;
+  const int HEIGHT_STEP = blockDim.x + kH - 1;
+  const int WIDTH_STEP = blockDim.y + kW - 1;
   const int nTotal = WIDTH_STEP * HEIGHT_STEP;
 
-  x0 -= (kW - 1);
-  y0 -= (kH - 1);
+  x0 -= (kH - 1);
+  y0 -= (kW - 1);
 
   for (; tid<nTotal; tid += nThreads) {
-    int xx = x0 + tid / HEIGHT_STEP,
-	yy = y0 + tid % HEIGHT_STEP;
+    int xx = x0 + tid % HEIGHT_STEP;
+    int yy = y0 + tid / HEIGHT_STEP;
 
-    if (xx < 0 || xx >= W || yy < 0 || yy >= H)
+    if (yy < 0 || yy >= W || xx < 0 || xx >= H)
       D[tid] = 0;
     else  {
       if (rot180data)
-	D[tid] = data[ (W - 1 - xx) * H + (H - 1 - yy) ];
+	D[tid] = data[ (W - 1 - yy) * H + (H - 1 - xx) ];
       else
-	D[tid] = data[ xx * H + yy ];
+	D[tid] = data[ yy * H + xx ];
     }
   }
   __syncthreads();
   
-  if (x >= fW || y >= fH)
+  if (x >= fH || y >= fW)
     return;
 
   float sum = 0; 
-  D += tx * HEIGHT_STEP + ty;
+  D += ty * HEIGHT_STEP + tx;
   for (int i = 0; i < kW; ++i)
     for(int j = 0; j < kH; ++j)
       sum += K[ i * kH + j ] * D[ i * HEIGHT_STEP + j]; 
 
-  output[ x * fH + y ] += sum;
+  output[ y * fH + x ] += sum;
 }
 
 __global__ void convn_full_kernel(float *output, float *data, float *kernel,
     int H, int W, int kH, int kW) { 
 
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-
   // Matrix index
-  int x = blockIdx.x*blockDim.x + tx;
-  int y = blockIdx.y*blockDim.y + ty;
+  int x = blockIdx.x*blockDim.x + threadIdx.x;
+  int y = blockIdx.y*blockDim.y + threadIdx.y;
 
   // fH, fW stands for full H and full W
-  const int fH = H + kH - 1,
-	    fW = W + kW - 1;
+  const int fH = H + kH - 1;
+  const int fW = W + kW - 1;
 
-  if (x >= fW || y >= fH)
+  if (x >= fH || y >= fW)
     return;
 
   float sum = 0; 
   for (int i = 0; i < kW; ++i) {
     for(int j = 0; j < kH; ++j) {
-      int ii = x - i, jj = y - j;
+      int ii = y - i;
+      int jj = x - j;
 
       if ( ii < 0 || ii >= W || jj < 0 || jj >= H )
 	continue;
@@ -264,7 +262,7 @@ __global__ void convn_full_kernel(float *output, float *data, float *kernel,
     }
   }
 
-  output[ x * fH + y ] = sum;
+  output[ y * fH + x ] = sum;
 }
 
 SIZE get_convn_size(SIZE data, SIZE kernel, ConvType type) {
@@ -291,10 +289,19 @@ SIZE get_convn_size(const mat& data, const mat& kernel, ConvType type) {
   return get_convn_size(dSize, kSize, type);
 }
 
-size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
-  size_t SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+template <typename T>
+size_t getShmSizeNeeded(const dim3 &threads, SIZE kernel) {
+  return ( kernel.area() + (threads.x + kernel.height - 1) * (threads.y + kernel.width - 1) ) * sizeof(T);
+}
 
-  while ( SHM_SIZE > MAX_SHARED_MEMORY_SIZE && threads.x * threads.y >= 32 ) {
+size_t getSuitableShmSize(dim3 &grids, dim3 &threads, SIZE kernel) {
+
+  size_t shm_size = getShmSizeNeeded<float>(threads, kernel);
+
+  const size_t kMaxSharedMemorySize = 48 * 1024;  // 48 KB
+  const size_t kMinSharedMemorySize = 16 * 1024;  // 16 KB
+
+  while ( shm_size > kMaxSharedMemorySize && threads.x * threads.y >= 32 ) {
     if ( threads.x >= threads.y ) {
       threads.x /= 2;
       grids.x *= 2;
@@ -303,21 +310,29 @@ size_t getSuitableShmConfig(dim3 &grids, dim3 &threads, int kH, int kW) {
       threads.y /= 2;
       grids.y *= 2;
     }
-
-    SHM_SIZE = ( kW * kH + (threads.x + kW - 1) * (threads.y + kH - 1) ) * sizeof(float);
+    shm_size = getShmSizeNeeded<float>(threads, kernel);
   }
-  cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
-  if (SHM_SIZE > MAX_SHARED_MEMORY_SIZE) {
+  if (shm_size > kMaxSharedMemorySize ) {
     char buf[512];
     sprintf(buf, "Exceeds maximum shared memory available. (%d bytes)\n"
 	"kernel = (%d, %d), grids = (%u, %u, %u), threads = (%u, %u, %u) "
-	" => %lu bytes of shared memory needed.", MAX_SHARED_MEMORY_SIZE, kH, kW,
-	grids.x, grids.y, grids.z, threads.x, threads.y, threads.z, SHM_SIZE);
+	" => %lu bytes of shared memory needed.", kMaxSharedMemorySize,
+	kernel.height, kernel.width,
+	grids.x, grids.y, grids.z,
+	threads.x, threads.y, threads.z, shm_size);
     throw runtime_error(RED_ERROR + to_string(buf));
   }
 
-  return SHM_SIZE;
+  // Choose one of the configurations:
+  // (1) 48 KB register (L1) + 16 KB Shared Memory
+  // (2) 16 KB register (L1) + 48 KB Shared Memory
+  if (shm_size < kMinSharedMemorySize)
+    cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+  else
+    cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
+
+  return shm_size;
 }
 
 mat convn(const mat& data, const mat& kernel, ConvType type) {
@@ -329,14 +344,12 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
 
   SIZE s = get_convn_size(data, kernel, type);
 
-  mat output(s.m, s.n);
-  ALLOCATE_GRIDS_AND_THREADS(output.getCols(), output.getRows());
-
-  cudaStream_t stream = 0;
+  mat output(s.height, s.width);
+  ALLOCATE_GRIDS_AND_THREADS(s.height, s.width);
 
   switch (type) {
     case SAME:
-      convn_same_kernel<<< grids, threads, 0, stream >>>(
+      convn_same_kernel<<< grids, threads >>>(
 	  output.getData(),
 	  data.getData(),
 	  kernel.getData(),
@@ -346,7 +359,7 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
       // TODO
       break;
     case VALID:
-      convn_valid_kernel<<< grids, threads, 0, stream >>>(
+      convn_valid_kernel<<< grids, threads >>>(
 	  output.getData(),
 	  data.getData(),
 	  kernel.getData(),
@@ -356,7 +369,7 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
       // TODO
     break;
     case FULL:
-      convn_full_kernel<<< grids, threads, 0, stream >>>(
+      convn_full_kernel<<< grids, threads >>>(
 	  output.getData(),
 	  data.getData(),
 	  kernel.getData(),
@@ -385,17 +398,17 @@ __global__ void downsample_kernel(float *dst, float *src, const uint8_t scale,
   const uint8_t h = H / scale;
   const uint8_t w = W / scale;
 
-  if (y >= w || x >= h)
+  if ( x >= h || y >= w )
     return;
 
-  dst += blockIdx.z * h * w + y * h + x;
+  dst += blockIdx.z * h * w + (y * h + x);
 
-  y *= scale;
   x *= scale;
+  y *= scale;
 
   float sum = 0;
 
-  src += blockIdx.z * H * W + y * H + x;
+  src += blockIdx.z * H * W + (y * H + x);
 
   for (uint8_t i=0; i<scale; ++i) {
     for (uint8_t j=0; j<scale; ++j) {
@@ -419,14 +432,14 @@ __global__ void upsample_kernel(float *dst, float *src, const uint8_t h,
 
   uint8_t scale = H / h;
 
-  if (y >= W || x >= H)
+  if (x >= H || y >= W )
     return;
 
-  uint8_t sy = y / scale;
   uint8_t sx = x / scale;
+  uint8_t sy = y / scale;
 
-  if (sy == w) --sy;
   if (sx == h) --sx;
+  if (sy == w) --sy;
 
   dst[y * H + x] = src[sy * h + sx];
 }
@@ -436,18 +449,18 @@ mat downsample(const mat& x, size_t scale, SIZE size) {
 
   SIZE output_size = size / scale;
 
-  if ( x.getRows() != size.m * size.n )
-    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(size.m) + DEBUG_STR(size.n));
+  if ( x.getRows() != size.height * size.width )
+    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(size.height) + DEBUG_STR(size.width));
 
   mat output(output_size.area(), batch_size);
 
-  ALLOCATE_GRIDS_AND_THREADS(output_size.m, output_size.n);
+  ALLOCATE_GRIDS_AND_THREADS(output_size.height, output_size.width);
   grids.z = batch_size;
 
   downsample_kernel<<<grids, threads>>>(
       output.getData(),
       x.getData(),
-      scale, output_size.m, output_size.n);
+      scale, output_size.height, output_size.width);
 
   CCE(cudaDeviceSynchronize());
 
@@ -457,13 +470,13 @@ mat downsample(const mat& x, size_t scale, SIZE size) {
 mat upsample(const mat& x, SIZE s, SIZE img) {
 
   int batch_size = x.getCols();
-  int H = s.m, 
-      W = s.n,
-      h = img.m,
-      w = img.n;
+  int H = s.height, 
+      W = s.width,
+      h = img.height,
+      w = img.width;
 
-  if ( x.getRows() != img.m * img.n )
-    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
+  if ( x.getRows() != img.height * img.width )
+    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(img.height) + DEBUG_STR(img.width));
 
   mat output(H * W, batch_size);
   ALLOCATE_GRIDS_AND_THREADS(H, W);
@@ -504,19 +517,19 @@ void ConvolutionalLayer::update_kernel(const mat& fin, const mat& delta) {
   // Update kernels with learning rate
   vector<mat> Z(nInputs, mat(kernel.area(), nOutputs, 0));
 
-  ALLOCATE_GRIDS_AND_THREADS(kernel.n, kernel.m);
+  ALLOCATE_GRIDS_AND_THREADS(kernel.height, kernel.width);
   grids.z = nOutputs;
 
-  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, img_out.m, img_out.n);
+  size_t shm_size = getSuitableShmSize(grids, threads, img_out);
   // printf("grids = (%lu, %lu, %lu), threads = (%lu, %lu, %lu) \n", grids.x, grids.y, grids.z, threads.x, threads.y, threads.z);
 
   for (size_t i=0; i<nInputs; ++i) {
     for (size_t b=0; b<batch_size; ++b) {
 
-      convn_valid_kernel_with_shm<true, false><<< grids, threads, SHM_SIZE, 0 >>>(
-	  Z[i].getData(), kernel.m, kernel.n,
-	  fin.getData() + i * img_in.area() + b * fin.getRows(), img_in.m, img_in.n,
-	  delta.getData() + b * delta.getRows(), img_out.m, img_out.n,
+      convn_valid_kernel_with_shm<true, false><<< grids, threads, shm_size, 0 >>>(
+	  Z[i].getData(), kernel.height, kernel.width,
+	  fin.getData() + i * img_in.area() + b * fin.getRows(), img_in.height, img_in.width,
+	  delta.getData() + b * delta.getRows(), img_out.height, img_out.width,
 	  kernel.area(), 0, img_out.area());
 
     }
@@ -571,17 +584,17 @@ void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
 
   fout = mat(bias) * mat(1, batch_size, 1.0f);
 
-  ALLOCATE_GRIDS_AND_THREADS(img_out.n, img_out.m);
+  ALLOCATE_GRIDS_AND_THREADS(img_out.height, img_out.width);
   grids.z = batch_size;
 
-  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kernel.m, kernel.n);
+  size_t shm_size = getSuitableShmSize(grids, threads, kernel);
 
   for (size_t j=0; j<nOutputs; ++j) {
     for (size_t i=0; i<nInputs; ++i) {
-      convn_valid_kernel_with_shm<false, false><<< grids, threads, SHM_SIZE, 0 >>>(
-	  fout.getData() + j * img_out.area(), img_out.m, img_out.n,
-	  fin.getData()  + i * img_in.area(),  img_in.m,  img_in.n,
-	  _kernels[i][j].getData(), kernel.m, kernel.n,
+      convn_valid_kernel_with_shm<false, false><<< grids, threads, shm_size, 0 >>>(
+	  fout.getData() + j * img_out.area(), img_out.height, img_out.width,
+	  fin.getData()  + i * img_in.area(),  img_in.height,  img_in.width,
+	  _kernels[i][j].getData(), kernel.height, kernel.width,
 	  fout.getRows(), fin.getRows(), 0);
     }
   }
@@ -602,17 +615,17 @@ void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
 
   error.resize(img_in.area() * nInputs + 1, batch_size, 0.);
 
-  ALLOCATE_GRIDS_AND_THREADS(img_in.n, img_in.m);
+  ALLOCATE_GRIDS_AND_THREADS(img_in.height, img_in.width);
   grids.z = batch_size;
 
-  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kernel.m, kernel.n);
+  size_t shm_size = getSuitableShmSize(grids, threads, kernel);
 
   for (size_t i=0; i<nInputs; ++i) {
     for (size_t j=0; j<nOutputs; ++j) {
-      convn_full_kernel_with_shm<false, true><<< grids, threads, SHM_SIZE, 0 >>>(
-	  error.getData() + i * img_in.area(),  img_in.m,  img_in.n,
-	  delta.getData() + j * img_out.area(), img_out.m, img_out.n,
-	  _kernels[i][j].getData(), kernel.m, kernel.n,
+      convn_full_kernel_with_shm<false, true><<< grids, threads, shm_size, 0 >>>(
+	  error.getData() + i * img_in.area(),  img_in.height,  img_in.width,
+	  delta.getData() + j * img_out.area(), img_out.height, img_out.width,
+	  _kernels[i][j].getData(), kernel.height, kernel.width,
 	  error.getRows(), delta.getRows(), 0);
     }
   }
@@ -627,7 +640,7 @@ void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
   SIZE img_in = this->get_input_img_size();
   SIZE img_out = this->get_output_img_size();
 
-  ALLOCATE_GRIDS_AND_THREADS(img_out.m, img_out.n);
+  ALLOCATE_GRIDS_AND_THREADS(img_out.height, img_out.width);
   grids.z = getNumOutputMaps();
 
   fout.resize(img_out.area() * getNumOutputMaps() + 1, fin.getCols());
@@ -636,7 +649,7 @@ void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
     downsample_kernel<<<grids, threads>>>(
 	fout.getData() + i * fout.getRows(),
 	fin.getData() + i * fin.getRows(),
-	_scale, img_in.m, img_in.n);
+	_scale, img_in.height, img_in.width);
   }
   CCE(cudaDeviceSynchronize());
 }
@@ -648,7 +661,7 @@ void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
   SIZE img_in = this->get_input_img_size();
   SIZE img_out = this->get_output_img_size();
 
-  ALLOCATE_GRIDS_AND_THREADS(img_in.m, img_in.n);
+  ALLOCATE_GRIDS_AND_THREADS(img_in.height, img_in.width);
   grids.z = getNumInputMaps();
 
   error.resize(img_in.area() * getNumInputMaps() + 1, delta.getCols());
@@ -657,7 +670,7 @@ void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
     upsample_kernel<<<grids, threads>>>(
 	error.getData() + i * error.getRows(),
 	delta.getData() + i * delta.getRows(),
-	img_out.m, img_out.n, img_in.m, img_in.n);
+	img_out.height, img_out.width, img_in.height, img_in.width);
   }
 
   error *= 1.0f / (_scale * _scale);

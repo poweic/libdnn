@@ -61,35 +61,35 @@ enum ConvType {
 };
 
 struct SIZE {
-  size_t m, n;
+  size_t height, width;
 
-  SIZE(): m(0), n(0) {}
-  SIZE(size_t m, size_t n): m(m), n(n) {}
+  SIZE(): height(0), width(0) {}
+  SIZE(size_t height, size_t width): height(height), width(width) {}
 
-  bool operator == (const SIZE& rhs) const { return m == rhs.m && n == rhs.n; }
+  bool operator == (const SIZE& rhs) const { return height == rhs.height && width == rhs.width; }
 
-  SIZE operator + (const SIZE& rhs) const { return SIZE(m + rhs.m, n + rhs.n); }
-  SIZE operator - (const SIZE& rhs) const { return SIZE(m - rhs.m, n - rhs.n); }
+  SIZE operator + (const SIZE& rhs) const { return SIZE(height + rhs.height, width + rhs.width); }
+  SIZE operator - (const SIZE& rhs) const { return SIZE(height - rhs.height, width - rhs.width); }
 
-  SIZE operator + (size_t x) const { return SIZE(m + x, n + x); }
-  SIZE operator - (size_t x) const { return SIZE(m - x, n - x); }
-  SIZE operator * (size_t x) const { return SIZE(m * x, n * x); }
-  SIZE operator / (size_t x) const { return SIZE(m / x, n / x); }
+  SIZE operator + (size_t x) const { return SIZE(height + x, width + x); }
+  SIZE operator - (size_t x) const { return SIZE(height - x, width - x); }
+  SIZE operator * (size_t x) const { return SIZE(height * x, width * x); }
+  SIZE operator / (size_t x) const { return SIZE(height / x, width / x); }
 
-  size_t area() const { return m * n; }
+  size_t area() const { return height * width; }
 
   friend SIZE max(const SIZE& s1, const SIZE& s2) {
-    return SIZE(std::max(s1.m, s2.m), std::max(s1.n, s2.n));
+    return SIZE(std::max(s1.height, s2.height), std::max(s1.width, s2.width));
   }
 
   operator std::string () {
     char buffer[12];
-    sprintf(buffer, "%2lu x %-2lu", m, n);
+    sprintf(buffer, "%2lu x %-2lu", height, width);
     return buffer;
   }
 
   friend std::ostream& operator << (std::ostream& os, const SIZE& s) {
-    os << std::setw(3) << s.m <<  " x " << std::left << std::setw(3) << s.n;
+    os << std::setw(3) << s.height <<  " x " << std::left << std::setw(3) << s.width;
     return os;
   }
 };
