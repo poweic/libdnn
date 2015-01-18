@@ -19,6 +19,7 @@
 #include <cassert>
 
 #define CFRE(x) { if (x == 0) throw std::runtime_error(RED_ERROR + "Failed when read features. "); }
+#define DEBUG_STR(x) ("\33[33m"#x"\33[0m = " + to_string(x) + "\t")
 
 /* \brief Factory method for class DataStream
  *
@@ -261,13 +262,16 @@ void KaldiStream::init(size_t start, size_t end) {
   clog << "Reading label from \33[33m\"" << this->get_label_command() << "\"\33[0m" << endl;
 
   // Use wc to count # of features
-  string wc_count_lines = this->get_feature_command() +
-    "| feat-to-len --print-args=false ark:- ark,t:- | cut -f 2 -d ' '";
-  FILE* fid = popen(wc_count_lines.c_str(), "r");
+  // "| feat-to-len --print-args=false ark:- ark,t:- | cut -f 2 -d ' '";
+  string wc_count_words = this->get_label_command() + "| cut -f 2- -d ' ' | wc -w";
 
-  int x;
-  while (fscanf(fid, "%d", &x) == 1) DataStream::_size += x;
+  FILE* fid = popen(wc_count_words.c_str(), "r");
+  if (fscanf(fid, "%lu", &(DataStream::_size)) != 1)
+    throw std::runtime_error(RED_ERROR + "Failed to count number of labels");
   pclose(fid);
+
+  clog << util::blue("[Info]") << " Found " << util::green(to_string(DataStream::_size))
+       << " labels in \"" << this->get_label_command() << "\"" << endl;
 
   _ffid = popen(this->get_feature_command().c_str(), "r");
 

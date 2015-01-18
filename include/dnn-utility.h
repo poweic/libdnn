@@ -12,8 +12,8 @@
 
   #define NV_DEVICE_WARP_SIZE 32
 
-  #define ALLOCATE_GRIDS_AND_THREADS(cols, rows) \
-    dim3 grids( ceil( (float) cols / NV_DEVICE_WARP_SIZE), ceil( (float) rows / NV_DEVICE_WARP_SIZE)); \
+  #define ALLOCATE_GRIDS_AND_THREADS(rows, cols) \
+    dim3 grids( ceil( (float) rows / NV_DEVICE_WARP_SIZE), ceil( (float) cols / NV_DEVICE_WARP_SIZE)); \
     dim3 threads(NV_DEVICE_WARP_SIZE, NV_DEVICE_WARP_SIZE);
 
 #endif
@@ -126,7 +126,7 @@ void memcpy2D(device_matrix<T>& dest, const device_matrix<T>& src,
       dest.getData() + c1 * dest.getRows() + r1, dest.getRows());
 }
 
-template <typename T>
+/*template <typename T>
 device_matrix<T> vercat(const std::vector<device_matrix<T> >& matrices, 
     bool reserve = false) {
 
@@ -142,7 +142,7 @@ device_matrix<T> vercat(const std::vector<device_matrix<T> >& matrices,
   for (size_t i=0; i<matrices.size(); ++i)
     memcpy2D<T>(result, matrices[i], 0, 0, rows, cols, i*rows, 0);
   return result;
-}
+}*/
 
 /*! \brief vertical split (the inverse function of vercat)
  *  versplit will ignore any pre-reserved row in the input matrix (i.e. big)

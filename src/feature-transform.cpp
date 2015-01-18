@@ -528,7 +528,7 @@ void MIMOFeatureTransform::read(xml_node<> *node) {
 void MIMOFeatureTransform::write(ostream& os) const {
   char buffer[256];
   sprintf(buffer, "input-dim=\"%lux%lu\" input-maps=\"%lu\" output-maps=\"%lu\"",
-      _input_img_size.m, _input_img_size.n, _n_input_maps, _n_output_maps);
+      _input_img_size.height, _input_img_size.width, _n_input_maps, _n_output_maps);
   os << buffer;
 }
 
@@ -606,9 +606,9 @@ void ConvolutionalLayer::read(xml_node<> *node) {
     for (auto w = kernels->first_node("weight"); w; w = w->next_sibling(), i++) {
       stringstream ss(w->value());
 
-      hmat hw(k.m, k.n);
-      for (size_t x=0; x<k.m; ++x)
-	for (size_t y=0; y<k.n; ++y)
+      hmat hw(k.height, k.width);
+      for (size_t x=0; x<k.height; ++x)
+	for (size_t y=0; y<k.width; ++y)
 	  CSE( ss >> hw(x, y) );
 
       _kernels[i][j] = (mat) hw;
@@ -653,84 +653,6 @@ ConvolutionalLayer* ConvolutionalLayer::clone() const {
 string ConvolutionalLayer::toString() const {
   return type2token[FeatureTransform::Convolution];
 }
-
-/* FIXME If every element in fins is a single feature map, then only a data can
- *      be fed forward through this function.
- *      NOTE that fins.size()  == # of input feature maps
- *                             != # of data in a batch
- *
- *	To feed forward a whole batch in a single function:
- *                fins.size()  == # of input feature maps
- *		  fins[i].rows == map.rows x map.cols
- *		  fins[i].cols == # of data
- *
- *	That is fins.size() is still the # of input feature maps (, which is
- *      always inevitable). However, in the i-th element of fins (i.e. fins[i])
- *	, there're multiple input feature maps comes from multiple training data.
- * */
-
-void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
-
-  auto fins = versplit(fin, getNumInputMaps(), get_input_img_size().area());
-
-  size_t nInputs  = getNumInputMaps(),
-	 nOutputs = getNumOutputMaps();
-
-  if (fins.size() != nInputs)
-    throw std::runtime_error(RED_ERROR + "Number of inputs maps ( = "
-	+ to_string(fins.size()) + ") does not match number of kernels ( = "
-	+ to_string(nInputs) + ").");
-
-  size_t batch_size = fins[0].getCols();
-
-  SIZE s = get_output_img_size();
-
-  vector<mat> fouts(nOutputs);
-
-  for (size_t j=0; j<nOutputs; ++j)
-    fouts[j].resize(s.m * s.n, batch_size, _bias[j]);
-
-  for (size_t j=0; j<nOutputs; ++j) {
-    for (size_t i=0; i<nInputs; ++i)
-      fouts[j] += convn(fins[i], _kernels[i][j], _input_img_size, VALID_SHM);
-  }
-
-  fout = vercat(fouts, true);
-}
-
-void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
-
-  vector<mat> deltas = versplit(delta, getNumOutputMaps(), get_output_img_size().area());
-
-  // Since nInputs == nOutputs for subsampling layer, I just use N.
-  size_t nInputs = getNumInputMaps(),
-	 nOutputs = getNumOutputMaps();
-
-  SIZE s = this->get_input_img_size();
-  size_t batch_size = deltas[0].getCols();
-
-  vector<mat> errors(nInputs);
-
-  for (size_t i=0; i<nInputs; ++i)
-    errors[i].resize(s.m * s.n, batch_size, 0);
-
-  for (size_t i=0; i<nInputs; ++i)
-    for (size_t j=0; j<nOutputs; ++j)
-      errors[i] += convn(deltas[j], rot180(_kernels[i][j]), this->get_output_img_size(), FULL_SHM);
-
-  error = vercat(errors, true);
-}
-
-// NOTE: in MATLAB
-// xcorr2 stands for 2D cross-correlation
-// (I don't know why MATLAB does not have "xcorrn" for n-dimensional xcorr)
-// The following operation are theoretically equivalent:
-// (with only some trivial numerical error)
-// (1)  convn(x, rot180(h)) == xcorr2(x, h)
-//     xcorr2(x, rot180(h)) ==  convn(x, h)
-// (2) convn(rot180(x), h) == rot180(convn(x, rot180(h)))
-//     ^
-//     |_____ which is obviously faster
 
 void ConvolutionalLayer::backPropagate(mat& error, const mat& fin,
     const mat& fout, float learning_rate) {
