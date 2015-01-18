@@ -12,8 +12,8 @@
 
   #define NV_DEVICE_WARP_SIZE 32
 
-  #define ALLOCATE_GRIDS_AND_THREADS(cols, rows) \
-    dim3 grids( ceil( (float) cols / NV_DEVICE_WARP_SIZE), ceil( (float) rows / NV_DEVICE_WARP_SIZE)); \
+  #define ALLOCATE_GRIDS_AND_THREADS(rows, cols) \
+    dim3 grids( ceil( (float) rows / NV_DEVICE_WARP_SIZE), ceil( (float) cols / NV_DEVICE_WARP_SIZE)); \
     dim3 threads(NV_DEVICE_WARP_SIZE, NV_DEVICE_WARP_SIZE);
 
 #endif

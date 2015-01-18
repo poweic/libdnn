@@ -39,7 +39,7 @@ using namespace std;
 /*! Convert each row to a 2D image
  * \param data Each col in data is a feature vector. # of cols = # of data
 						     # of rows = image size
- * \param s Size of the image. # of rows in data = s.m x s.n
+ * \param s Size of the image. # of rows in data = s.height x s.width
  */
 vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
 
@@ -47,10 +47,10 @@ vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
   vector<mat> images(nData);
 
   for (size_t i=0; i<nData; ++i) {
-    images[i].resize(s.m, s.n);
+    images[i].resize(s.height, s.width);
 
     CCE(cudaMemcpy(images[i].getData(), data.getData() + i * data.getRows(),
-	  sizeof(float) * s.m * s.n, cudaMemcpyDeviceToDevice));
+	  sizeof(float) * s.height * s.width, cudaMemcpyDeviceToDevice));
   }
   CCE(cudaDeviceSynchronize());
 
@@ -329,7 +329,7 @@ mat convn(const mat& data, const mat& kernel, ConvType type) {
 
   SIZE s = get_convn_size(data, kernel, type);
 
-  mat output(s.m, s.n);
+  mat output(s.height, s.width);
   ALLOCATE_GRIDS_AND_THREADS(output.getCols(), output.getRows());
 
   cudaStream_t stream = 0;
@@ -436,18 +436,18 @@ mat downsample(const mat& x, size_t scale, SIZE size) {
 
   SIZE output_size = size / scale;
 
-  if ( x.getRows() != size.m * size.n )
-    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(size.m) + DEBUG_STR(size.n));
+  if ( x.getRows() != size.height * size.width )
+    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(size.height) + DEBUG_STR(size.width));
 
   mat output(output_size.area(), batch_size);
 
-  ALLOCATE_GRIDS_AND_THREADS(output_size.m, output_size.n);
+  ALLOCATE_GRIDS_AND_THREADS(output_size.height, output_size.width);
   grids.z = batch_size;
 
   downsample_kernel<<<grids, threads>>>(
       output.getData(),
       x.getData(),
-      scale, output_size.m, output_size.n);
+      scale, output_size.height, output_size.width);
 
   CCE(cudaDeviceSynchronize());
 
@@ -457,13 +457,13 @@ mat downsample(const mat& x, size_t scale, SIZE size) {
 mat upsample(const mat& x, SIZE s, SIZE img) {
 
   int batch_size = x.getCols();
-  int H = s.m, 
-      W = s.n,
-      h = img.m,
-      w = img.n;
+  int H = s.height, 
+      W = s.width,
+      h = img.height,
+      w = img.width;
 
-  if ( x.getRows() != img.m * img.n )
-    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(img.m) + DEBUG_STR(img.n));
+  if ( x.getRows() != img.height * img.width )
+    throw runtime_error(RED_ERROR + DEBUG_STR(x.getRows()) + DEBUG_STR(img.height) + DEBUG_STR(img.width));
 
   mat output(H * W, batch_size);
   ALLOCATE_GRIDS_AND_THREADS(H, W);
@@ -504,19 +504,19 @@ void ConvolutionalLayer::update_kernel(const mat& fin, const mat& delta) {
   // Update kernels with learning rate
   vector<mat> Z(nInputs, mat(kernel.area(), nOutputs, 0));
 
-  ALLOCATE_GRIDS_AND_THREADS(kernel.n, kernel.m);
+  ALLOCATE_GRIDS_AND_THREADS(kernel.width, kernel.height);
   grids.z = nOutputs;
 
-  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, img_out.m, img_out.n);
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, img_out.height, img_out.width);
   // printf("grids = (%lu, %lu, %lu), threads = (%lu, %lu, %lu) \n", grids.x, grids.y, grids.z, threads.x, threads.y, threads.z);
 
   for (size_t i=0; i<nInputs; ++i) {
     for (size_t b=0; b<batch_size; ++b) {
 
       convn_valid_kernel_with_shm<true, false><<< grids, threads, SHM_SIZE, 0 >>>(
-	  Z[i].getData(), kernel.m, kernel.n,
-	  fin.getData() + i * img_in.area() + b * fin.getRows(), img_in.m, img_in.n,
-	  delta.getData() + b * delta.getRows(), img_out.m, img_out.n,
+	  Z[i].getData(), kernel.height, kernel.width,
+	  fin.getData() + i * img_in.area() + b * fin.getRows(), img_in.height, img_in.width,
+	  delta.getData() + b * delta.getRows(), img_out.height, img_out.width,
 	  kernel.area(), 0, img_out.area());
 
     }
@@ -571,17 +571,17 @@ void ConvolutionalLayer::feedForward(mat& fout, const mat& fin) {
 
   fout = mat(bias) * mat(1, batch_size, 1.0f);
 
-  ALLOCATE_GRIDS_AND_THREADS(img_out.n, img_out.m);
+  ALLOCATE_GRIDS_AND_THREADS(img_out.width, img_out.height);
   grids.z = batch_size;
 
-  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kernel.m, kernel.n);
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kernel.height, kernel.width);
 
   for (size_t j=0; j<nOutputs; ++j) {
     for (size_t i=0; i<nInputs; ++i) {
       convn_valid_kernel_with_shm<false, false><<< grids, threads, SHM_SIZE, 0 >>>(
-	  fout.getData() + j * img_out.area(), img_out.m, img_out.n,
-	  fin.getData()  + i * img_in.area(),  img_in.m,  img_in.n,
-	  _kernels[i][j].getData(), kernel.m, kernel.n,
+	  fout.getData() + j * img_out.area(), img_out.height, img_out.width,
+	  fin.getData()  + i * img_in.area(),  img_in.height,  img_in.width,
+	  _kernels[i][j].getData(), kernel.height, kernel.width,
 	  fout.getRows(), fin.getRows(), 0);
     }
   }
@@ -602,17 +602,17 @@ void ConvolutionalLayer::feedBackward(mat& error, const mat& delta) {
 
   error.resize(img_in.area() * nInputs + 1, batch_size, 0.);
 
-  ALLOCATE_GRIDS_AND_THREADS(img_in.n, img_in.m);
+  ALLOCATE_GRIDS_AND_THREADS(img_in.width, img_in.height);
   grids.z = batch_size;
 
-  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kernel.m, kernel.n);
+  size_t SHM_SIZE = getSuitableShmConfig(grids, threads, kernel.height, kernel.width);
 
   for (size_t i=0; i<nInputs; ++i) {
     for (size_t j=0; j<nOutputs; ++j) {
       convn_full_kernel_with_shm<false, true><<< grids, threads, SHM_SIZE, 0 >>>(
-	  error.getData() + i * img_in.area(),  img_in.m,  img_in.n,
-	  delta.getData() + j * img_out.area(), img_out.m, img_out.n,
-	  _kernels[i][j].getData(), kernel.m, kernel.n,
+	  error.getData() + i * img_in.area(),  img_in.height,  img_in.width,
+	  delta.getData() + j * img_out.area(), img_out.height, img_out.width,
+	  _kernels[i][j].getData(), kernel.height, kernel.width,
 	  error.getRows(), delta.getRows(), 0);
     }
   }
@@ -627,7 +627,7 @@ void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
   SIZE img_in = this->get_input_img_size();
   SIZE img_out = this->get_output_img_size();
 
-  ALLOCATE_GRIDS_AND_THREADS(img_out.m, img_out.n);
+  ALLOCATE_GRIDS_AND_THREADS(img_out.height, img_out.width);
   grids.z = getNumOutputMaps();
 
   fout.resize(img_out.area() * getNumOutputMaps() + 1, fin.getCols());
@@ -636,7 +636,7 @@ void SubSamplingLayer::feedForward(mat& fout, const mat& fin) {
     downsample_kernel<<<grids, threads>>>(
 	fout.getData() + i * fout.getRows(),
 	fin.getData() + i * fin.getRows(),
-	_scale, img_in.m, img_in.n);
+	_scale, img_in.height, img_in.width);
   }
   CCE(cudaDeviceSynchronize());
 }
@@ -648,7 +648,7 @@ void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
   SIZE img_in = this->get_input_img_size();
   SIZE img_out = this->get_output_img_size();
 
-  ALLOCATE_GRIDS_AND_THREADS(img_in.m, img_in.n);
+  ALLOCATE_GRIDS_AND_THREADS(img_in.height, img_in.width);
   grids.z = getNumInputMaps();
 
   error.resize(img_in.area() * getNumInputMaps() + 1, delta.getCols());
@@ -657,7 +657,7 @@ void SubSamplingLayer::feedBackward(mat& error, const mat& delta) {
     upsample_kernel<<<grids, threads>>>(
 	error.getData() + i * error.getRows(),
 	delta.getData() + i * delta.getRows(),
-	img_out.m, img_out.n, img_in.m, img_in.n);
+	img_out.height, img_out.width, img_in.height, img_in.width);
   }
 
   error *= 1.0f / (_scale * _scale);
