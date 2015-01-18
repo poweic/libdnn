@@ -57,26 +57,6 @@ vector<mat> reshapeVectors2Images(const mat& data, const SIZE s) {
   return images;
 }
 
-string getColorCode(float n) {
-  int x = 232 + n * (256-232);
-  return "\33[38;5;" + to_string(x) + "m";
-}
-
-void showImage(const mat& x) {
-
-  int rows = x.getRows(),
-      cols = x.getCols();
-
-  hmat h_x(x);
-
-  for (size_t i=0; i<rows; ++i) {
-    for (size_t j=0; j<cols; ++j)
-      cout << getColorCode(h_x(i, j)) << "◼" << " ";
-    cout << endl;
-  }
-  cout << "\33[0m" << endl;
-}
-
 template <bool rot180kernel>
 __device__ void load_kernel_into_shm(float* const K, const float* const kernel,
     int kH, int kW, int tid, int nThreads) {
@@ -497,28 +477,6 @@ mat upsample(const mat& x, SIZE s, SIZE img) {
   CCE(cudaDeviceSynchronize());
 
   return output;
-}
-
-template <typename T>
-__global__ void rot180_kernel(T *odata, const T *idata, const int rows, const int cols) {
-
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-  int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-  if (x < cols && y < rows)
-    odata[x*rows + y] = idata[(cols - 1 - x) * rows+ (rows - 1 - y)];
-}
-
-mat rot180(const mat& x) {
-
-  int rows = x.getRows(),
-      cols = x.getCols();
-
-  mat y(rows, cols);
-  ALLOCATE_GRIDS_AND_THREADS(cols, rows);
-  rot180_kernel<<<grids, threads>>>(y.getData(), x.getData(), rows, cols);
-
-  return y;
 }
 
 /*!
