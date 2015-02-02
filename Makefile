@@ -1,7 +1,9 @@
-CC=gcc
 CXX=g++
-CFLAGS=
+CFLAGS=-fPIC -std=c++0x #-Werror -Wall
+LFLAGS_BIN=
+LFLAGS_LIB=-shared
 NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
+NVCFLAGS=-Xcompiler -fPIC
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
@@ -12,8 +14,6 @@ INCLUDE= -I ./ \
 	 -I $(CUMATRIX_ROOT)/include \
  	 -I /usr/local/cuda/samples/common/inc/ \
 	 -I /usr/local/cuda/include
-
-CPPFLAGS= -std=c++0x $(CFLAGS) $(INCLUDE) #-Werror -Wall 
 
 SOURCES=cnn-utility.cu\
 	nnet.cpp\
@@ -33,11 +33,15 @@ EXECUTABLES=nn-train\
 	    nn-print\
 	    data-statistics
 
+LIBRARY=libdnn.so
+
+
 EXECUTABLES:=$(addprefix bin/, $(EXECUTABLES))
+LIBRARY:=$(addprefix bin/, $(LIBRARY))
 
 .PHONY: debug all o3 dump_nrv ctags clean
 
-all: $(EXECUTABLES) ctags
+all: $(EXECUTABLES) $(LIBRARY) ctags
 
 o3: CFLAGS+=-O3
 o3: all
@@ -56,21 +60,24 @@ OBJ:=$(addprefix $(OBJDIR)/, $(addsuffix .o,$(basename $(SOURCES))))
 $(OBJDIR):
 	@mkdir -p $(OBJDIR)
 
-LIBRARY=-lpbar -lcumatrix
-CUDA_LIBRARY=-lcuda -lcudart -lcublas
+UTIL_LIBS=-lpbar -lcumatrix
+CUDA_LIBS=-lcuda -lcudart -lcublas
 LIBRARY_PATH=-L$(BOTON_UTIL_ROOT)/lib/ -L$(CUMATRIX_ROOT)/lib -L/usr/local/cuda/lib64
 
 $(EXECUTABLES): bin/% : $(OBJ) $(OBJDIR)/%.o
-	$(CXX) -o $@ $(CFLAGS) -std=c++0x $(INCLUDE) $^ $(LIBRARY_PATH) $(LIBRARY) $(CUDA_LIBRARY)
+	$(CXX) -o $@ $(LFLAGS_BIN) $^ $(LIBRARY_PATH) $(UTIL_LIBS) $(CUDA_LIBS)
+
+$(LIBRARY): bin/% : $(OBJ)
+	$(CXX) -o $@ $(LFLAGS_LIB) $^ $(LIBRARY_PATH)
 
 # +==============================+
 # +===== Other Phony Target =====+
 # +==============================+
 $(OBJDIR)/%.o: %.cpp
-	$(CXX) $(CPPFLAGS) -std=c++0x -o $@ -c $<
+	$(CXX) $(CFLAGS) $(INCLUDE) -o $@ -c $<
 
 $(OBJDIR)/%.o: %.cu include/%.h
-	$(NVCC) $(CFLAGS) $(INCLUDE) -o $@ -c $<
+	$(NVCC) $(NVCFLAGS) $(INCLUDE) -o $@ -c $<
 
 $(OBJDIR)/%.d: %.cpp | $(OBJDIR)
 	@$(CXX) -MM $(CPPFLAGS) $< > $@.$$$$; \
