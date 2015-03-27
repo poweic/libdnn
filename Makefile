@@ -3,7 +3,7 @@ CFLAGS=-fPIC -std=c++0x #-Werror -Wall
 LFLAGS_BIN=
 LFLAGS_LIB=-shared
 NVCC=nvcc -arch=sm_21 -w #-Xcompiler "-Wall"
-NVCFLAGS=-Xcompiler -fPIC
+NVCFLAGS=-Xcompiler -fPIC -std=c++11
 
 BOTON_UTIL_ROOT=tools/utility/
 CUMATRIX_ROOT=tools/libcumatrix/
