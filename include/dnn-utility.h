@@ -26,6 +26,7 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/inner_product.h>
+#include <thrust/extrema.h>
 
 #include <host_matrix.h>
 
