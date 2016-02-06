@@ -224,7 +224,7 @@ bool isEoutStopDecrease(const std::vector<size_t> Eouts, size_t epoch, size_t nN
   if(epoch < nNonIncEpoch) return false;
 
   for (size_t i=1; i<=nNonIncEpoch; ++i) {
-    if (epoch - i > 0 && Eouts[epoch] < Eouts[epoch - i]) // Eout is # error instances
+    if (Eouts[epoch] < Eouts[epoch - i]) // Eout is # error instances
       return false;
   }
 
