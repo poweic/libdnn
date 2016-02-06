@@ -221,8 +221,10 @@ size_t nnet_predict(NNet& nnet, DataSet& data) {
 
 bool isEoutStopDecrease(const std::vector<size_t> Eouts, size_t epoch, size_t nNonIncEpoch) {
 
-  for (size_t i=0; i<nNonIncEpoch; ++i) {
-    if (epoch - i > 0 && Eouts[epoch] > Eouts[epoch - i])
+  if(epoch < nNonIncEpoch) return false;
+
+  for (size_t i=1; i<=nNonIncEpoch; ++i) {
+    if (Eouts[epoch] < Eouts[epoch - i]) // Eout is # error instances
       return false;
   }
 
